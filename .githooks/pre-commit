@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if rg -n "^(<<<<<<<|=======|>>>>>>>)" --glob "*.js" --glob "*.json" .; then
+  echo "ERROR: Unresolved merge conflicts detected"
+  exit 1
+fi

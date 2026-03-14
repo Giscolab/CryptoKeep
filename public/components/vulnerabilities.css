@@ -1,0 +1,144 @@
+@layer components.vulnerabilities {
+  .vulnerability-section {
+    margin-bottom: 2rem;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-header h3 {
+    font-size: var(--fs-500);
+    font-weight: 600;
+  }
+
+  .view-all {
+    color: var(--color-accent);
+    font-size: var(--fs-300);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .vulnerability-list {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .vulnerability-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    transition: all var(--transition-base);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .vulnerability-item:last-child {
+    border-bottom: none;
+  }
+
+  .vulnerability-item:hover {
+    background-color: var(--color-surface-alt);
+  }
+
+  .vuln-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .vuln-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+  }
+
+  .vuln-critical .vuln-icon {
+    background: rgb(211 47 47 / 15%);
+    color: var(--color-danger);
+  }
+
+  .vuln-high .vuln-icon {
+    background: rgb(255 152 0 / 15%);
+    color: var(--color-warning);
+  }
+
+  .vuln-medium .vuln-icon {
+    background: rgb(187 134 252 / 15%);
+    color: var(--color-accent);
+  }
+
+  .vuln-details {
+    flex: 1;
+  }
+
+  .vuln-severity {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: var(--fs-300);
+    font-weight: 500;
+  }
+
+  .severity-critical {
+    background: rgb(211 47 47 / 15%);
+    color: var(--color-danger);
+  }
+
+  .severity-high {
+    background: rgb(255 152 0 / 15%);
+    color: var(--color-warning);
+  }
+
+  .severity-medium {
+    background: rgb(187 134 252 / 15%);
+    color: var(--color-accent);
+  }
+
+  .vuln-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .vuln-action-btn {
+    background-color: rgb(255 255 255 / 8%);
+    color: var(--color-text);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--fs-300);
+    font-weight: 500;
+  }
+
+  .vuln-action-btn:hover {
+    background-color: var(--color-surface-light);
+  }
+
+  @media (width <= 768px) {
+    .vulnerability-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .vuln-actions {
+      align-self: flex-end;
+    }
+  }
+}

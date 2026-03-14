@@ -1,0 +1,23 @@
+@layer layout.wrapper {
+  .wrapper {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .main {
+    flex: 1;
+    padding: var(--spacing-lg) calc(var(--spacing-lg) * 2);
+    overflow-y: auto;
+    height: 100vh;
+    min-width: 0;
+    background-color: var(--color-bg);
+  }
+
+  @media (width <= 768px) {
+    .main {
+      padding: var(--spacing-md);
+    }
+  }
+}
+

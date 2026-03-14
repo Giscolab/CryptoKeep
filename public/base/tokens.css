@@ -1,0 +1,22 @@
+@layer base.tokens {
+
+  /* Exemple — z-index système */
+  :root {
+    --z-index-toast: 1000;
+    --z-index-modal: 1100;
+    --z-index-overlay: 900;
+
+    /* Transitions génériques */
+    --transition-base: 0.2s ease;
+    --transition-fast: 0.1s ease-in-out;
+    --transition-toast: 300ms cubic-bezier(0.21, 1.02, 0.73, 1);
+    --transition: 0.2s ease-in-out;
+
+    /* Breakpoints (si nécessaire dans projet) */
+    --breakpoint-sm: 640px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1280px;
+
+  }
+}

@@ -1,0 +1,32 @@
+@layer theme.lightsaber {
+  :root[data-theme="lightsaber"] {
+    /* Couleurs Lightsaber */
+    --color-bg: #0b0c10;
+    --color-text: #d0d8e0;
+    --color-text-muted: #7f8c8d;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #00e5ff;
+    --color-accent-alt: #80d8ff;
+
+    --color-surface: #1c1f26;
+    --color-surface-alt: #16181d;
+    --color-surface-light: #2a2f3a;
+    --color-overlay: rgb(0 0 0 / 60%);
+
+    --color-border: #39444c;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #22252c;
+    --color-disabled-text: #777;
+
+    /* Typographie techno (facultative, sinon hérite) */
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    /* Alias sémantiques (identiques à default) */
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

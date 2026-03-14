@@ -1,0 +1,20 @@
+@layer layout.app {
+  #app {
+    width: 100%;
+    max-width: 800px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding-inline: var(--spacing-md);
+    padding-block: var(--spacing-lg);
+    overflow-x: hidden;
+	min-height: 100vh;
+  }
+
+  @media (width >= 1280px) {
+    #app {
+      max-width: 1024px;
+    }
+  }
+}

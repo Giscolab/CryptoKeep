@@ -1,0 +1,6 @@
+@layer utilities.visibility {
+  [hidden],
+  .hidden {
+    display: none !important;
+  }
+}

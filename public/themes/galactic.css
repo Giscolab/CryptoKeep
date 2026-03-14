@@ -1,0 +1,29 @@
+@layer theme.galactic {
+  :root[data-theme="galactic"] {
+    --color-bg: #0d0221;
+    --color-text: #d1c4e9;
+    --color-text-muted: #b39ddb;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #7c4dff;
+    --color-accent-alt: #b388ff;
+
+    --color-surface: #1a0e3e;
+    --color-surface-alt: #120833;
+    --color-surface-light: #291c52;
+    --color-overlay: rgba(13, 2, 33, 0.9);
+
+    --color-border: #4527a0;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #2c1b4d;
+    --color-disabled-text: #aaa;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

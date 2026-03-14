@@ -1,0 +1,129 @@
+/* public/components/audit-panel.css */
+
+.audit-trigger-btn {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--accent, #007acc);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  box-shadow: var(--shadow-md);
+  z-index: 9999;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.audit-trigger-btn:hover {
+  background: var(--accent-hover, #005a9c);
+}
+
+.audit-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 9998;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.audit-modal {
+  background: var(--surface, #fff);
+  color: var(--text, #111);
+  padding: 2rem;
+  border-radius: 1rem;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  font-family: sans-serif;
+}
+
+.audit-modal h2 {
+  margin-top: 0;
+  font-size: 1.4rem;
+}
+
+.audit-modal p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.audit-input {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 1rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.audit-run-btn {
+  background: var(--success, #28a745);
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: bold;
+  float: right;
+}
+
+.audit-run-btn:disabled {
+  background: #ccc;
+  cursor: wait;
+}
+
+.audit-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--text-muted, #777);
+}
+
+.audit-result {
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: #f4f4f4;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  max-height: 250px;
+  overflow-y: auto;
+  margin-top: 1rem;
+}
+
+.audit-report {
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: var(--text, #222);
+}
+
+.tooltip {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted;
+}
+
+.tooltip:hover::after {
+  content: attr(title);
+  position: absolute;
+  white-space: normal;
+  top: 120%;
+  left: 0;
+  background: rgba(20, 20, 20, 0.9);
+  color: white;
+  padding: 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  max-width: 300px;
+  border-radius: 0.5rem;
+  z-index: 10000;
+  pointer-events: none;
+}

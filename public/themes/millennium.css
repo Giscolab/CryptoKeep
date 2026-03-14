@@ -1,0 +1,29 @@
+@layer theme.millennium {
+  :root[data-theme="millennium"] {
+    --color-bg: #fdf6e3;
+    --color-text: #403e3c;
+    --color-text-muted: #7b7268;
+    --color-text-primary: #2e2e2e;
+
+    --color-accent: #0277bd;
+    --color-accent-alt: #58a5f0;
+
+    --color-surface: #f2e7c9;
+    --color-surface-alt: #eee2b8;
+    --color-surface-light: #fffbe6;
+    --color-overlay: rgba(255, 255, 255, 0.85);
+
+    --color-border: #ccc1a5;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #e0dac6;
+    --color-disabled-text: #999;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

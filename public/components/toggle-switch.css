@@ -1,0 +1,50 @@
+@layer components.toggle-switch {
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: var(--color-surface-alt);
+    border-radius: 24px;
+    border: 1.5px solid var(--color-border); /* Optionnel pour un effet Enhanced net */
+    transition: var(--transition-base);
+  }
+
+  .toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: var(--transition-base);
+    border-radius: 50%;
+  }
+
+  input:checked + .toggle-slider {
+    background-color: var(--color-accent);
+  }
+
+  input:checked + .toggle-slider::before {
+    transform: translateX(26px);
+  }
+
+  .toggle-switch input:disabled + .toggle-slider {
+    background: var(--color-disabled-bg);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}

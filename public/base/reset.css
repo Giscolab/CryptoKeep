@@ -1,0 +1,36 @@
+@layer base.reset {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :where(html) {
+    scroll-behavior: smooth;
+    text-size-adjust: 100%;
+  }
+
+  :where(body) {
+    min-height: 100vh;
+    min-height: 100dvh;
+    text-rendering: optimizespeed;
+  }
+
+  :where(img, picture, svg) {
+    max-width: 100%;
+    display: block;
+    height: auto;
+  }
+
+  :where(button, input, textarea, select) {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+
+  }
+
+  :where(ul, ol) {
+    list-style: none;
+  }
+}

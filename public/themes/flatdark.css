@@ -1,0 +1,29 @@
+@layer theme.flatdark {
+  :root[data-theme="flatdark"] {
+    --color-bg: #121212;
+    --color-text: #e0e0e0;
+    --color-text-muted: #888888;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #4fc3f7;
+    --color-accent-alt: #81d4fa;
+
+    --color-surface: #1e1e1e;
+    --color-surface-alt: #191919;
+    --color-surface-light: #2c2c2c;
+    --color-overlay: rgba(0, 0, 0, 0.6);
+
+    --color-border: #2e2e2e;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #2a2a2a;
+    --color-disabled-text: #777;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

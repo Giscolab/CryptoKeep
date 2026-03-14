@@ -1,0 +1,18 @@
+{
+  "name": "vault-personal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:security": "eslint .",
+    "test": "node tests/vault.spec.js && node tests/crypto.spec.js && node tests/vault-filters.spec.js",
+    "test:security": "node tests/security-no-plaintext.spec.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "eslint": "^9.29.0",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^16.2.0",
+    "purgecss": "^7.0.2"
+  }
+}

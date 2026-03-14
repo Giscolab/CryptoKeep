@@ -1,0 +1,79 @@
+/* ======== BASE ======== */
+@import url('base/global.css');
+@import url('base/reset.css');
+@import url('base/tokens.css');
+
+/* ======== COMPONENTS ======== */
+@import url('components/button.css');
+@import url('components/console.css');
+@import url('components/export-import.css');
+@import url('components/forms.css');
+@import url('components/header.css');
+@import url('components/metrics.css');
+@import url('components/modal.css');
+@import url('components/password-strength.css');
+@import url('components/password-tools.css');
+@import url('components/recommendations.css');
+@import url('components/score-box.css');
+@import url('components/security-chart.css');
+@import url('components/security-score.css');
+@import url('components/sidebar.css');
+@import url('components/stats.css');
+@import url('components/timer.css');
+@import url('components/toast.css');
+@import url('components/toggle-switch.css');
+@import url('components/vault.css');
+@import url('components/vulnerabilities.css');
+@import url('components/entropy.css');
+
+/* ======== LAYOUT ======== */
+@import url('layout/app.css');
+@import url('layout/auth.css');
+@import url('layout/responsive.css');
+@import url('layout/sections.css');
+@import url('layout/settings.css');
+@import url('layout/wrapper.css');
+
+/* ======== THEMES ======== */
+@import url('themes/default.css');
+@import url('themes/deathstar.css');
+@import url('themes/flatdark.css');
+@import url('themes/galactic.css');
+@import url('themes/invaders.css');
+@import url('themes/leia.css');
+@import url('themes/lightsaber.css');
+@import url('themes/metallic.css');
+@import url('themes/millennium.css');
+@import url('themes/padawan.css');
+@import url('themes/r2d2.css');
+@import url('themes/sith.css');
+@import url('themes/starfighter.css');
+@import url('themes/ubuntu.css');
+@import url('themes/xwing.css');
+
+
+/* ======== UTILITIES ======== */
+@import url('utilities/accessibility.css');
+@import url('utilities/visibility.css');
+
+/* ======== COUCHE GLOBALE ======== */
+@layer base {
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100vh;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+/* ======== OVERRIDES ======== */
+@layer utilities.overrides {
+  #app {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}

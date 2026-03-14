@@ -1,0 +1,20 @@
+{
+  "extends": "stylelint-config-standard",
+  "rules": {
+    "selector-class-pattern": "^[a-z][a-z0-9-_]+(__[a-z0-9]+)?(--[a-z0-9]+)?$",
+    "keyframes-name-pattern": "^[a-z0-9-]+$",
+    "layer-name-pattern": "^[a-z][a-z0-9.-]*$",
+    "declaration-block-single-line-max-declarations": 1,
+    "no-descending-specificity": true,
+    "no-duplicate-selectors": true,
+    "selector-pseudo-class-no-unknown": true,
+    "selector-pseudo-element-no-unknown": true,
+    "property-no-unknown": true,
+    "unit-no-unknown": true,
+    "color-no-invalid-hex": true,
+    "font-family-no-duplicate-names": true,
+    "block-no-empty": true,
+    "no-empty-source": true,
+    "declaration-property-value-keyword-no-deprecated": true
+  }
+}

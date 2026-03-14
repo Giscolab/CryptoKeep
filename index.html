@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="default">
+
+<head>
+	<meta charset="UTF-8">
+	<title>Vault Personal</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<!-- 🛡️ CSP raisonnable pour développement -->
+	<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' https://cdnjs.cloudflare.com;
+  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+  font-src https://cdnjs.cloudflare.com;
+  img-src 'self' data:;
+  manifest-src 'self';
+  base-uri 'self';
+  form-action 'self';
+  object-src 'none';
+">
+	<!-- 🎨 Chargement initial du thème -->
+	<script src="scripts/utils/theme-loader.js"></script>
+	<!-- 🎨 Styles -->
+	<link rel="stylesheet" href="public/main.css" crossorigin="anonymous" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<link rel="stylesheet" href="public/components/audit-panel.css">
+	<!-- 🔖 Favicons -->
+	<link rel="icon" href="public/icons/favicon.ico" type="image/x-icon">
+	<link rel="icon" type="image/png" sizes="32x32" href="public/icons/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="public/icons/favicon-16x16.png">
+	<link rel="apple-touch-icon" href="public/icons/apple-touch-icon.png">
+	<link rel="manifest" href="public/icons/site.webmanifest">
+</head>
+
+<body>
+	<noscript>
+		<p>JavaScript requis pour utiliser l'application.</p>
+	</noscript>
+	<main id="app">
+		<!-- 🔐 Écran d’authentification principal -->
+<section id="auth-screen" class="auth-modal">
+  <div class="auth-box">
+    <div class="auth-icon">
+<svg xmlns="http://www.w3.org/2000/svg"
+     class="icon-shield"
+     viewBox="0 0 24 24"
+     width="32"
+     height="32"
+     fill="none"
+     stroke="currentColor">
+  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+</svg>
+
+    </div>
+    <h1 class="auth-title">Vault Personal</h1>
+    <p class="auth-subtitle">Coffre-fort de mots de passe 100% local</p>
+
+    <div class="auth-section">
+      <h2 class="auth-section-title">🔓 Déverrouillage</h2>
+      <p class="auth-section-desc">Entrez votre mot de passe maître pour accéder à vos données chiffrées</p>
+
+      <form id="auth-form" class="auth-form" autocomplete="off">
+        <input type="text" name="username" hidden autocomplete="username">
+        <label for="master-password" class="sr-only">Mot de passe maître</label>
+        <div class="auth-input-wrapper">
+          <input
+            type="password"
+            id="master-password"
+            class="auth-form__input"
+            placeholder="Mot de passe maître"
+            autocomplete="off"
+            required
+          >
+          <input type="checkbox" id="toggle-password-visibility" class="password-toggle__input">
+          <label for="toggle-password-visibility" class="password-toggle__label">Afficher le mot de passe</label>
+        </div>
+        <button type="submit" id="unlock-vault" class="btn btn--primary">Déverrouiller le coffre</button>
+      </form>
+    </div>
+
+    <hr class="auth-separator">
+
+    <ul class="auth-info">
+      <li>🛡️ Chiffrement AES-256 local</li>
+      <li>📡 Aucune donnée n'est envoyée sur Internet</li>
+      <li>🔒 Stockage 100% local et sécurisé</li>
+    </ul>
+  </div>
+</section>
+
+		<!-- 🧩 Interface principale -->
+		<section id="vault-ui" hidden>
+			<div class="wrapper">
+				<!-- Sidebar -->
+				<aside class="sidebar">
+					<div>
+						<div class="logo-container">
+							<div class="logo">
+								<i class="fas fa-lock"></i>
+							</div>
+							<h1>Vault</h1>
+						</div>
+						<nav>
+							<ul>
+								<li>
+									<a href="#" class="active" id="nav-dashboard">
+										<i class="fas fa-home"></i>
+										<span class="nav-text">Tableau de bord</span>
+									</a>
+								</li>
+								<li>
+									<a href="#" id="nav-passwords">
+										<i class="fas fa-key"></i>
+										<span class="nav-text">Mots de passe</span>
+									</a>
+								</li>
+								<li>
+									<a href="#" id="nav-security">
+										<i class="fas fa-shield-alt"></i>
+										<span class="nav-text">Rapport de sécurité</span>
+									</a>
+								</li>
+								<li>
+									<a href="#" id="nav-settings">
+										<i class="fas fa-cog"></i>
+										<span class="nav-text">Paramètres</span>
+									</a>
+								</li>
+							</ul>
+						</nav>
+					</div>
+					<div class="user-section">
+						<div class="user-info">
+							<div class="avatar">JD</div>
+							<div class="user-details">
+								<div class="user-name">John Doe</div>
+								<div class="user-email">john.doe@example.com</div>
+							</div>
+						</div>
+						<div class="logout" aria-label="Déconnexion">
+							<i class="fas fa-sign-out-alt"></i>
+							<span>Déconnexion</span>
+						</div>
+					</div>
+				</aside>
+				<!-- Main content -->
+				<div class="main">
+					<section id="dashboard-view" class="view">
+						<!-- Header -->
+						<header class="header">
+							<h2>Gestionnaire de mots de passe</h2>
+							<div class="header-controls">
+								<div class="search-bar">
+									<i class="fas fa-search"></i>
+									<input type="text" placeholder="Rechercher un mot de passe...">
+								</div>
+								<button class="add-button">
+									<i class="fas fa-plus"></i> Ajouter un mot de passe </button>
+							</div>
+						</header>
+						<!-- Score Box -->
+						<section class="score-box">
+							<div class="left">
+								<div class="score" id="stats-score">73%</div>
+								<div class="level" id="stats-level">Sécurité modérée</div>
+								<p class="info" id="stats-info"> Améliorez votre score de sécurité en mettant à jour les mots de passe faibles et réutilisés. Nous avons trouvé <span id="stats-weak-in-info">16</span> mots de passe qui nécessitent une attention particulière. </p>
+							</div>
+							<div class="progress-ring">
+								<svg width="120" height="120" viewBox="0 0 120 120">
+									<circle class="progress-bg" cx="60" cy="60" r="50"></circle>
+									<circle class="progress-fill" cx="60" cy="60" r="50">
+									</circle>
+								</svg>
+								<div class="progress-text" id="stats-score-ring">73%</div>
+							</div>
+						</section>
+						<!-- Metrics Cards -->
+						<section class="metrics">
+							<div class="metric-card metric-total">
+								<div class="metric-header">
+									<h3 id="stats-total">244</h3>
+									<div class="metric-icon">
+										<i class="fas fa-database"></i>
+									</div>
+								</div>
+								<span>Nombre total de mots de passe</span>
+								<div class="metric-action view-all-passwords">
+									<i class="fas fa-eye"></i> Voir tout
+								</div>
+							</div>
+							<div class="metric-card metric-weak">
+								<div class="metric-header">
+									<h3 id="stats-weak">16</h3>
+									<div class="metric-icon">
+										<i class="fas fa-exclamation-triangle"></i>
+									</div>
+								</div>
+								<span>Mots de passe faibles</span>
+								<div class="metric-action update-weak-passwords">
+									<i class="fas fa-sync-alt"></i> Mettre à jour
+								</div>
+							</div>
+							<div class="metric-card metric-reused">
+								<div class="metric-header">
+									<h3 id="stats-reused">9</h3>
+									<div class="metric-icon">
+										<i class="fas fa-redo"></i>
+									</div>
+								</div>
+								<span>Mots de passe réutilisés</span>
+								<div class="metric-action generate-reused-passwords">
+									<i class="fas fa-random"></i> Générer de nouveaux
+								</div>
+							</div>
+							<div class="metric-card metric-old">
+								<div class="metric-header">
+									<h3 id="stats-old">5</h3>
+									<div class="metric-icon">
+										<i class="fas fa-clock"></i>
+									</div>
+								</div>
+								<span>Anciens mots de passe</span>
+								<div class="metric-action view-old-passwords">
+									<i class="fas fa-history"></i> Voir l’historique
+								</div>
+							</div>
+						</section>
+						<!-- Accès récents -->
+						<section class="vault-list-container">
+							<div class="vault-header">
+								<h3>Accès récents</h3>
+								<div class="vault-actions">
+									<button><i class="fas fa-sort"></i> Trier</button>
+									<button><i class="fas fa-filter"></i> Filtrer</button>
+								</div>
+							</div>
+							<section class="vault-list" id="recent-entries">
+								<!-- Éléments injectés dynamiquement -->
+							</section>
+						</section>
+					</section>
+					<section id="passwords-view" class="view" hidden>
+						<header class="header">
+							<h2>Gestionnaire de mots de passe</h2>
+							<div class="header-controls">
+								<div class="search-bar">
+									<i class="fas fa-search"></i>
+									<input type="text" placeholder="Rechercher un mot de passe..." id="searchInput">
+								</div>
+								<button class="add-button" id="addPasswordBtn">
+									<i class="fas fa-plus"></i> Ajouter un mot de passe </button>
+							</div>
+						</header>
+						<div class="password-tools">
+							<div class="category-filter">
+								<button class="category-btn active">Tous</button>
+								<button class="category-btn"><i class="fas fa-university"></i> Banque</button>
+								<button class="category-btn"><i class="fas fa-envelope"></i> Email</button>
+								<button class="category-btn"><i class="fas fa-cloud"></i> Cloud</button>
+								<button class="category-btn"><i class="fas fa-share-alt"></i> Réseaux sociaux</button>
+							</div>
+							<div class="vault-actions">
+								<button><i class="fas fa-sort"></i> Trier</button>
+								<button><i class="fas fa-filter"></i> Filtrer</button>
+							</div>
+						</div>
+						<!-- Conteneur principal des mots de passe -->
+						<section id="vault-list" class="vault-list-container">
+							<div class="vault-header">
+								<h3> Tous les mots de passe <span id="vault-count" class="count-badge"></span></h3>
+								<div class="vault-actions">
+									<button><i class="fas fa-sync-alt"></i> Actualiser</button>
+								</div>
+							</div>
+						</section>
+						<section class="vault-list" id="entries"></section>
+					</section>
+					<!-- Rapport de sécurité -->
+					<section id="security-report-view" class="view" hidden>
+						<header class="header">
+							<h2>Rapport de sécurité</h2>
+							<button class="export-btn">
+								<i class="fas fa-file-export"></i> Exporter le rapport </button>
+						</header>
+						<div class="score-overview">
+							<div class="score-card score-security">
+								<div class="score-value">73%</div>
+								<div class="score-label">Score de sécurité</div>
+								<p class="score-description">Votre niveau global de sécurité des mots de passe</p>
+							</div>
+							<div class="score-card score-weak">
+								<div class="score-value">16</div>
+								<div class="score-label">Mots de passe faibles</div>
+								<p class="score-description">Mots de passe faciles à deviner </p>
+							</div>
+							<div class="score-card score-reused">
+								<div class="score-value">9</div>
+								<div class="score-label">Mots de passe réutilisés</div>
+								<p class="score-description">Mots de passe utilisés sur plusieurs comptes</p>
+							</div>
+							<div class="score-card score-old">
+								<div class="score-value">5</div>
+								<div class="score-label">Mots de passe anciens</div>
+								<p class="score-description">Mots de passe inchangés depuis plus d'un an</p>
+							</div>
+						</div>
+						<section class="chart-container">
+							<div class="chart-header">
+								<h3>Évolution de la santé des mots de passe</h3>
+								<div class="chart-actions">
+									<button><i class="fas fa-calendar"></i> 30 derniers jours</button>
+									<button><i class="fas fa-download"></i> Exporter</button>
+								</div>
+							</div>
+							<div class="chart-wrapper">
+								<canvas id="securityChart"></canvas>
+							</div>
+						</section>
+						<section class="vulnerability-section">
+							<div class="section-header">
+								<h3>Vulnérabilités critiques</h3>
+								<a href="#" class="view-all">Voir tout <i class="fas fa-arrow-right"></i></a>
+							</div>
+							<div class="vulnerability-list">
+								<div class="vulnerability-item vuln-critical">
+									<div class="vuln-info">
+										<div class="vuln-icon">
+											<i class="fas fa-exclamation-triangle"></i>
+										</div>
+										<div class="vuln-details">
+											<strong>Compte NetBank</strong>
+											<span>Mot de passe compromis dans une fuite de données</span>
+										</div>
+									</div>
+									<div class="vuln-severity severity-critical">Critique</div>
+									<div class="vuln-actions">
+										<button class="vuln-action-btn"><i class="fas fa-sync-alt"></i> Mettre à jour</button>
+									</div>
+								</div>
+								<div class="vulnerability-item vuln-high">
+									<div class="vuln-info">
+										<div class="vuln-icon">
+											<i class="fas fa-redo"></i>
+										</div>
+										<div class="vuln-details">
+											<strong>Compte email</strong>
+											<span>Mot de passe réutilisé sur 4 autres comptes</span>
+										</div>
+									</div>
+									<div class="vuln-severity severity-high">Élevée</div>
+									<div class="vuln-actions">
+										<button class="vuln-action-btn"><i class="fas fa-random"></i> Changer</button>
+									</div>
+								</div>
+								<div class="vulnerability-item vuln-medium">
+									<div class="vuln-info">
+										<div class="vuln-icon">
+											<i class="fas fa-clock"></i>
+										</div>
+										<div class="vuln-details">
+											<strong>Stockage Cloud</strong>
+											<span>Mot de passe inchangé depuis 2 ans</span>
+										</div>
+									</div>
+									<div class="vuln-severity severity-medium">Moyenne</div>
+									<div class="vuln-actions">
+										<button class="vuln-action-btn"><i class="fas fa-history"></i> Mettre à jour</button>
+									</div>
+								</div>
+							</div>
+						</section>
+						<section class="vulnerability-section">
+							<div class="section-header">
+								<h3>Mots de passe faibles</h3>
+								<a href="#" class="view-all">Voir tout <i class="fas fa-arrow-right"></i></a>
+							</div>
+							<div class="vulnerability-list">
+								<div class="vulnerability-item">
+									<div class="vuln-info">
+										<div class="vuln-icon vuln-high">
+											<i class="fas fa-unlock" aria-hidden="true"></i>
+										</div>
+										<div class="vuln-details">
+											<strong>Compte de réseau social</strong>
+											<span>Mot de passe : "password123" – Très faible</span>
+										</div>
+									</div>
+									<div class="vuln-actions">
+										<button class="vuln-action-btn" type="button" title="Générer un mot de passe sécurisé" aria-label="Générer un mot de passe sécurisé">
+											<i class="fas fa-random" aria-hidden="true"></i> Générer </button>
+									</div>
+								</div>
+								<div class="vulnerability-item">
+									<div class="vuln-info">
+										<div class="vuln-icon vuln-high">
+											<i class="fas fa-unlock" aria-hidden="true"></i>
+										</div>
+										<div class="vuln-details">
+											<strong>Achat en ligne</strong>
+											<span>Mot de passe : "qwerty" - Extrêmement faible</span>
+										</div>
+									</div>
+									<div class="vuln-actions">
+										<button class="vuln-action-btn"><i class="fas fa-random"></i> Générer</button>
+									</div>
+								</div>
+							</div>
+						</section>
+						<section class="recommendations">
+							<h3>Recommandations de sécurité</h3>
+							<div class="recommendation-list">
+								<div class="recommendation-item">
+									<div class="recommendation-icon">
+										<i class="fas fa-key"></i>
+									</div>
+									<div class="recommendation-content">
+										<h4>Activer l'authentification à deux facteurs</h4>
+										<p>Ajoutez une couche de sécurité supplémentaire à vos comptes les plus importants</p>
+									</div>
+								</div>
+								<div class="recommendation-item">
+									<div class="recommendation-icon">
+										<i class="fas fa-sync-alt"></i>
+									</div>
+									<div class="recommendation-content">
+										<h4>Mettre à jour les mots de passe faibles</h4>
+										<p>Remplacez 16 mots de passe faibles par des alternatives fortes et uniques</p>
+									</div>
+								</div>
+								<div class="recommendation-item">
+									<div class="recommendation-icon">
+										<i class="fas fa-user-shield"></i>
+									</div>
+									<div class="recommendation-content">
+										<h4>Exécuter un audit de sécurité</h4>
+										<p>Effectuez un audit de sécurité complet pour identifier toutes les vulnérabilités</p>
+									</div>
+								</div>
+							</div>
+						</section>
+					</section>
+					<!-- Paramètres -->
+					<section id="settings-view" class="view" hidden>
+						<header class="header">
+							<h2>Paramètres</h2>
+						</header>
+						<div class="settings-container">
+							<!-- Paramètres du compte -->
+							<div class="settings-card">
+								<div class="settings-header">
+									<div class="settings-icon">
+										<i class="fas fa-user"></i>
+									</div>
+									<h3 class="settings-title">Paramètres du compte</h3>
+								</div>
+								<div class="form-group">
+									<label for="name">Nom complet</label>
+									<input type="text" id="name" value="John Doe">
+								</div>
+								<div class="form-group">
+									<label for="email">Adresse e-mail</label>
+									<input type="email" id="email" value="john.doe@example.com">
+								</div>
+								<div class="form-group">
+									<label for="language">Langue</label>
+									<select id="language">
+										<option>Anglais</option>
+										<option selected>Français</option>
+										<option>Allemand</option>
+										<option>Espagnol</option>
+										<option>Italien</option>
+									</select>
+								</div>
+								<button class="btn btn-primary">Mettre à jour le compte</button>
+							</div>
+							<!-- Paramètres de sécurité -->
+							<div class="settings-card">
+								<div class="settings-header">
+									<div class="settings-icon">
+										<i class="fas fa-shield-alt"></i>
+									</div>
+									<h3 class="settings-title">Paramètres de sécurité</h3>
+								</div>
+								<div class="settings-group">
+									<h4 class="settings-group-title">Mot de passe principal</h4>
+									<div class="setting-item">
+										<div class="setting-info">
+											<div class="setting-label">Changer le mot de passe principal</div>
+											<div class="setting-description">Dernière modification il y a 3 mois</div>
+										</div>
+										<div class="setting-control">
+											<button class="btn btn-secondary" id="changePasswordBtn">Modifier</button>
+										</div>
+									</div>
+								</div>
+								<div class="settings-group">
+									<h4 class="settings-group-title">Verrouillage automatique </h4>
+									<div class="setting-item">
+										<div class="setting-info">
+											<div class="setting-label">Activer le verrouillage auto. </div>
+											<div class="setting-description">Verrouille automatiquement Vault après inactivité</div>
+										</div>
+										<div class="setting-control">
+											<label class="toggle-switch">
+												<input type="checkbox" checked>
+												<span class="toggle-slider"></span>
+											</label>
+										</div>
+									</div>
+									<div class="setting-item">
+										<div class="setting-info">
+											<div class="setting-label">Délai de verrouillage</div>
+											<div class="setting-description">Temps avant verrouillage automatique</div>
+										</div>
+										<div class="setting-control">
+											<select class="dropdown-small">
+												<option>1 minute</option>
+												<option>2 minutes</option>
+												<option>5 minutes</option>
+												<option>10 minutes</option>
+												<option>30 minutes</option>
+											</select>
+										</div>
+									</div>
+								</div>
+								<div class="settings-group">
+									<h4 class="settings-group-title">Authentification à deux facteurs</h4>
+									<div class="setting-item">
+										<div class="setting-info">
+											<div class="setting-label">Activer la 2FA</div>
+											<div class="setting-description">Ajoute une couche de sécurité supplémentaire</div>
+										</div>
+										<div class="setting-control">
+											<label class="toggle-switch">
+												<input type="checkbox">
+												<span class="toggle-slider"></span>
+											</label>
+										</div>
+									</div>
+								</div>
+							</div>
+							<!-- Paramètres de confidentialité -->
+							<div class="settings-card">
+								<div class="settings-header">
+									<div class="settings-icon">
+										<i class="fas fa-lock"></i>
+									</div>
+									<h3 class="settings-title">Confidentialité et sécurité</h3>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Services de remplissage automatique</div>
+										<div class="setting-description">Autoriser Vault à remplir automatiquement les identifiants</div>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox" checked>
+											<span class="toggle-slider"></span>
+										</label>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Générateur de mots de passe </div>
+										<div class="setting-description">Utiliser le générateur de mots de passe avancé</div>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox" checked>
+											<span class="toggle-slider"></span>
+										</label>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Alertes de sécurité</div>
+										<div class="setting-description">Recevoir des notifications pour les problèmes de sécurité</div>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox" checked>
+											<span class="toggle-slider"></span>
+										</label>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Audit de sécurité</div>
+										<div class="setting-description">Lancer une analyse cryptographique de votre coffre</div>
+									</div>
+									<div class="setting-control">
+										<button id="launch-audit-ui" class="audit-settings-btn">Lancer l’audit</button>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Effacer le presse-papiers</div>
+										<div class="setting-description">Effacer automatiquement le presse-papiers après 60 secondes</div>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox">
+											<span class="toggle-slider"></span>
+										</label>
+									</div>
+								</div>
+							</div>
+							<!-- Paramètres avancés -->
+							<div class="settings-card">
+								<div class="settings-header">
+									<div class="settings-icon">
+										<i class="fas fa-cogs"></i>
+									</div>
+									<h3 class="settings-title">Paramètres avancés</h3>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Exporter les données</div>
+										<div class="setting-description">Exportez vos mots de passe et données au format VAULT, CSV ou JSON</div>
+									</div>
+									<div class="setting-control">
+										<button class="btn btn-secondary" id="btn-export">Exporter</button>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Importer un coffre (.vault) </div>
+										<div class="setting-description">Importer un coffre sauvegardé</div>
+									</div>
+									<div class="setting-control">
+										<button class="btn btn-secondary" id="btn-import">Importer</button>
+										<input type="file" id="file-import" accept=".vault" hidden>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Importer CSV (Edge)</div>
+										<div class="setting-description">Importer des mots de passe depuis un CSV</div>
+									</div>
+									<div class="setting-control">
+										<button class="btn btn-secondary" id="btn-csv-import">Importer CSV</button>
+										<input type="file" id="csv-import" accept=".csv" hidden>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Thème</div>
+										<div class="setting-description">Modifier l'apparence de Vault</div>
+									</div>
+									<div class="setting-control">
+										<!-- Liste déroulante visible -->
+										<select id="theme-select" class="dropdown-medium">
+											<option value="default" selected>Thème par défaut </option>
+											<option value="ubuntu">Ubuntu</option>
+											<option value="lightsaber">Lightsaber</option>
+											<option value="r2d2">R2D2</option>
+											<option value="padawan">Padawan</option>
+											<option value="flatdark">FlatDark</option>
+											<option value="invaders">Invaders</option>
+											<option value="metallic">Metallic</option>
+											<option value="millennium">Millennium</option>
+											<option value="leia">Leia</option>
+											<option value="deathstar">DeathStar</option>
+											<option value="starfighter">Starfighter</option>
+											<option value="xwing">X-Wing</option>
+											<option value="sith">Sith Order</option>
+											<option value="galactic">Galactic</option>
+										</select>
+									</div>
+								</div>
+							</div>
+							<!-- Zone dangereuse -->
+							<div class="settings-card settings-card--danger">
+								<div class="settings-header">
+									<div class="settings-icon settings-icon--danger">
+										<i class="fas fa-exclamation-triangle"></i>
+									</div>
+									<h3 class="settings-title settings-title--danger">Zone critique</h3>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Supprimer le compte</div>
+										<div class="setting-description">Supprime définitivement votre compte Vault et toutes les données</div>
+									</div>
+									<div class="setting-control">
+										<button class="btn btn-danger">Supprimer le compte</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</section>
+					<!-- Modal d'ajout de mot de passe -->
+					<div class="modal-overlay" id="passwordModal">
+						<div class="password-modal">
+							<div class="modal-header">
+								<h3>Ajouter un nouveau mot de passe</h3>
+								<button class="close-Modal" id="closeAddModal"><i class="fas fa-times"></i></button>
+							</div>
+							<form id="entry-form" autocomplete="off">
+								<div class="modal-body">
+									<div class="form-group">
+										<label for="entry-title">Nom du service</label>
+										<input type="text" id="entry-title" placeholder="ex. : Google, Facebook, Netflix">
+									</div>
+									<div class="form-group">
+										<label for="entry-username">Nom d'utilisateur ou email</label>
+										<input type="text" id="entry-username" placeholder="Saisissez votre nom d'utilisateur ou email">
+									</div>
+									<div class="form-group">
+										<label for="password">Mot de passe</label>
+										<div class="password-input-wrapper">
+											<input type="password" id="password" placeholder="Créez un mot de passe fort">
+											<button type="button" class="toggle-password"><i class="fas fa-eye"></i></button>
+											<div class="password-strength-bar">
+												<div class="entropy-bar">
+													<div class="fill"></div>
+												</div>
+												<div class="entropy-info">
+													<span class="entropy-label">Entropie :</span>
+													<span class="entropy-value">0 bits</span>
+												</div>
+											</div>
+										</div>
+									</div>
+									<div class="form-group">
+										<label for="category">Catégorie</label>
+										<select id="category">
+											<option value="banking">Banque</option>
+											<option value="email">Email</option>
+											<option value="cloud">Stockage cloud</option>
+											<option value="social">Réseaux sociaux</option>
+											<option value="shopping">Achats</option>
+											<option value="entertainment">Divertissement</option>
+											<option value="work">Travail</option>
+										</select>
+									</div>
+									<div class="form-group">
+										<label for="website">URL du site web (facultatif)</label>
+										<input type="url" id="website" placeholder="https://">
+									</div>
+								</div>
+								<div class="form-footer">
+									<button class="btn btn-secondary" id="cancelAddModalBtn" type="button">Annuler</button>
+									<button class="btn btn-primary" type="submit">Enregistrer</button>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+		<!-- Modal de changement de mot de passe -->
+		<div class="modal-overlay" id="changePasswordModal">
+			<div class="modal">
+				<div class="modal-header">
+					<h3>Changer le mot de passe principal</h3>
+					<button class="close-modal" id="closeChangeModal" type="button" title="Fermer la fenêtre" aria-label="Fermer la fenêtre">
+						<i class="fas fa-times" aria-hidden="true"></i>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="currentPassword">Mot de passe actuel</label>
+						<div class="password-input-wrapper">
+							<input type="password" id="currentPassword" name="currentPassword" aria-label="Mot de passe actuel">
+							<button type="button" class="toggle-password" title="Afficher ou masquer le mot de passe" aria-label="Afficher ou masquer le mot de passe">
+								<i class="fas fa-eye" aria-hidden="true"></i>
+							</button>
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="newPassword">Nouveau mot de passe</label>
+						<div class="password-input-wrapper">
+							<input type="password" id="newPassword" name="newPassword" aria-label="Nouveau mot de passe">
+							<button type="button" class="toggle-password" title="Afficher ou masquer le mot de passe" aria-label="Afficher ou masquer le mot de passe">
+								<i class="fas fa-eye" aria-hidden="true"></i>
+							</button>
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="confirmPassword">Confirmer le nouveau mot de passe</label>
+						<div class="password-input-wrapper">
+							<input type="password" id="confirmPassword" name="confirmPassword" aria-label="Confirmation du mot de passe">
+							<button type="button" class="toggle-password" title="Afficher ou masquer le mot de passe" aria-label="Afficher ou masquer le mot de passe">
+								<i class="fas fa-eye" aria-hidden="true"></i>
+							</button>
+						</div>
+					</div>
+				</div>
+				<div class="strength-indicator">
+					<span>Sécurité du mot de passe :</span>
+					<div class="strength-dot active"></div>
+					<div class="strength-dot"></div>
+					<div class="strength-dot"></div>
+					<div class="strength-dot"></div>
+					<div class="strength-dot"></div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-secondary" id="cancelChangeModalBtn">Annuler</button>
+				<button class="btn btn-primary">Changer le mot de passe</button>
+			</div>
+		</div>
+		</div>
+		<div class="auto-lock" id="autolock-timer">
+			<i class="fas fa-lock"></i>
+		</div>
+		<!-- ⚙️ Scripts -->
+		<script src="scripts/vendor/chart.min.js"></script>
+		<script type="module" src="scripts/app.js" crossorigin="anonymous">
+		</script>
+		<script type="module" src="scripts/ui/security-report-init.js"></script>
+		<script src="scripts/tools/audit-crypto.js"></script>
+		<script src="scripts/ui/audit-panel.js" defer></script>
+		<!-- 📺 UI auxiliaire -->
+		<div id="log-console"></div>
+	</main>
+</body>
+
+</html>

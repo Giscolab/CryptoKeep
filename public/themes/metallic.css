@@ -1,0 +1,29 @@
+@layer theme.metallic {
+  :root[data-theme="metallic"] {
+    --color-bg: #1c1c1e;
+    --color-text: #d8d8d8;
+    --color-text-muted: #a0a0a0;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #b0bec5;
+    --color-accent-alt: #eceff1;
+
+    --color-surface: #2a2a2c;
+    --color-surface-alt: #242426;
+    --color-surface-light: #3c3c3e;
+    --color-overlay: rgba(255, 255, 255, 0.08);
+
+    --color-border: #4d4d50;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #444;
+    --color-disabled-text: #999;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

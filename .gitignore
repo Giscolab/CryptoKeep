@@ -1,0 +1,58 @@
+﻿# ========================
+# Vault Personal .gitignore
+# ========================
+
+# 🔐 Coffres & logs sécurisés
+vault_*.vault
+vault_*.log
+logs/
+export-log.html
+export-log*.html
+
+# 🏗️ Build & Distribution — Electron & Tauri
+dist/
+build/
+out/
+release/
+
+# 🖥️ Electron — exécutables générés
+*.exe
+*.app
+*.dmg
+*.asar
+
+# 🦀 Tauri — build Rust
+src-tauri/target/
+src-tauri/WixTools/
+
+# 📄 docs/assets — build Vite (hashé, regénéré)
+docs/assets/
+
+# ⚡ Dépendances
+node_modules/
+
+# 🔒 Environnement & secrets
+.env
+.env.local
+.env.*.local
+
+# 🐍 Python (export_log.py)
+__pycache__/
+*.pyc
+
+# 📝 Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# 🐧 Système & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+tmp/
+temp/
+
+# 📊 Tests coverage
+coverage/

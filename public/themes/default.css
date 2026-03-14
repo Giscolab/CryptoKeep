@@ -1,0 +1,91 @@
+@layer theme.default {
+  :root {
+    /* Z-index */
+    --z-index-toast: 1000;
+    --z-index-modal: 1100;
+    --z-index-overlay: 900;
+
+    /* Ombres */
+    --shadow-sm: 0 4px 6px rgb(0 0 0 / 15%);
+    --shadow-md: 0 8px 20px rgb(0 0 0 / 25%);
+    --shadow-lg: 0 4px 12px rgb(0 0 0 / 30%);
+
+    /* Typographie commune */
+    --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', menlo, consolas, monospace;
+    --fs-200: 0.75rem;
+    --fs-300: 0.875rem;
+    --fs-400: 1rem;
+    --fs-500: 1.25rem;
+    --fs-600: 1.5rem;
+    --fs-700: 2rem;
+    --fs-800: 2.5rem;
+    --font-size-base: 1rem;
+    --font-size-sm: 0.875rem;
+    --font-size-md: 1.125rem;
+    --font-size-lg: 1.5rem;
+    --font-size-xl: 2.5rem;
+    --lh-tight: 1.2;
+    --lh-normal: 1.5;
+
+    /* Espacements fluides */
+    --spacing-2xs: clamp(0.125rem, 0.25vw, 0.25rem);
+    --spacing-xs: clamp(0.25rem, 0.5vw, 0.5rem);
+    --spacing-sm: clamp(0.5rem, 0.75vw, 0.75rem);
+    --spacing-md: clamp(0.75rem, 1vw, 1rem);
+    --spacing-lg: clamp(1rem, 2vw, 2rem);
+    --spacing-xl: clamp(1.5rem, 3vw, 3rem);
+    --spacing: 1.25rem;
+
+    /* Rayons */
+    --radius-xs: 2px;
+    --radius-sm: 6px;
+    --radius-md: 5px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+
+    /* Transitions */
+    --transition-base: 0.2s ease;
+    --transition-fast: 0.1s ease-in-out;
+    --transition-toast: 300ms cubic-bezier(0.21, 1.02, 0.73, 1);
+    --transition: 0.2s ease-in-out;
+  }
+
+  :root[data-theme="default"] {
+    /* Typographie principale */
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    /* Couleurs de base */
+    --color-black: #121212;
+    --color-white: #f1f1f1;
+    --color-transparent: transparent;
+
+    /* Couleurs fonctionnelles */
+    --color-primary: #6a1b9a;
+    --color-primary-hover: #8e24aa;
+    --color-accent: #4caf50;
+    --color-accent-alt: #4caf50;
+    --color-danger: #d32f2f;
+    --color-success: #4caf50;
+    --color-warning: #ff9800;
+
+    /* Couleurs système */
+    --color-bg: #fff;
+    --color-surface: #f8f9fa;
+    --color-surface-alt: #ededed75;
+    --color-surface-light: #2d2d2d;
+    --color-overlay: rgb(0 0 0 / 60%);
+    --color-text: #6c7778;
+    --color-text-muted: #999;
+    --color-border: #333;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #2a2a2a;
+    --color-disabled-text: #666;
+
+    /* Alias sémantiques */
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text);
+    --color-border-default: var(--color-border);
+  }
+}

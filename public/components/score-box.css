@@ -1,0 +1,93 @@
+@layer components.score-box {
+		.score-box {
+			background: linear-gradient(135deg, #ededed75, #f8f9fa);
+			padding: 2rem;
+			border-radius: var(--radius-md);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 2rem;
+			margin-bottom: 2rem;
+			box-shadow: var(--shadow-sm);
+			border: 1px solid rgb(187 134 252 / 10%);
+			position: relative;
+			overflow: hidden;
+		}
+
+		.score-box::before {
+			content: "";
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			height: 4px;
+			background: linear-gradient(90deg, var(--color-accent-alt), var(--color-accent));
+		}
+
+		.score-box .left {
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+		}
+
+		.score-box .score {
+			font-size: var(--font-size-xl);
+			font-weight: bold;
+			color: var(--color-accent);
+		}
+
+		.score-box .level {
+			font-size: var(--font-size-md);
+			color: var(--color-accent);
+			text-transform: uppercase;
+			font-weight: 600;
+			letter-spacing: 1px;
+		}
+
+		.score-box .info {
+			font-size: var(--font-size-sm);
+			color: var(--color-muted);
+			max-width: 380px;
+			line-height: 1.6;
+		}
+
+		.score-box .icon {
+			font-size: 3.5rem;
+			color: rgb(187 134 252 / 15%);
+			flex-shrink: 0;
+		}
+
+		.progress-ring {
+			position: relative;
+			width: 120px;
+			height: 120px;
+		}
+
+		.progress-bg {
+			fill: none;
+			stroke: var(--color-surface-alt);
+			stroke-width: 8;
+		}
+
+		.progress-fill {
+			fill: none;
+			stroke: var(--color-accent);
+			stroke-width: 8;
+			stroke-linecap: round;
+			transform: rotate(-90deg);
+			transform-origin: 50% 50%;
+			stroke-dasharray: 314;
+			stroke-dashoffset: 85;
+			transition: stroke-dashoffset 0.8s ease;
+		}
+
+		.progress-text {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			font-size: 1.75rem;
+			font-weight: bold;
+			color: var(--color-accent);
+		}
+}

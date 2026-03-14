@@ -1,0 +1,82 @@
+@layer layout.responsive {
+  .responsive-grid {
+    display: grid;
+    gap: var(--spacing-md);
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+
+  /* Mobile */
+  @media (width <= 600px) {
+    body {
+      padding: var(--spacing-md);
+    }
+
+    .btn {
+      width: 100%;
+    }
+  }
+
+  /* Tablette petit écran */
+  @media (width >= 600px) and (width <= 899px) {
+    #app {
+      max-width: 720px;
+    }
+  }
+
+  /* Grand écran */
+  @media (width >= 900px) {
+    #app {
+      max-width: 1000px;
+    }
+  }
+
+  /* Sidebar responsive + layout dashboard/settings */
+  @media (width <= 1024px) {
+    .sidebar {
+      width: 80px;
+      padding: 1rem 0.5rem;
+    }
+
+    .logo-container {
+      justify-content: center;
+    }
+
+    .logo-container h1,
+    .user-details,
+    .nav-text {
+      display: none;
+    }
+
+    .sidebar nav a {
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .logout span {
+      display: none;
+    }
+  }
+
+  /* Layout column settings, responsive header, settings-items */
+  @media (width <= 768px) {
+    .main {
+      padding: 1rem;
+    }
+
+    .header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .setting-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .setting-control {
+      align-self: flex-end;
+      margin-left: 0;
+    }
+  }
+}

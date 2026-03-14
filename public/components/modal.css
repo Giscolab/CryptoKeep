@@ -1,0 +1,78 @@
+@layer components.modal {
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgb(0 0 0 / 70%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s var(--transition-base), visibility 0.3s var(--transition-base);
+  }
+
+  .modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .modal {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-md);
+    transform: translateY(20px);
+    transition: transform 0.3s var(--transition-base);
+  }
+
+  .modal-overlay.active .modal {
+    transform: translateY(0);
+  }
+
+  .modal-header {
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .modal-header h3 {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+  }
+
+  .close-modal {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);  /* Correction du token ici */
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: color var(--transition-base);
+    padding: 0.25em 0.5em;
+    line-height: 1;
+    border-radius: 50%;
+  }
+
+  .close-modal:hover {
+    color: var(--color-text);
+    background: var(--color-surface-alt);
+  }
+
+  .modal-body {
+    padding: var(--spacing-lg);
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+  }
+}

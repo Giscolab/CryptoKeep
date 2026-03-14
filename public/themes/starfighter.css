@@ -1,0 +1,29 @@
+@layer theme.starfighter {
+  :root[data-theme="starfighter"] {
+    --color-bg: #000c18;
+    --color-text: #f1f1f1;
+    --color-text-muted: #a0b3c2;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #ffeb3b;
+    --color-accent-alt: #fff176;
+
+    --color-surface: #102030;
+    --color-surface-alt: #0d1a2b;
+    --color-surface-light: #203040;
+    --color-overlay: rgba(0, 12, 24, 0.85);
+
+    --color-border: #2a3b4d;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #1b2a3a;
+    --color-disabled-text: #999;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

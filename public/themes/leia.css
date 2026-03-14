@@ -1,0 +1,29 @@
+@layer theme.leia {
+  :root[data-theme="leia"] {
+    --color-bg: #fff0f5;
+    --color-text: #5c5c5c;
+    --color-text-muted: #a28e99;
+    --color-text-primary: #4a4a4a;
+
+    --color-accent: #ec407a;
+    --color-accent-alt: #f48fb1;
+
+    --color-surface: #ffe3ec;
+    --color-surface-alt: #ffd6e5;
+    --color-surface-light: #fff5f9;
+    --color-overlay: rgba(255, 240, 245, 0.85);
+
+    --color-border: #e0bcd1;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #f5e1e8;
+    --color-disabled-text: #999;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

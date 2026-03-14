@@ -1,0 +1,51 @@
+@layer components.recommendations {
+  .recommendations {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .recommendations h3 {
+    font-size: var(--fs-500);
+    font-weight: 600;
+    margin-bottom: var(--spacing-lg);
+    color: var(--color-text);
+  }
+
+  .recommendation-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .recommendation-item {
+    display: flex;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-alt);
+    align-items: flex-start;
+  }
+
+  .recommendation-icon {
+    color: var(--color-accent);
+    font-size: 1.35rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .recommendation-content h4 {
+    font-weight: 500;
+    margin-bottom: var(--spacing-xs);
+    color: var(--color-text-primary);
+  }
+
+  .recommendation-content p {
+    color: var(--color-text-muted); /* Correction ici */
+    font-size: var(--fs-300);
+    margin: 0;
+  }
+}

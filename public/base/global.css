@@ -1,0 +1,82 @@
+@layer base.global {
+  /* ----- BASE HTML & BODY ----- */
+  html,
+  body {
+    height: 100%;
+    font-size: var(--font-size-base);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 0;
+
+    /* Accessibilité */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ----- GLOBAL RESET ----- */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* ----- HEADINGS ----- */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    line-height: var(--lh-tight);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  /* ----- ACCESSIBILITÉ : Focus ----- */
+  *:focus-visible {
+    outline: 2px dashed var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* ----- SÉLECTION DE TEXTE ----- */
+  ::selection {
+    background: var(--color-accent);
+    color: #fff;
+  }
+
+  /* ----- LIENS ----- */
+  a {
+    color: var(--color-accent);
+    text-decoration: none;
+    transition: color var(--transition-base);
+  }
+
+  a:hover, a:focus {
+    color: var(--color-accent-alt);
+    text-decoration: underline;
+  }
+}
+
+/* ----- SCROLLBAR ----- */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface-alt);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}

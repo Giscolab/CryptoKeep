@@ -1,0 +1,270 @@
+@layer components.vault {
+  .vault-list {
+    list-style: none;
+    margin-block-start: var(--spacing-md);
+    background-color: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .vault-list--grid {
+    display: contents;
+  }
+
+  .vault-list__scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: var(--spacing-sm);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--spacing-md) var(--spacing-lg);
+    scroll-behavior: smooth;
+  }
+
+  .vault-list__scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .vault-list__scroll::-webkit-scrollbar-thumb {
+    background-color: var(--color-accent);
+    border-radius: 8px;
+  }
+
+  .vault-list__item {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background-color: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-base);
+  }
+
+  .vault-list__item:hover {
+    background-color: var(--color-surface);
+  }
+
+  .vault-list__title {
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: var(--fs-400);
+  }
+
+  .vault-list__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .vault-list__title a:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
+  }
+
+  .vault-item__field {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .vault-item__label {
+    font-weight: 600;
+    color: var(--color-text);
+    font-size: var(--fs-300);
+  }
+
+  .vault-list__username,
+  .vault-list__password {
+    font-size: var(--fs-300);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vault-list__actions {
+    display: flex;
+    gap: var(--spacing-xs);
+    align-items: center;
+  }
+
+  .vault-list__actions button {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: var(--fs-300);
+    transition: background-color var(--transition-base);
+    border: none;
+    cursor: pointer;
+  }
+
+  .vault-actions button {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition: color var(--transition-base);
+    font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .vault-item button {
+    background-color: rgb(255 255 255 / 8%);
+    color: var(--color-text);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .vault-list__actions button:hover {
+    background-color: var(--color-surface);
+    filter: brightness(1.2);
+  }
+
+ .vault-item--readonly .vault-list__username,
+.vault-item--readonly .vault-list__password {
+  color: var(--color-disabled-text);
+  background: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+
+  /* === Enhanced Vault List === */
+  .vault-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .vault-header h3 {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+  }
+
+  .vault-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .vault-actions button:hover {
+    color: var(--color-accent);
+  }
+
+  .vault-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--color-surface-alt);
+    padding: 1.25rem;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-base);
+    border: 1px solid transparent;
+  }
+
+  .vault-item:hover {
+    border-color: rgb(187 134 252 / 30%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgb(0 0 0 / 10%);
+  }
+
+  .vault-item .account-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .account-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+  }
+
+  .bank-icon {
+    background: rgb(56 142 60 / 15%);
+    color: #4caf50;
+  }
+
+  .email-icon {
+    background: rgb(33 150 243 / 15%);
+    color: #2196f3;
+  }
+
+  .cloud-icon {
+    background: rgb(156 39 176 / 15%);
+    color: #9c27b0;
+  }
+
+  .social-icon {
+    background: rgb(244 67 54 / 15%);
+    color: #f44336;
+  }
+
+  .account-details {
+    flex: 1;
+  }
+
+  .vault-item .account-info strong {
+    display: block;
+    color: #5270fe;
+    font-weight: 500;
+    margin-bottom: 0.15rem;
+  }
+
+  .vault-item .account-info span {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    display: block;
+  }
+
+  .vault-item .actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .vault-item button.copy:hover {
+    background-color: rgb(187 134 252 / 15%);
+    color: var(--color-accent);
+  }
+
+  .vault-item button.edit:hover {
+    background-color: rgb(33 150 243 / 15%);
+    color: #2196f3;
+  }
+
+  /* Compteur dynamique enhanced */
+  .count-badge {
+    background: var(--color-surface);
+    color: #fff;
+    border-radius: 0.2em;
+    padding: 0.15em 0.7em;
+    font-size: 1.75em;
+    margin-left: 0.5em;
+    vertical-align: middle;
+    font-weight: bold;
+  }
+}

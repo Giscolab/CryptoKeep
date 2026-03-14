@@ -1,0 +1,29 @@
+@layer theme.padawan {
+  :root[data-theme="padawan"] {
+    --color-bg: #faf3e0;
+    --color-text: #4e342e;
+    --color-text-muted: #8d6e63;
+    --color-text-primary: #3e2723;
+
+    --color-accent: #ffc107;
+    --color-accent-alt: #ffeb3b;
+
+    --color-surface: #f5e6ca;
+    --color-surface-alt: #f0dfb4;
+    --color-surface-light: #fff8e1;
+    --color-overlay: rgba(255, 248, 225, 0.85);
+
+    --color-border: #c7a972;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #f3e5ab;
+    --color-disabled-text: #a1887f;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

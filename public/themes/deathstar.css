@@ -1,0 +1,29 @@
+@layer theme.deathstar {
+  :root[data-theme="deathstar"] {
+    --color-bg: #0d0d0d;
+    --color-text: #cccccc;
+    --color-text-muted: #777;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #ff1744;
+    --color-accent-alt: #ff616f;
+
+    --color-surface: #1a1a1a;
+    --color-surface-alt: #111111;
+    --color-surface-light: #2c2c2c;
+    --color-overlay: rgba(0, 0, 0, 0.8);
+
+    --color-border: #2d2d2d;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #2a2a2a;
+    --color-disabled-text: #888;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

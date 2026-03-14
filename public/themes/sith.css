@@ -1,0 +1,29 @@
+@layer theme.sith {
+  :root[data-theme="sith"] {
+    --color-bg: #0a0000;
+    --color-text: #eeeeee;
+    --color-text-muted: #888888;
+    --color-text-primary: #ffffff;
+
+    --color-accent: #d50000;
+    --color-accent-alt: #ef5350;
+
+    --color-surface: #1a0000;
+    --color-surface-alt: #120000;
+    --color-surface-light: #2a0000;
+    --color-overlay: rgba(0, 0, 0, 0.85);
+
+    --color-border: #440000;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #220000;
+    --color-disabled-text: #999;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

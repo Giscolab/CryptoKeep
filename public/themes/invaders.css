@@ -1,0 +1,29 @@
+@layer theme.invaders {
+  :root[data-theme="invaders"] {
+    --color-bg: #0c0010;
+    --color-text: #33ff33;
+    --color-text-muted: #80ff80;
+    --color-text-primary: #00ff00;
+
+    --color-accent: #ff00cc;
+    --color-accent-alt: #ff66e6;
+
+    --color-surface: #1a001f;
+    --color-surface-alt: #110015;
+    --color-surface-light: #260033;
+    --color-overlay: rgba(0, 0, 0, 0.7);
+
+    --color-border: #660099;
+    --color-focus-ring: var(--color-accent);
+    --color-disabled-bg: #2a2a2a;
+    --color-disabled-text: #888;
+
+    --font-sans: 'Segoe UI', system-ui, -apple-system, roboto, sans-serif;
+
+    --color-bg-primary: var(--color-bg);
+    --color-bg-surface: var(--color-surface);
+    --color-bg-surface-alt: var(--color-surface-alt);
+    --color-text-primary: var(--color-text-primary);
+    --color-border-default: var(--color-border);
+  }
+}

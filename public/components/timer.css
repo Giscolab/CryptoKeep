@@ -1,0 +1,42 @@
+@layer components.timer {
+/* Auto-lock Timer Enhanced */
+.auto-lock {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background-color: var(--color-surface);
+    color: var(--color-warning);
+    text-align: center;
+    padding: 0.75rem 1.5rem;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    z-index: var(--z-toast);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid rgb(255 152 0 / 20%);
+    transition: all 0.2s;
+}
+
+.auto-lock i {
+    animation: pulse 1.5s infinite;
+    font-size: 1.1em;
+}
+
+/* Warning state : moins de 10s */
+.auto-lock.warning {
+    color: var(--color-danger, #d32f2f);
+    border: 1.5px solid var(--color-danger, #d32f2f);
+    background-color: rgb(211 47 47 / 12%);
+    font-weight: 700;
+}
+
+@keyframes pulse {
+    from { opacity: 0.7; }
+    to   { opacity: 1; }
+}
+
+
+}

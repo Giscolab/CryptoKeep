@@ -1,0 +1,39 @@
+@layer components.export {
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-block-start: var(--spacing-lg);
+    justify-content: flex-end;
+    max-width: 900px;
+    margin-inline: auto;
+
+    /* Optionnel : ombre douce comme les cards */
+
+    /* box-shadow: var(--shadow-sm); */
+
+    /* Optionnel : fond semi-transparent ou coloré pour surligner la zone */
+
+    /* background: var(--color-surface-light); */
+
+    /* border-radius: var(--radius-md); */
+
+    /* padding: var(--spacing-sm); */
+  }
+
+  .toolbar + .toolbar {
+    border-top: 1px dashed var(--color-border);
+    padding-block-start: var(--spacing-sm);
+  }
+
+  @media (width <= 600px) {
+    .toolbar {
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .toolbar > * {
+      width: 100%;
+    }
+  }
+}
