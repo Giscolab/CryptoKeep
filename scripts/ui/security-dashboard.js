@@ -2,11 +2,36 @@
  * Rendu dynamique du Security Dashboard.
  */
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function toText(value, fallback = '') {
+  return value === null || value === undefined ? fallback : String(value);
+}
+
+function sanitizeClassPart(value) {
+  return toText(value)
+    .toLowerCase()
+    .replace('é', 'e')
+    .replace(/[^a-z0-9_-]/g, '');
+}
+
+function addControlledClasses(element, classNames) {
+  toText(classNames)
+    .split(/\s+/)
+    .map(sanitizeClassPart)
+    .filter(Boolean)
+    .forEach(className => element.classList.add(className));
+}
+
+function createIcon(iconClass) {
+  const icon = document.createElement('i');
+  icon.className = `fas ${iconClass}`;
+  return icon;
+}
+
+function createMutedMessage(text) {
+  const message = document.createElement('p');
+  message.className = 'text-muted';
+  message.textContent = text;
+  return message;
 }
 
 function getTargets(root) {
@@ -18,52 +43,151 @@ function getTargets(root) {
   return { vulnerabilities, weakPasswords, recommendations };
 }
 
+function createVulnerabilityItem({
+  itemModifier = '',
+  iconClass = 'fa-exclamation-triangle',
+  iconModifier = '',
+  title = '',
+  detail = '',
+  severityClass = '',
+  severityLabel = '',
+  actionLabel = ''
+}) {
+  const item = document.createElement('div');
+  item.className = 'vulnerability-item';
+  addControlledClasses(item, itemModifier);
+
+  const info = document.createElement('div');
+  info.className = 'vuln-info';
+
+  const iconBox = document.createElement('div');
+  iconBox.className = 'vuln-icon';
+  addControlledClasses(iconBox, iconModifier);
+  iconBox.appendChild(createIcon(iconClass));
+
+  const details = document.createElement('div');
+  details.className = 'vuln-details';
+
+  const titleNode = document.createElement('strong');
+  titleNode.textContent = title;
+
+  const detailNode = document.createElement('span');
+  detailNode.textContent = detail;
+
+  details.append(titleNode, detailNode);
+  info.append(iconBox, details);
+  item.appendChild(info);
+
+  if (severityLabel) {
+    const severity = document.createElement('div');
+    severity.className = 'vuln-severity';
+    addControlledClasses(severity, severityClass);
+    severity.textContent = severityLabel;
+    item.appendChild(severity);
+  }
+
+  if (actionLabel) {
+    const actions = document.createElement('div');
+    actions.className = 'vuln-actions';
+
+    const button = document.createElement('button');
+    button.className = 'vuln-action-btn';
+    button.textContent = actionLabel;
+
+    actions.appendChild(button);
+    item.appendChild(actions);
+  }
+
+  return item;
+}
+
 function renderVulnerabilities(container, items = []) {
   if (!container) return;
+  container.replaceChildren();
 
   if (!items.length) {
-    container.innerHTML = '<p class="text-muted">Aucune vulnérabilité critique détectée.</p>';
+    container.appendChild(createMutedMessage('Aucune vulnérabilité critique détectée.'));
     return;
   }
 
-  container.innerHTML = items.map((item) => {
-    const primary = [...item.findings].sort((a, b) => b.weight - a.weight)[0];
-    return `
-      <div class="vulnerability-item vuln-${item.severity.label.toLowerCase().replace('é', 'e')}">
-        <div class="vuln-info">
-          <div class="vuln-icon"><i class="fas fa-exclamation-triangle"></i></div>
-          <div class="vuln-details">
-            <strong>${escapeHtml(item.entry.title || 'Sans titre')}</strong>
-            <span>${escapeHtml(primary.description)}</span>
-          </div>
-        </div>
-        <div class="vuln-severity ${item.severity.class}">${item.severity.label}</div>
-        <div class="vuln-actions"><button class="vuln-action-btn">Mettre à jour</button></div>
-      </div>
-    `;
-  }).join('');
+  for (const item of items) {
+    const findings = Array.isArray(item.findings) ? item.findings : [];
+    const primary = [...findings].sort((a, b) => b.weight - a.weight)[0];
+    const severityLabel = toText(item.severity?.label);
+    const severityKey = sanitizeClassPart(severityLabel);
+
+    container.appendChild(createVulnerabilityItem({
+      itemModifier: severityKey ? `vuln-${severityKey}` : '',
+      title: toText(item.entry?.title, 'Sans titre') || 'Sans titre',
+      detail: toText(primary?.description, 'Risque détecté.'),
+      severityClass: item.severity?.class,
+      severityLabel,
+      actionLabel: 'Mettre à jour'
+    }));
+  }
 }
 
 function renderWeakPasswords(container, items = []) {
   if (!container) return;
+  container.replaceChildren();
 
   if (!items.length) {
-    container.innerHTML = '<p class="text-muted">Aucun mot de passe faible détecté.</p>';
+    container.appendChild(createMutedMessage('Aucun mot de passe faible détecté.'));
     return;
   }
 
-  container.innerHTML = items.map((item) => `
-    <div class="vulnerability-item">
-      <div class="vuln-info">
-        <div class="vuln-icon vuln-high"><i class="fas fa-unlock"></i></div>
-        <div class="vuln-details">
-          <strong>${escapeHtml(item.entry.title || 'Sans titre')}</strong>
-          <span>Entropie estimée: ${Math.round(item.entropy)} bits</span>
-        </div>
-      </div>
-      <div class="vuln-actions"><button class="vuln-action-btn">Générer</button></div>
-    </div>
-  `).join('');
+  for (const item of items) {
+    container.appendChild(createVulnerabilityItem({
+      iconClass: 'fa-unlock',
+      iconModifier: 'vuln-high',
+      title: toText(item.entry?.title, 'Sans titre') || 'Sans titre',
+      detail: `Entropie estimée: ${Math.round(Number(item.entropy) || 0)} bits`,
+      actionLabel: 'Générer'
+    }));
+  }
+}
+
+function createReuseGroupItem(group) {
+  const severity = group.severity === 'critical' ? 'critical' : 'high';
+  const item = createVulnerabilityItem({
+    itemModifier: `vuln-${severity}`,
+    iconClass: 'fa-redo',
+    title: `${group.entries.length} comptes identiques`,
+    detail: toText(group.description),
+    severityClass: `severity-${severity}`,
+    severityLabel: severity === 'critical' ? 'Critique' : 'Élevée'
+  });
+
+  const details = item.querySelector('.vuln-details');
+  const preview = document.createElement('ul');
+  preview.className = 'reuse-preview';
+
+  group.entries.slice(0, 3).forEach((entry) => {
+    const row = document.createElement('li');
+    row.textContent = toText(entry.title, 'Sans titre') || 'Sans titre';
+    preview.appendChild(row);
+  });
+
+  if (group.entries.length > 3) {
+    const remaining = document.createElement('li');
+    remaining.textContent = `...et ${group.entries.length - 3} autres`;
+    preview.appendChild(remaining);
+  }
+
+  details?.appendChild(preview);
+
+  const actions = document.createElement('div');
+  actions.className = 'vuln-actions';
+
+  const button = document.createElement('button');
+  button.className = 'vuln-action-btn resolve-reuse-btn';
+  button.dataset.groupId = toText(group.hashId);
+  button.textContent = 'Corriger';
+
+  actions.appendChild(button);
+  item.appendChild(actions);
+
+  return item;
 }
 
 function renderReuseGroups(groups = []) {
@@ -80,37 +204,26 @@ function renderReuseGroups(groups = []) {
   section.className = 'vulnerability-section';
   section.id = 'reuse-groups-section';
 
-  const list = groups.map((group) => `
-    <div class="vulnerability-item vuln-${group.severity === 'critical' ? 'critical' : 'high'}">
-      <div class="vuln-info">
-        <div class="vuln-icon"><i class="fas fa-redo"></i></div>
-        <div class="vuln-details">
-          <strong>${group.entries.length} comptes identiques</strong>
-          <span>${escapeHtml(group.description)}</span>
-          <ul class="reuse-preview">
-            ${group.entries.slice(0, 3).map((entry) => `<li>${escapeHtml(entry.title || 'Sans titre')}</li>`).join('')}
-            ${group.entries.length > 3 ? `<li>...et ${group.entries.length - 3} autres</li>` : ''}
-          </ul>
-        </div>
-      </div>
-      <div class="vuln-severity severity-${group.severity}">${group.severity === 'critical' ? 'Critique' : 'Élevée'}</div>
-      <div class="vuln-actions">
-        <button class="vuln-action-btn resolve-reuse-btn" data-group-id="${group.hashId}">Corriger</button>
-      </div>
-    </div>
-  `).join('');
+  const header = document.createElement('div');
+  header.className = 'section-header';
 
-  section.innerHTML = `
-    <div class="section-header">
-      <h3>Mots de passe réutilisés (${groups.length} groupes)</h3>
-    </div>
-    <div class="vulnerability-list">${list}</div>
-  `;
+  const heading = document.createElement('h3');
+  heading.textContent = `Mots de passe réutilisés (${groups.length} groupes)`;
+  header.appendChild(heading);
+
+  const list = document.createElement('div');
+  list.className = 'vulnerability-list';
+
+  for (const group of groups) {
+    list.appendChild(createReuseGroupItem(group));
+  }
+
+  section.append(header, list);
 
   section.querySelectorAll('.resolve-reuse-btn').forEach((button) => {
     button.addEventListener('click', () => {
       const groupId = button.dataset.groupId;
-      const groupData = groups.find((group) => group.hashId === groupId);
+      const groupData = groups.find((group) => toText(group.hashId) === groupId);
       if (!groupData) return;
 
       document.dispatchEvent(new CustomEvent('vault:open-reuse-resolver', {
@@ -124,31 +237,44 @@ function renderReuseGroups(groups = []) {
 
 function renderRecommendations(container, items = []) {
   if (!container) return;
+  container.replaceChildren();
 
   if (!items.length) {
-    container.innerHTML = '<p class="text-muted">Aucune recommandation particulière.</p>';
+    container.appendChild(createMutedMessage('Aucune recommandation particulière.'));
     return;
   }
 
-  container.innerHTML = items.map((rec) => `
-    <div class="recommendation-item">
-      <div class="recommendation-icon"><i class="fas fa-user-shield"></i></div>
-      <div class="recommendation-content">
-        <h4>${escapeHtml(rec.entry.title || 'Compte')}</h4>
-        <p>${escapeHtml(rec.action)}</p>
-      </div>
-    </div>
-  `).join('');
+  for (const rec of items) {
+    const item = document.createElement('div');
+    item.className = 'recommendation-item';
+
+    const icon = document.createElement('div');
+    icon.className = 'recommendation-icon';
+    icon.appendChild(createIcon('fa-user-shield'));
+
+    const content = document.createElement('div');
+    content.className = 'recommendation-content';
+
+    const title = document.createElement('h4');
+    title.textContent = toText(rec.entry?.title, 'Compte') || 'Compte';
+
+    const action = document.createElement('p');
+    action.textContent = toText(rec.action);
+
+    content.append(title, action);
+    item.append(icon, content);
+    container.appendChild(item);
+  }
 }
 
-function updateHeaderCounters(root, summary) {
+function updateHeaderCounters(root, summary = {}) {
   const weakStat = root.querySelector('#stats-weak');
   const reusedStat = root.querySelector('#stats-reused');
   const oldStat = root.querySelector('#stats-old');
 
-  if (weakStat) weakStat.textContent = String(summary.weak);
-  if (reusedStat) reusedStat.textContent = String(summary.reused);
-  if (oldStat) oldStat.textContent = String(summary.old);
+  if (weakStat) weakStat.textContent = String(summary.weak || 0);
+  if (reusedStat) reusedStat.textContent = String(summary.reused || 0);
+  if (oldStat) oldStat.textContent = String(summary.old || 0);
 }
 
 export function renderSecurityDashboardSections(report, root = document) {

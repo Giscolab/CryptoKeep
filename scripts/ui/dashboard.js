@@ -1,11 +1,93 @@
 // ✅ Import de showView utilisé pour la redirection depuis les accès récents
 import { showView } from './sidebar.js';
 
+function toText(value, fallback = '') {
+  return value === null || value === undefined ? fallback : String(value);
+}
+
+function createIcon(iconClass) {
+  const icon = document.createElement('i');
+  icon.className = `fas ${iconClass}`;
+  return icon;
+}
+
+function setButtonIcon(button, iconClass) {
+  button.replaceChildren(createIcon(iconClass));
+}
+
+function createIconButton(className, title, iconClass) {
+  const button = document.createElement('button');
+  button.className = className;
+  button.title = title;
+  setButtonIcon(button, iconClass);
+  return button;
+}
+
+function createEmptyMessage(text) {
+  const message = document.createElement('p');
+  message.textContent = text;
+  return message;
+}
+
+function getIconClass(title) {
+  const normalized = title.toLowerCase();
+
+  if (normalized.includes('bank')) return { icon: 'fa-university', cls: 'bank-icon' };
+  if (normalized.includes('email')) return { icon: 'fa-envelope', cls: 'email-icon' };
+  if (normalized.includes('cloud')) return { icon: 'fa-cloud', cls: 'cloud-icon' };
+  if (normalized.includes('social')) return { icon: 'fa-share-alt', cls: 'social-icon' };
+  return { icon: 'fa-key', cls: '' };
+}
+
+function createRecentEntryElement(entry) {
+  const { icon, cls } = getIconClass(toText(entry.title));
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'vault-item';
+  wrapper.dataset.id = toText(entry.id); // ✅ Requis pour scroll ciblé dans passwords-view
+
+  const accountInfo = document.createElement('div');
+  accountInfo.className = 'account-info';
+
+  const accountIcon = document.createElement('div');
+  accountIcon.className = 'account-icon';
+  if (cls) accountIcon.classList.add(cls);
+  accountIcon.appendChild(createIcon(icon));
+
+  const accountDetails = document.createElement('div');
+  accountDetails.className = 'account-details';
+
+  const title = document.createElement('strong');
+  title.textContent = toText(entry.title, 'Sans titre') || 'Sans titre';
+
+  const username = document.createElement('span');
+  username.textContent = toText(entry.username);
+
+  accountDetails.append(title, username);
+  accountInfo.append(accountIcon, accountDetails);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.append(
+    createIconButton('copy', 'Copier', 'fa-copy'),
+    createIconButton('edit', 'Modifier', 'fa-edit')
+  );
+
+  wrapper.append(accountInfo, actions);
+  return wrapper;
+}
+
+function findVaultItemById(id) {
+  const targetId = toText(id);
+  return [...document.querySelectorAll('.vault-item')]
+    .find(item => item.dataset.id === targetId) || null;
+}
+
 export async function renderRecentAccesses(limit = 4) {
   const container = document.getElementById('recent-entries');
   if (!container) return;
 
-  container.innerHTML = ''; // ✅ On vide le conteneur à chaque appel pour éviter les éléments morts
+  container.replaceChildren(); // ✅ On vide le conteneur à chaque appel pour éviter les éléments morts
 
   const entries = window.vaultManager.getEntries()
     .filter(e => e.lastAccessed)
@@ -13,37 +95,12 @@ export async function renderRecentAccesses(limit = 4) {
     .slice(0, limit);
 
   if (!entries.length) {
-    container.innerHTML = '<p>Aucun accès récent.</p>';
+    container.replaceChildren(createEmptyMessage('Aucun accès récent.'));
     return;
   }
 
   for (const entry of entries) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'vault-item';
-    wrapper.dataset.id = entry.id; // ✅ Requis pour scroll ciblé dans passwords-view
-
-    const title = entry.title?.toLowerCase() || '';
-    const iconClass = title.includes('bank') ? 'fa-university bank-icon' :
-                      title.includes('email') ? 'fa-envelope email-icon' :
-                      title.includes('cloud') ? 'fa-cloud cloud-icon' :
-                      title.includes('social') ? 'fa-share-alt social-icon' :
-                      'fa-key';
-
-    wrapper.innerHTML = `
-      <div class="account-info">
-        <div class="account-icon ${iconClass.split(' ')[1] || ''}">
-          <i class="fas ${iconClass.split(' ')[0]}"></i>
-        </div>
-        <div class="account-details">
-          <strong>${entry.title || 'Sans titre'}</strong>
-          <span>${entry.username || ''}</span>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="copy" title="Copier"><i class="fas fa-copy"></i></button>
-        <button class="edit" title="Modifier"><i class="fas fa-edit"></i></button>
-      </div>
-    `;
+    const wrapper = createRecentEntryElement(entry);
 
     // ✅ Bouton COPIER : copie dans le presse-papiers + met à jour l'historique
     const copyBtn = wrapper.querySelector('.copy');
@@ -63,7 +120,7 @@ export async function renderRecentAccesses(limit = 4) {
   showView('passwords-view');
 
   const onRendered = () => {
-    const item = document.querySelector(`.vault-item[data-id="${entry.id}"]`);
+    const item = findVaultItemById(entry.id);
     if (item) {
       item.scrollIntoView({ behavior: 'smooth' });
       item.classList.add('highlight-scroll');
@@ -76,7 +133,7 @@ export async function renderRecentAccesses(limit = 4) {
         input.removeAttribute('readonly');
         input.type = 'text';
         input.focus();
-        editBtn.innerHTML = '<i class="fas fa-save"></i>';
+        setButtonIcon(editBtn, 'fa-save');
         editBtn.title = "Enregistrer";
         editBtn.classList.add('editing');
       }
