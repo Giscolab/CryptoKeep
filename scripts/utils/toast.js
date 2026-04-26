@@ -16,14 +16,26 @@ export function showToast(message, type = 'success', duration = 3000) {
 
   const toast = document.createElement('div');
   toast.className = `toast toast--${type}`;
-  toast.innerHTML = `
-    ${iconForType(type)}
-    <span>${message}</span>
-    <button class="toast__close" aria-label="Fermer">&times;</button>
-  `;
+
+  const iconClass = iconClassForType(type);
+  if (iconClass) {
+    const icon = document.createElement('i');
+    icon.className = `fas ${iconClass}`;
+    toast.appendChild(icon);
+  }
+
+  const messageNode = document.createElement('span');
+  messageNode.textContent = message || '';
+  toast.appendChild(messageNode);
+
+  const closeButton = document.createElement('button');
+  closeButton.className = 'toast__close';
+  closeButton.setAttribute('aria-label', 'Fermer');
+  closeButton.textContent = '×';
+  toast.appendChild(closeButton);
 
   // Supprimer au clic sur la croix
-  toast.querySelector('.toast__close').onclick = () => toast.remove();
+  closeButton.onclick = () => toast.remove();
 
   // Timer auto-suppression
   setTimeout(() => toast.remove(), duration);
@@ -31,16 +43,16 @@ export function showToast(message, type = 'success', duration = 3000) {
   container.appendChild(toast);
 }
 
-function iconForType(type) {
+function iconClassForType(type) {
   switch (type) {
     case 'success':
-      return '<i class="fas fa-check-circle"></i>';
+      return 'fa-check-circle';
     case 'error':
-      return '<i class="fas fa-times-circle"></i>';
+      return 'fa-times-circle';
     case 'warning':
-      return '<i class="fas fa-exclamation-triangle"></i>';
+      return 'fa-exclamation-triangle';
     case 'info':
-      return '<i class="fas fa-info-circle"></i>';
+      return 'fa-info-circle';
     default:
       return '';
   }

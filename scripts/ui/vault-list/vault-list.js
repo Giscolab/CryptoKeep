@@ -34,6 +34,168 @@ function getStrength(password = '') {
   return score;
 }
 
+function toText(value, fallback = '') {
+  return value === null || value === undefined ? fallback : String(value);
+}
+
+function createIcon(iconClass) {
+  const icon = document.createElement('i');
+  icon.className = `fas ${iconClass}`;
+  return icon;
+}
+
+function setButtonIcon(button, iconClass) {
+  button.replaceChildren(createIcon(iconClass));
+}
+
+function createIconButton(className, title, iconClass) {
+  const button = document.createElement('button');
+  button.className = className;
+  button.title = title;
+  setButtonIcon(button, iconClass);
+  return button;
+}
+
+function createEmptyMessage(text) {
+  const message = document.createElement('p');
+  message.textContent = text;
+  return message;
+}
+
+function setSortButtonContent(button) {
+  const isRecent = vaultUIState.sortMode === 'recent';
+  button.replaceChildren(
+    createIcon(isRecent ? 'fa-sort-amount-down' : 'fa-sort-alpha-down'),
+    document.createTextNode(isRecent ? ' Trier : récents' : ' Trier : A-Z')
+  );
+}
+
+function createVaultEntryElement(entry) {
+  const { icon, cls } = getIconClass(entry.title || '');
+  const password = toText(entry.password);
+  const score = getStrength(password);
+
+  const dotClasses = [
+    score === 0 ? 'danger' : (score < 3 ? 'warning' : 'active'),
+    score > 1 ? (score < 3 ? 'warning' : 'active') : '',
+    score > 2 ? 'active' : '',
+    score > 3 ? 'active' : '',
+    score > 4 ? 'active' : ''
+  ];
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'vault-item';
+  wrapper.dataset.id = toText(entry.id);
+  wrapper.dataset.category = inferCategory(entry);
+
+  const accountInfo = document.createElement('div');
+  accountInfo.className = 'account-info';
+
+  const accountIcon = document.createElement('div');
+  accountIcon.className = 'account-icon';
+  if (cls) accountIcon.classList.add(cls);
+  accountIcon.appendChild(createIcon(icon));
+
+  const accountDetails = document.createElement('div');
+  accountDetails.className = 'account-details';
+
+  const title = document.createElement('strong');
+  title.textContent = toText(entry.title);
+
+  const username = document.createElement('span');
+  username.textContent = toText(entry.username);
+
+  const urlField = document.createElement('div');
+  urlField.className = 'url-field';
+
+  const urlInput = document.createElement('input');
+  urlInput.type = 'url';
+  urlInput.className = 'url-input';
+  urlInput.readOnly = true;
+  urlInput.value = toText(entry.url);
+  urlField.appendChild(urlInput);
+
+  const passwordField = document.createElement('div');
+  passwordField.className = 'password-field';
+
+  const passwordInput = document.createElement('input');
+  passwordInput.type = 'password';
+  passwordInput.className = 'password-input';
+  passwordInput.readOnly = true;
+  passwordInput.value = password;
+
+  const toggleButton = createIconButton('toggle-password', 'Afficher/masquer', 'fa-eye');
+  passwordField.append(passwordInput, toggleButton);
+
+  const strength = document.createElement('div');
+  strength.className = 'strength-indicator';
+
+  const strengthLabel = document.createElement('span');
+  strengthLabel.textContent = 'Solidité :';
+  strength.appendChild(strengthLabel);
+
+  for (const dotClass of dotClasses) {
+    const dot = document.createElement('div');
+    dot.className = 'strength-dot';
+    if (dotClass) dot.classList.add(dotClass);
+    strength.appendChild(dot);
+  }
+
+  const strengthPercent = document.createElement('div');
+  strengthPercent.className = 'strength-percent';
+  strengthPercent.textContent = `${score * 20}%`;
+  strength.appendChild(strengthPercent);
+
+  accountDetails.append(title, username, urlField, passwordField, strength);
+  accountInfo.append(accountIcon, accountDetails);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.append(
+    createIconButton('action-btn copy', 'Copier le mot de passe', 'fa-copy'),
+    createIconButton('action-btn edit', 'Modifier', 'fa-edit'),
+    createIconButton('action-btn delete', 'Supprimer', 'fa-trash')
+  );
+
+  wrapper.append(accountInfo, actions);
+  return wrapper;
+}
+
+function createRecentEntryElement(entry) {
+  const { icon, cls } = getIconClass(entry.title || '');
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'vault-item';
+  wrapper.dataset.id = toText(entry.id);
+
+  const accountInfo = document.createElement('div');
+  accountInfo.className = 'account-info';
+
+  const accountIcon = document.createElement('div');
+  accountIcon.className = 'account-icon';
+  if (cls) accountIcon.classList.add(cls);
+  accountIcon.appendChild(createIcon(icon));
+
+  const accountDetails = document.createElement('div');
+  accountDetails.className = 'account-details';
+
+  const title = document.createElement('strong');
+  title.textContent = toText(entry.title, 'Sans titre') || 'Sans titre';
+
+  const username = document.createElement('span');
+  username.textContent = toText(entry.username);
+
+  accountDetails.append(title, username);
+  accountInfo.append(accountIcon, accountDetails);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.appendChild(createIconButton('copy', 'Copier', 'fa-copy'));
+
+  wrapper.append(accountInfo, actions);
+  return wrapper;
+}
+
 function getVisibleEntries() {
   const filtered = filterEntries(vaultUIState.rawEntries, {
     query: vaultUIState.query,
@@ -89,9 +251,7 @@ function initializeVaultControls() {
   if (sortButton) {
     sortButton.addEventListener('click', () => {
       vaultUIState.sortMode = vaultUIState.sortMode === 'title-asc' ? 'recent' : 'title-asc';
-      sortButton.innerHTML = vaultUIState.sortMode === 'recent'
-        ? '<i class="fas fa-sort-amount-down"></i> Trier : récents'
-        : '<i class="fas fa-sort-alpha-down"></i> Trier : A-Z';
+      setSortButtonContent(sortButton);
 
       renderVaultEntries(vaultUIState.rawEntries);
     });
@@ -121,7 +281,7 @@ function renderVaultEntries(entries) {
   const container = document.getElementById('entries');
   if (!container) return;
 
-  container.innerHTML = '';
+  container.replaceChildren();
 
   const countElem = document.getElementById('vault-count');
   if (countElem) {
@@ -129,57 +289,12 @@ function renderVaultEntries(entries) {
   }
 
   if (!visibleEntries.length) {
-    container.innerHTML = '<p>Aucune entrée ne correspond à la recherche actuelle.</p>';
+    container.replaceChildren(createEmptyMessage('Aucune entrée ne correspond à la recherche actuelle.'));
     return;
   }
 
   for (const entry of visibleEntries) {
-    const { icon, cls } = getIconClass(entry.title || '');
-    const score = getStrength(entry.password);
-
-    const dotClasses = [
-      score === 0 ? 'danger' : (score < 3 ? 'warning' : 'active'),
-      score > 1 ? (score < 3 ? 'warning' : 'active') : '',
-      score > 2 ? 'active' : '',
-      score > 3 ? 'active' : '',
-      score > 4 ? 'active' : ''
-    ];
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'vault-item';
-    wrapper.dataset.id = entry.id;
-    wrapper.dataset.category = inferCategory(entry);
-
-    wrapper.innerHTML = `
-      <div class="account-info">
-        <div class="account-icon ${cls}">
-          <i class="fas ${icon}"></i>
-        </div>
-        <div class="account-details">
-          <strong>${entry.title || ''}</strong>
-          <span>${entry.username || ''}</span>
-          <div class="url-field">
-            <input type="url" value="${entry.url || ''}" class="url-input" readonly>
-          </div>
-          <div class="password-field">
-            <input type="password" value="${entry.password}" class="password-input" readonly>
-            <button class="toggle-password" title="Afficher/masquer"><i class="fas fa-eye"></i></button>
-          </div>
-          <div class="strength-indicator">
-            <span>Solidité :</span>
-            ${dotClasses.map(dotClass => `<div class="strength-dot ${dotClass}"></div>`).join('')}
-            <div class="strength-percent">${score * 20}%</div>
-          </div>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="action-btn copy" title="Copier le mot de passe"><i class="fas fa-copy"></i></button>
-        <button class="action-btn edit" title="Modifier"><i class="fas fa-edit"></i></button>
-        <button class="action-btn delete" title="Supprimer"><i class="fas fa-trash"></i></button>
-      </div>
-    `;
-
-    container.appendChild(wrapper);
+    container.appendChild(createVaultEntryElement(entry));
   }
 
   bindEntryActions(container);
@@ -196,9 +311,9 @@ function bindEntryActions(container) {
       navigator.clipboard.writeText(input.value).then(() => {
         const id = btn.closest('.vault-item')?.dataset.id;
         if (id) window.vaultManager.markEntryAccessed(id);
-        btn.innerHTML = '<i class="fas fa-check"></i>';
+        setButtonIcon(btn, 'fa-check');
         setTimeout(() => {
-          btn.innerHTML = '<i class="fas fa-copy"></i>';
+          setButtonIcon(btn, 'fa-copy');
         }, 1500);
         showToast('Mot de passe copié dans le presse-papiers !', 'success');
       });
@@ -250,7 +365,7 @@ function bindEntryActions(container) {
       input.focus();
       urlInput?.removeAttribute('readonly');
 
-      btn.innerHTML = '<i class="fas fa-save"></i>';
+      setButtonIcon(btn, 'fa-save');
       btn.title = 'Enregistrer';
       btn.classList.add('editing');
 
@@ -258,7 +373,7 @@ function bindEntryActions(container) {
         input.setAttribute('readonly', true);
         input.type = 'password';
         urlInput?.setAttribute('readonly', true);
-        btn.innerHTML = '<i class="fas fa-edit"></i>';
+        setButtonIcon(btn, 'fa-edit');
         btn.title = 'Modifier';
         btn.classList.remove('editing');
 
@@ -293,7 +408,7 @@ async function renderRecentAccesses(limit = 4) {
   const container = document.getElementById('recent-entries');
   if (!container) return;
 
-  container.innerHTML = '';
+  container.replaceChildren();
 
   const entries = window.vaultManager.getEntries()
     .filter(entry => entry.lastAccessed)
@@ -301,39 +416,12 @@ async function renderRecentAccesses(limit = 4) {
     .slice(0, limit);
 
   if (!entries.length) {
-    container.innerHTML = '<p>Aucun accès récent.</p>';
+    container.replaceChildren(createEmptyMessage('Aucun accès récent.'));
     return;
   }
 
   for (const entry of entries) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'vault-item';
-
-    const title = entry.title?.toLowerCase() || '';
-    const iconClass = title.includes('bank')
-      ? 'fa-university bank-icon'
-      : title.includes('email')
-        ? 'fa-envelope email-icon'
-        : title.includes('cloud')
-          ? 'fa-cloud cloud-icon'
-          : title.includes('social')
-            ? 'fa-share-alt social-icon'
-            : 'fa-key';
-
-    wrapper.innerHTML = `
-      <div class="account-info">
-        <div class="account-icon ${iconClass.split(' ')[1] || ''}">
-          <i class="fas ${iconClass.split(' ')[0]}"></i>
-        </div>
-        <div class="account-details">
-          <strong>${entry.title || 'Sans titre'}</strong>
-          <span>${entry.username || ''}</span>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="copy" title="Copier"><i class="fas fa-copy"></i></button>
-      </div>
-    `;
+    const wrapper = createRecentEntryElement(entry);
 
     wrapper.querySelector('.copy')?.addEventListener('click', () => {
       navigator.clipboard.writeText(entry.password);

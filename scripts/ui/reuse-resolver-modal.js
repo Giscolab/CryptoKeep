@@ -9,16 +9,50 @@ let currentGroupData = null;
 let vaultEntries = [];
 let onSaveCallback = null;
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text || '';
-  return div.innerHTML;
+function toText(value, fallback = '') {
+  return value === null || value === undefined ? fallback : String(value);
+}
+
+function createElement(tagName, className = '', text = '') {
+  const element = document.createElement(tagName);
+  if (className) element.className = className;
+  if (text) element.textContent = text;
+  return element;
+}
+
+function createActionButton(className, text, action) {
+  const button = createElement('button', className, text);
+  button.dataset.action = action;
+  return button;
+}
+
+function appendFieldLine(container, label, value) {
+  const line = document.createElement('p');
+  const strong = document.createElement('strong');
+  strong.textContent = label;
+  line.append(strong, document.createTextNode(` ${value}`));
+  container.appendChild(line);
+}
+
+function appendAlert(container, className, title, detail) {
+  const alert = createElement('div', className);
+  const strong = document.createElement('strong');
+  strong.textContent = title;
+  alert.append(strong, document.createElement('br'), document.createTextNode(detail));
+  container.appendChild(alert);
+}
+
+function findAccountStatusBadge(modal, entryId) {
+  const targetId = toText(entryId);
+  const item = [...modal.querySelectorAll('.account-item')]
+    .find(candidate => candidate.dataset.entryId === targetId);
+  return item?.querySelector('.status-badge') || null;
 }
 
 function updateProgress() {
   if (!currentGroupData) return;
   const total = currentGroupData.entries.length;
-  const done = currentGroupData._completed.length;
+  const done = currentGroupData._completed?.length || 0;
 
   const progressText = document.getElementById('progress-text');
   const progressFill = document.getElementById('progress-fill');
@@ -35,12 +69,11 @@ function showEntryEditor(index) {
   const reveal = document.getElementById('password-display');
 
   if (currentStep) currentStep.textContent = String(index + 1);
-  if (title) title.textContent = entry.title || 'Sans titre';
+  if (title) title.textContent = toText(entry.title, 'Sans titre') || 'Sans titre';
   if (preview) {
-    preview.innerHTML = `
-      <p><strong>URL:</strong> ${escapeHtml(entry.url || 'N/A')}</p>
-      <p><strong>Identifiant:</strong> ${escapeHtml(entry.username || 'N/A')}</p>
-    `;
+    preview.replaceChildren();
+    appendFieldLine(preview, 'URL:', toText(entry.url, 'N/A') || 'N/A');
+    appendFieldLine(preview, 'Identifiant:', toText(entry.username, 'N/A') || 'N/A');
   }
 
   if (reveal) {
@@ -72,12 +105,14 @@ function moveToNext() {
   const btn = document.getElementById('btn-confirm');
   if (btn) btn.disabled = true;
 
-  const successMsg = document.createElement('div');
-  successMsg.className = 'alert alert-success';
-  successMsg.innerHTML = `
-    <strong>✅ Traitement terminé</strong><br>
-    ${currentGroupData._completed.length} sur ${currentGroupData.entries.length} comptes mis à jour.
-  `;
+  const successMsg = createElement('div', 'alert alert-success');
+  const strong = document.createElement('strong');
+  strong.textContent = '✅ Traitement terminé';
+  successMsg.append(
+    strong,
+    document.createElement('br'),
+    document.createTextNode(`${currentGroupData._completed.length} sur ${currentGroupData.entries.length} comptes mis à jour.`)
+  );
 
   const body = currentModal?.querySelector('.modal-body');
   if (body) body.prepend(successMsg);
@@ -85,100 +120,190 @@ function moveToNext() {
   document.dispatchEvent(new CustomEvent('vault:security-updated'));
 }
 
+function buildAffectedAccountsSection(group) {
+  const section = createElement('section', 'affected-accounts');
+  section.appendChild(createElement('h3', '', 'Comptes concernés'));
+
+  const list = createElement('ul', 'account-list');
+  for (const entry of group.entries) {
+    const item = createElement('li', 'account-item');
+    item.dataset.entryId = toText(entry.id);
+
+    const info = createElement('div', 'account-info');
+
+    const title = document.createElement('strong');
+    title.textContent = toText(entry.title, 'Sans titre') || 'Sans titre';
+    info.appendChild(title);
+
+    if (entry.url) {
+      const url = createElement('span', 'account-url');
+      url.textContent = toText(entry.url);
+      info.appendChild(url);
+    }
+
+    const username = createElement('span', 'account-user');
+    username.textContent = toText(entry.username, 'N/A') || 'N/A';
+    info.appendChild(username);
+
+    const status = createElement('span', 'status-badge status-pending', 'En attente');
+    item.append(info, status);
+    list.appendChild(item);
+  }
+
+  section.appendChild(list);
+  return section;
+}
+
+function buildResolutionOptions() {
+  const section = createElement('section', 'resolution-options');
+  section.appendChild(createElement('h3', '', 'Mode de correction'));
+
+  const cards = createElement('div', 'option-cards');
+
+  const manualCard = createElement('div', 'option-card');
+  manualCard.append(
+    createElement('h4', '', '📝 Modification manuelle'),
+    createElement('p', '', 'Édition individuelle avec confirmation explicite.'),
+    createActionButton('btn btn-secondary', 'Modifier manuellement', 'manual')
+  );
+
+  const generatedCard = createElement('div', 'option-card');
+  generatedCard.append(
+    createElement('h4', '', '🎰 Génération assistée'),
+    createElement('p', '', 'Pré-remplissage unique par entrée puis validation manuelle.')
+  );
+
+  const params = createElement('div', 'generation-params');
+  const lengthLabel = document.createElement('label');
+  lengthLabel.appendChild(document.createTextNode('Longueur: '));
+
+  const lengthInput = document.createElement('input');
+  lengthInput.type = 'range';
+  lengthInput.id = 'pwd-length';
+  lengthInput.min = '16';
+  lengthInput.max = '32';
+  lengthInput.value = '20';
+
+  lengthLabel.appendChild(lengthInput);
+
+  const lengthValue = createElement('span', '', '20');
+  lengthValue.id = 'pwd-length-val';
+
+  params.append(lengthLabel, lengthValue, document.createTextNode(' caractères'));
+  generatedCard.append(params, createActionButton('btn btn-primary', 'Générer et pré-remplir', 'generate'));
+
+  cards.append(manualCard, generatedCard);
+  section.appendChild(cards);
+  return section;
+}
+
+function buildWorkflowSection(group) {
+  const section = createElement('section', 'hidden');
+  section.id = 'resolution-workflow';
+
+  const heading = document.createElement('h3');
+  heading.append(
+    document.createTextNode('Traitement en cours '),
+    createElement('span', '', '1'),
+    document.createTextNode(`/${group.entries.length}`)
+  );
+  heading.querySelector('span').id = 'current-step';
+
+  const card = createElement('div', 'current-entry-card');
+
+  const currentTitle = document.createElement('h4');
+  currentTitle.id = 'current-entry-title';
+
+  const currentPreview = document.createElement('div');
+  currentPreview.id = 'current-entry-preview';
+
+  const passwordActions = createElement('div', 'password-actions');
+  const revealButton = createActionButton('btn btn-outline', 'Afficher le mot de passe actuel', 'show-current');
+  const passwordDisplay = createElement('div', 'password-reveal hidden');
+  passwordDisplay.id = 'password-display';
+  passwordActions.append(revealButton, passwordDisplay);
+
+  const manualForm = createElement('div', 'manual-edit-form');
+  manualForm.id = 'manual-form';
+
+  const passwordLabel = document.createElement('label');
+  passwordLabel.appendChild(document.createTextNode('Nouveau mot de passe :'));
+
+  const passwordInput = document.createElement('input');
+  passwordInput.type = 'password';
+  passwordInput.id = 'new-password-input';
+  passwordInput.className = 'password-input';
+  passwordLabel.appendChild(passwordInput);
+
+  manualForm.append(
+    passwordLabel,
+    createActionButton('btn btn-secondary', 'Générer pour cette entrée', 'generate-one')
+  );
+
+  card.append(currentTitle, currentPreview, passwordActions, manualForm);
+
+  const controls = createElement('div', 'workflow-controls');
+  const skipButton = createActionButton('btn btn-outline', 'Ignorer (temporairement)', 'skip');
+  const confirmButton = createActionButton('btn btn-primary', 'Confirmer la modification', 'confirm');
+  confirmButton.id = 'btn-confirm';
+  controls.append(skipButton, confirmButton);
+
+  section.append(heading, card, controls);
+  return section;
+}
+
+function buildModal(group) {
+  const modal = createElement('div', 'modal security-modal');
+  modal.id = 'reuse-resolver-modal';
+
+  const content = createElement('div', 'modal-content reuse-resolver');
+
+  const header = createElement('header', 'modal-header warning');
+  header.append(
+    createElement('span', 'icon', '⚠️'),
+    createElement('h2', '', `Réutilisation détectée : ${group.entries.length} comptes`),
+    createActionButton('btn-close', '×', 'close')
+  );
+
+  const body = createElement('div', 'modal-body');
+  appendAlert(
+    body,
+    'alert alert-warning',
+    'Risque de sécurité élevé',
+    `Le même mot de passe est actuellement utilisé sur ${group.entries.length} comptes différents.`
+  );
+  body.append(
+    buildAffectedAccountsSection(group),
+    buildResolutionOptions(),
+    buildWorkflowSection(group)
+  );
+
+  const footer = createElement('footer', 'modal-footer');
+  const progress = createElement('div', 'progress-info');
+
+  const progressText = createElement('span', '', `0/${group.entries.length} modifiés`);
+  progressText.id = 'progress-text';
+
+  const progressBar = createElement('div', 'progress-bar');
+  const progressFill = document.createElement('div');
+  progressFill.id = 'progress-fill';
+  progressFill.style.width = '0%';
+  progressBar.appendChild(progressFill);
+
+  progress.append(progressText, progressBar);
+  footer.append(progress, createActionButton('btn btn-outline', 'Fermer (annuler le reste)', 'close'));
+
+  content.append(header, body, footer);
+  modal.appendChild(content);
+  return modal;
+}
+
 export function openReuseResolver(group, allEntries, saveFn) {
   vaultEntries = allEntries;
   currentGroupData = group;
   onSaveCallback = saveFn;
 
-  const modal = document.createElement('div');
-  modal.id = 'reuse-resolver-modal';
-  modal.className = 'modal security-modal';
-  modal.innerHTML = `
-    <div class="modal-content reuse-resolver">
-      <header class="modal-header warning">
-        <span class="icon">⚠️</span>
-        <h2>Réutilisation détectée : ${group.entries.length} comptes</h2>
-        <button class="btn-close" data-action="close">×</button>
-      </header>
-
-      <div class="modal-body">
-        <div class="alert alert-warning">
-          <strong>Risque de sécurité élevé</strong><br>
-          Le même mot de passe est actuellement utilisé sur ${group.entries.length} comptes différents.
-        </div>
-
-        <section class="affected-accounts">
-          <h3>Comptes concernés</h3>
-          <ul class="account-list">
-            ${group.entries.map((entry) => `
-              <li class="account-item" data-entry-id="${entry.id}">
-                <div class="account-info">
-                  <strong>${escapeHtml(entry.title || 'Sans titre')}</strong>
-                  ${entry.url ? `<span class="account-url">${escapeHtml(entry.url)}</span>` : ''}
-                  <span class="account-user">${escapeHtml(entry.username || 'N/A')}</span>
-                </div>
-                <span class="status-badge status-pending">En attente</span>
-              </li>
-            `).join('')}
-          </ul>
-        </section>
-
-        <section class="resolution-options">
-          <h3>Mode de correction</h3>
-          <div class="option-cards">
-            <div class="option-card">
-              <h4>📝 Modification manuelle</h4>
-              <p>Édition individuelle avec confirmation explicite.</p>
-              <button class="btn btn-secondary" data-action="manual">Modifier manuellement</button>
-            </div>
-
-            <div class="option-card">
-              <h4>🎰 Génération assistée</h4>
-              <p>Pré-remplissage unique par entrée puis validation manuelle.</p>
-              <div class="generation-params">
-                <label>Longueur: <input type="range" id="pwd-length" min="16" max="32" value="20"></label>
-                <span id="pwd-length-val">20</span> caractères
-              </div>
-              <button class="btn btn-primary" data-action="generate">Générer et pré-remplir</button>
-            </div>
-          </div>
-        </section>
-
-        <section id="resolution-workflow" class="hidden">
-          <h3>Traitement en cours <span id="current-step">1</span>/${group.entries.length}</h3>
-          <div class="current-entry-card">
-            <h4 id="current-entry-title"></h4>
-            <div id="current-entry-preview"></div>
-
-            <div class="password-actions">
-              <button class="btn btn-outline" data-action="show-current">Afficher le mot de passe actuel</button>
-              <div id="password-display" class="password-reveal hidden"></div>
-            </div>
-
-            <div class="manual-edit-form" id="manual-form">
-              <label>Nouveau mot de passe :
-                <input type="password" id="new-password-input" class="password-input">
-              </label>
-              <button class="btn btn-secondary" data-action="generate-one">Générer pour cette entrée</button>
-            </div>
-          </div>
-
-          <div class="workflow-controls">
-            <button class="btn btn-outline" data-action="skip">Ignorer (temporairement)</button>
-            <button class="btn btn-primary" data-action="confirm" id="btn-confirm">Confirmer la modification</button>
-          </div>
-        </section>
-      </div>
-
-      <footer class="modal-footer">
-        <div class="progress-info">
-          <span id="progress-text">0/${group.entries.length} modifiés</span>
-          <div class="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
-        </div>
-        <button class="btn btn-outline" data-action="close">Fermer (annuler le reste)</button>
-      </footer>
-    </div>
-  `;
+  const modal = buildModal(group);
 
   document.body.appendChild(modal);
   currentModal = modal;
@@ -270,7 +395,7 @@ export function openReuseResolver(group, allEntries, saveFn) {
       const updatedEntry = { ...fullEntry, password: newPassword };
       try {
         await onSaveCallback(updatedEntry);
-        const item = modal.querySelector(`li[data-entry-id="${currentEntry.id}"] .status-badge`);
+        const item = findAccountStatusBadge(modal, currentEntry.id);
         if (item) {
           item.className = 'status-badge status-done';
           item.textContent = 'Modifié';
