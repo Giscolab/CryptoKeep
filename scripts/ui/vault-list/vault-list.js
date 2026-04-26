@@ -62,6 +62,13 @@ function createEmptyMessage(text) {
   return message;
 }
 
+function resetVaultUIState() {
+  vaultUIState.rawEntries = [];
+  vaultUIState.query = '';
+  vaultUIState.category = 'all';
+  vaultUIState.sortMode = 'title-asc';
+}
+
 function setSortButtonContent(button) {
   const isRecent = vaultUIState.sortMode === 'recent';
   button.replaceChildren(
@@ -433,7 +440,21 @@ async function renderRecentAccesses(limit = 4) {
   }
 }
 
+function clearVaultListSession() {
+  resetVaultUIState();
+
+  const entries = document.getElementById('entries');
+  if (entries) entries.replaceChildren();
+
+  const recentEntries = document.getElementById('recent-entries');
+  if (recentEntries) recentEntries.replaceChildren();
+
+  const countElem = document.getElementById('vault-count');
+  if (countElem) countElem.textContent = '0/0';
+}
+
 export {
   renderVaultEntries,
-  renderRecentAccesses
+  renderRecentAccesses,
+  clearVaultListSession
 };

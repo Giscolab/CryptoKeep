@@ -1,3 +1,5 @@
+import { lockVaultSession } from './session-lock.js';
+
 const DELAY_OPTIONS = {
   '1 minute': 60,
   '2 minutes': 120,
@@ -102,12 +104,12 @@ export class AutoLock {
   }
 
   lockVault() {
-    vaultManager.masterKey = null;
-    console.log("[LOCK] Clé supprimée ? ", vaultManager.masterKey === null);
-    showAuthScreen();
-    const pwInput = document.getElementById('master-password');
-    if (pwInput) pwInput.value = '';
-    showToast('Session verrouillée automatiquement.', 'error');
+    void lockVaultSession(typeof window !== 'undefined' ? window.vaultManager : null, {
+      message: 'Session verrouillée automatiquement.',
+      type: 'error'
+    }).then((result) => {
+      console.log("[LOCK] Session nettoyée ? ", result.masterKeyNull && result.entryCount === 0);
+    });
   }
 
   _reset() {

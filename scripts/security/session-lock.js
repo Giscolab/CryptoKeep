@@ -1,0 +1,138 @@
+import { showAuthScreen } from '../ui/auth-screen/auth-screen.js';
+import { clearVaultListSession } from '../ui/vault-list/vault-list.js';
+import { showToast } from '../utils/toast.js';
+
+function clearInputValue(selector) {
+  document.querySelectorAll(selector).forEach((input) => {
+    input.value = '';
+  });
+}
+
+function setButtonIcon(button, iconClass) {
+  const icon = document.createElement('i');
+  icon.className = `fas ${iconClass}`;
+  button.replaceChildren(icon);
+}
+
+function clearRenderedSecrets() {
+  clearInputValue('.password-input');
+  clearInputValue('.url-input');
+  clearInputValue('#password');
+  clearInputValue('#entry-title');
+  clearInputValue('#entry-username');
+  clearInputValue('#entry-url');
+  clearInputValue('#website');
+
+  document.querySelectorAll('.toggle-password').forEach((button) => {
+    setButtonIcon(button, 'fa-eye');
+  });
+
+  document.querySelectorAll('.action-btn.edit.editing').forEach((button) => {
+    button.classList.remove('editing');
+    button.title = 'Modifier';
+    setButtonIcon(button, 'fa-edit');
+  });
+
+  document.querySelectorAll('.password-reveal, #password-display').forEach((node) => {
+    node.textContent = '';
+    node.classList.add('hidden');
+  });
+
+  document.getElementById('current-entry-preview')?.replaceChildren();
+  document.getElementById('reuse-resolver-modal')?.remove();
+}
+
+function clearRenderedVaultDom() {
+  clearRenderedSecrets();
+  clearVaultListSession();
+}
+
+async function clearClipboardBestEffort() {
+  const result = {
+    attempted: false,
+    succeeded: false
+  };
+
+  try {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.writeText !== 'function'
+    ) {
+      return result;
+    }
+
+    result.attempted = true;
+    await navigator.clipboard.writeText('');
+    result.succeeded = true;
+  } catch (error) {
+    console.warn('[LOCK] Nettoyage du presse-papiers non garanti :', error);
+  }
+
+  return result;
+}
+
+function clearMasterPasswordInput() {
+  const pwInput = document.getElementById('master-password');
+  if (pwInput) pwInput.value = '';
+}
+
+function showLockedAuthScreen() {
+  try {
+    showAuthScreen();
+  } catch (error) {
+    console.warn('[LOCK] Affichage de l’écran verrouillé incomplet :', error);
+    const authScreen = document.getElementById('auth-screen');
+    const vaultUi = document.getElementById('vault-ui');
+    if (authScreen) authScreen.hidden = false;
+    if (vaultUi) vaultUi.hidden = true;
+  }
+}
+
+function clearVaultManagerSession(vaultManager) {
+  try {
+    if (vaultManager && typeof vaultManager.clearSession === 'function') {
+      vaultManager.clearSession();
+      return;
+    }
+
+    if (vaultManager) {
+      vaultManager.masterKey = null;
+      if (vaultManager.vault && typeof vaultManager.vault.clear === 'function') {
+        vaultManager.vault.clear();
+      }
+    }
+  } catch (error) {
+    console.warn('[LOCK] Nettoyage mémoire incomplet :', error);
+    if (vaultManager) vaultManager.masterKey = null;
+  }
+}
+
+export async function lockVaultSession(
+  vaultManager = typeof window !== 'undefined' ? window.vaultManager : null,
+  options = {}
+) {
+  const {
+    notify = true,
+    message = 'Session verrouillée automatiquement.',
+    type = 'error'
+  } = options;
+
+  clearVaultManagerSession(vaultManager);
+  clearRenderedVaultDom();
+  showLockedAuthScreen();
+  clearMasterPasswordInput();
+
+  const clipboard = await clearClipboardBestEffort();
+
+  if (notify) {
+    showToast(message, type);
+  }
+
+  return {
+    masterKeyNull: vaultManager?.masterKey === null,
+    entryCount: typeof vaultManager?.getEntries === 'function' ? vaultManager.getEntries().length : 0,
+    clipboardCleanupAttempted: clipboard.attempted,
+    clipboardCleanupSucceeded: clipboard.succeeded
+  };
+}
