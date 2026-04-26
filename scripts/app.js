@@ -47,6 +47,9 @@ import {
 	getStoredDelay
 } from './security/autolock.js';
 import {
+	lockVaultSession
+} from './security/session-lock.js';
+import {
 	zeroize
 } from './security/memory.js';
 import {
@@ -63,7 +66,6 @@ import {
 } from './security/password-reuse-groups.js';
 // === UI
 import {
-	showAuthScreen,
 	hideAuthScreen
 } from './ui/auth-screen/auth-screen.js';
 import {
@@ -223,12 +225,10 @@ vaultManager.storage.initializeDB().then(async () => {
 });
 // AutoLock actif après authentification
 const locker = new AutoLock(() => {
-	vaultManager.masterKey = null;
-	showAuthScreen();
-	// SÉCURITÉ : on vide le champ mot de passe maître !
-	const pwInput = document.getElementById('master-password');
-	if (pwInput) pwInput.value = '';
-	showToast('Session verrouillée automatiquement.', 'error');
+	void lockVaultSession(vaultManager, {
+		message: 'Session verrouillée automatiquement.',
+		type: 'error'
+	});
 }, getStoredDelay() * 1000);
 const generateBtn = document.getElementById('generate-password');
 const passwordInput = document.getElementById('password');

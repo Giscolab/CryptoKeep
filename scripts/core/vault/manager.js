@@ -193,6 +193,29 @@ async getPasswordStats() {
     return this.vault.getAllEntries();
   }
 
+  clearSession() {
+    try {
+      this.masterKey = null;
+
+      if (this.vault && typeof this.vault.clear === 'function') {
+        this.vault.clear();
+      } else {
+        this.vault = new Vault();
+      }
+
+      if (typeof window !== 'undefined' && window.vault) {
+        if (typeof window.vault.clear === 'function') {
+          window.vault.clear();
+        }
+        window.vault = null;
+      }
+    } catch (error) {
+      console.warn('[Vault] Nettoyage de session incomplet :', error);
+      this.masterKey = null;
+      this.vault = new Vault();
+    }
+  }
+
   // 🔐 Chargement direct du vault (brut)
   async _loadRawVault() {
     await this.storage.initializeDB();
