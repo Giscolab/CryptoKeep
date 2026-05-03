@@ -1,549 +1,356 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vault Personal - Audit de sécurité complet du génie logiciel</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #07090f;
-      --panel: #101522;
-      --panel-2: #151b2b;
-      --ink: #e8edf7;
-      --muted: #9aa8bd;
-      --line: #283245;
-      --accent: #69a7ff;
-      --critical: #ff4d5e;
-      --high: #ff9b4a;
-      --medium: #ffd166;
-      --low: #52d273;
-      --code: #0b1020;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: radial-gradient(circle at 20% 0%, #111a2c 0, var(--bg) 34rem);
-      color: var(--ink);
-      font: 15px/1.62 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .page { width: min(1180px, calc(100vw - 48px)); margin: 0 auto; padding: 42px 0 72px; }
-    header.hero {
-      border: 1px solid var(--line);
-      background: linear-gradient(145deg, rgba(21, 27, 43, .96), rgba(10, 14, 24, .96));
-      border-radius: 8px;
-      padding: 34px;
-      box-shadow: 0 28px 80px rgba(0,0,0,.45);
-    }
-    .kicker { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 700; }
-    h1, h2, h3 { line-height: 1.12; margin: 0 0 14px; }
-    h1 { font-size: clamp(34px, 5vw, 58px); max-width: 900px; }
-    h2 { font-size: 28px; margin-top: 36px; padding-top: 10px; }
-    h3 { font-size: 19px; margin-top: 24px; }
-    p { margin: 0 0 14px; }
-    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 24px; }
-    .metric {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 18px;
-      min-height: 120px;
-    }
-    .metric strong { display: block; font-size: 34px; line-height: 1; margin-bottom: 8px; }
-    .metric span { color: var(--muted); }
-    nav.toc, section {
-      background: rgba(16, 21, 34, .88);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 28px;
-      margin-top: 22px;
-    }
-    nav.toc ol { columns: 2; padding-left: 20px; margin: 0; }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 3px 9px;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-      border: 1px solid currentColor;
-      white-space: nowrap;
-    }
-    .critical { color: var(--critical); }
-    .high { color: var(--high); }
-    .medium { color: var(--medium); }
-    .low { color: var(--low); }
-    .finding {
-      border: 1px solid var(--line);
-      border-left: 4px solid var(--critical);
-      border-radius: 8px;
-      background: #0d1322;
-      padding: 18px;
-      margin: 14px 0;
-    }
-    .finding.high-border { border-left-color: var(--high); }
-    .finding.medium-border { border-left-color: var(--medium); }
-    .finding.low-border { border-left-color: var(--low); }
-    .finding-title { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-    .fact { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-    .red-flag {
-      border: 1px solid rgba(255,77,94,.45);
-      background: rgba(255,77,94,.09);
-      border-radius: 8px;
-      padding: 16px;
-      margin: 18px 0;
-    }
-    table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; overflow: hidden; border-radius: 8px; }
-    th, td { border: 1px solid var(--line); padding: 10px 12px; vertical-align: top; }
-    th { text-align: left; color: #d9e6ff; background: #182033; }
-    td { background: rgba(255,255,255,.025); }
-    code, pre {
-      font: 13px/1.52 "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-      color: #dbe7ff;
-      background: var(--code);
-    }
-    code { padding: 2px 5px; border-radius: 4px; }
-    pre {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      overflow-x: auto;
-      margin: 12px 0;
-    }
-    ul { margin-top: 8px; }
-    li { margin: 6px 0; }
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    .terminal {
-      background: #05070c;
-      border: 1px solid #2d374c;
-      border-radius: 8px;
-      padding: 18px;
-      color: #d7ffe1;
-      white-space: pre-wrap;
-    }
-    .muted { color: var(--muted); }
-    @media (max-width: 820px) {
-      .summary-grid, .two-col { grid-template-columns: 1fr; }
-      nav.toc ol { columns: 1; }
-      .page { width: min(100vw - 28px, 1180px); padding-top: 22px; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit technique complet - Vault Personal</title>
+<style>
+:root{--bg:#080b12;--panel:#101722;--panel2:#141f2d;--text:#e6edf6;--muted:#9ba8b7;--line:#27364a;--accent:#67e8f9;--critical:#ff4d6d;--high:#ff9f1c;--medium:#ffd166;--low:#5eead4;--ok:#86efac;--code:#07111f}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at top left,#122033 0,#080b12 36rem);color:var(--text);font:15px/1.65 Inter,Segoe UI,Roboto,Arial,sans-serif}.page{max-width:1180px;margin:0 auto;padding:44px 28px 80px}.hero{border:1px solid var(--line);background:linear-gradient(135deg,rgba(20,31,45,.96),rgba(10,17,31,.96));border-radius:14px;padding:34px;box-shadow:0 24px 70px rgba(0,0,0,.35)}h1{margin:0 0 8px;font-size:34px;line-height:1.12}h2{font-size:24px;margin:42px 0 14px;border-bottom:1px solid var(--line);padding-bottom:9px}h3{margin:0 0 6px;font-size:17px}.subtitle{color:var(--muted);max-width:900px}.meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:22px}.meta div,.card,.finding,.redflag,.toc,.verdict{background:rgba(16,23,34,.88);border:1px solid var(--line);border-radius:10px;padding:14px}.meta b{display:block;color:#fff}.meta span{color:var(--muted)}.toc ul{columns:2;margin:0;padding-left:20px}.toc a{color:var(--accent);text-decoration:none}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 9px;font-size:11px;text-transform:uppercase;font-weight:800;letter-spacing:.04em;border:1px solid currentColor}.critical{color:var(--critical);background:rgba(255,77,109,.12)}.high{color:var(--high);background:rgba(255,159,28,.12)}.medium{color:var(--medium);background:rgba(255,209,102,.12)}.low{color:var(--low);background:rgba(94,234,212,.10)}.fact{color:#c7d2fe;font-weight:700}.estimate{color:#fde68a;font-weight:700}.redflag{border-color:rgba(255,77,109,.55);background:linear-gradient(180deg,rgba(255,77,109,.11),rgba(16,23,34,.92))}.top10{list-style:none;padding:0;margin:0;display:grid;gap:10px}.top10 li{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:13px}.top10 .rank{display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;border-radius:50%;background:#1d2b3f;margin-right:8px;color:#fff;font-weight:800}.top10 strong{margin-left:8px}.top10 p{margin:5px 0 0 42px;color:var(--muted)}table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}th,td{border-bottom:1px solid var(--line);padding:11px 12px;text-align:left;vertical-align:top}th{color:#fff;background:#172235}td{color:#d6deea}.finding{margin:14px 0}.finding-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.refs{color:var(--muted);font-size:13px}pre{white-space:pre-wrap;word-break:break-word;background:var(--code);border:1px solid #1e3a5f;border-radius:9px;padding:13px;overflow:auto;color:#cde7ff}code{font-family:JetBrains Mono,Consolas,monospace;font-size:13px}.tree{max-height:420px;overflow:auto}.roadmap li{margin:8px 0}.verdict{border-color:rgba(255,77,109,.7);background:linear-gradient(135deg,rgba(255,77,109,.16),rgba(16,23,34,.94))}.small{color:var(--muted);font-size:13px}.ok{color:var(--ok);font-weight:800}@media(max-width:850px){.meta,.grid{grid-template-columns:1fr}.toc ul{columns:1}.page{padding:24px 14px}h1{font-size:28px}}
+</style>
 </head>
-<body>
-  <main class="page">
-    <header class="hero">
-      <div class="kicker">Audit principal de sécurité du génie logiciel</div>
-      <h1>Audit complet du dépôt Vault Personal</h1>
-      <p class="muted">Dépôt : <code>C:\Users\cadet\Documents\GitHub\vault-personal</code>. Date de l'audit : 2026-04-26. Portée : dépôt suivi, documents ignorés/générés, ressources locales, journaux locaux et archive non suivie. Portée d'écriture : ce rapport uniquement.</p>
-      <div class="summary-grid">
-        <div class="metric"><strong class="critical">Non</strong><span>Sûr pour de vraies identités aujourd'hui</span></div>
-        <div class="metric"><strong>22/100</strong><span>Préparation estimée pour la production</span></div>
-        <div class="metric"><strong class="critical">Critique</strong><span>Gravité de la dette technique</span></div>
-        <div class="metric"><strong>10</strong><span>Pires constatations critiques mises en évidence</span></div>
-      </div>
-    </header>
+<body><main class="page">
+<section class="hero">
+  <h1>Audit technique complet - Vault Personal</h1>
+  <p class="subtitle">Rapport d’audit en français, orienté sécurité produit, sur l’état courant du dépôt local. L’application est évaluée comme gestionnaire de mots de passe local-first manipulant des identifiants confidentiels.</p>
+  <div class="meta">
+    <div><b>Date</b><span>26 avril 2026</span></div>
+    <div><b>Dépôt</b><span>C:\Users\cadet\Documents\GitHub\vault-personal</span></div>
+    <div><b>Commit audité</b><span>da4905b</span></div>
+    <div><b>État Git avant rapport</b><span>propre; ignorés: docs/assets, logs</span></div>
+  </div>
+</section>
 
-    <nav class="toc" aria-label="Table des matières">
-      <h2>Table des matières</h2>
-      <ol>
-        <li><a href="#executive-summary">Résumé exécutif</a></li>
-        <li><a href="#top-critical">10 constatations critiques principales</a></li>
-        <li><a href="#domain-scores">Scores par domaine</a></li>
-        <li><a href="#a1">A1 Cartographie du dépôt</a></li>
-        <li><a href="#a2">A2 Implémentation cryptographique</a></li>
-        <li><a href="#a3">A3 Stockage et persistance</a></li>
-        <li><a href="#a4">A4 Sécurité à l'exécution</a></li>
-        <li><a href="#a5">A5 Suite de tests et vérification</a></li>
-        <li><a href="#a6">A6 Véracité de la documentation</a></li>
-        <li><a href="#a7">A7 Confiance du frontal et de l'expérience utilisateur</a></li>
-        <li><a href="#a8">A8 Verdict de préparation pour la production</a></li>
-        <li><a href="#roadmap">Feuille de route de reconstruction priorisée</a></li>
-        <li><a href="#terminal-output">Résumé terminal final</a></li>
-      </ol>
-    </nav>
+<section id="summary">
+  <h2>Résumé exécutif</h2>
+  <div class="verdict"><p><strong>Verdict court : Vault Personal ne doit pas être utilisé aujourd’hui pour stocker de vrais identifiants.</strong></p><p><span class="fact">Faits établis.</span> Les correctifs récents ont supprimé les sinks XSS principaux dans la liste et le dashboard et ont ajouté un nettoyage de session au verrouillage. Ces deux points sont de vraies améliorations. Mais l’ensemble reste insuffisant pour un produit de secrets : documentation trompeuse, KDF non calibré, stockage fragile, localStorage redondant, CSP faible, logs trop bavards, flux UI non câblés et tests non qualifiants.</p><p><span class="estimate">Estimation d’ingénierie.</span> Le niveau actuel ressemble à un prototype avancé local-first, pas à un coffre prêt production. Production readiness estimée : <strong>22/100</strong>.</p></div>
+</section>
 
-    <section id="executive-summary">
-      <h2>Résumé exécutif</h2>
-      <div class="red-flag">
-        <strong>Verdict :</strong> Vault Personal n'est pas prêt pour la production pour stocker de vraies identifiants. La base de code actuelle est un prototype de navigateur utile avec chiffrement WebCrypto, mais le dépôt et les affirmations du produit surestiment considérablement le modèle de sécurité mis en œuvre.
-      </div>
-      <p><span class="fact">Fait issu du code/documents.</span> L'application active utilise AES-GCM du WebCrypto du navigateur avec PBKDF2-HMAC-SHA512 et IndexedDB. Elle conserve également les entrées déchiffrées dans un coffre JavaScript en mémoire, affiche les mots de passe dans les valeurs d'entrée du DOM, écrit une sauvegarde du coffre encodée dans le localStorage, expédie des fichiers crypto/stockage hérités dupliqués, et annonce des fonctionnalités qui sont absentes ou inactives.</p>
-      <p><span class="fact">Estimation technique.</span> Le risque le plus important n'est pas une mauvaise utilisation immédiate d'AES-GCM. Le risque plus important est le décalage de confiance : la documentation, l'interface et la communication du README impliquent un produit de sécurité industriel, isolé et à connaissance nulle, tandis que les preuves de mise en œuvre montrent un prototype local monopage avec un confinement à l'exécution incomplet, une vérification limitée et une sémantique de stockage fragile.</p>
-    </section>
+<section id="toc" class="toc"><h2>Table des matières</h2><ul>
+<li><a href="#top10">10 pires findings</a></li><li><a href="#scores">Scores par domaine</a></li><li><a href="#a1">A1 Cartographie</a></li><li><a href="#a2">A2 Cryptographie</a></li><li><a href="#a3">A3 Stockage</a></li><li><a href="#a4">A4 Runtime sécurité</a></li><li><a href="#a5">A5 Tests</a></li><li><a href="#a6">A6 Documentation</a></li><li><a href="#a7">A7 Frontend/UX confiance</a></li><li><a href="#a8">A8 Verdict production</a></li><li><a href="#findings">Findings détaillés</a></li><li><a href="#roadmap">Roadmap de reconstruction</a></li></ul></section>
 
-    <section id="top-critical">
-      <h2>10 constatations critiques principales</h2>
+<section id="top10"><h2>Les 10 pires findings</h2><ol class="top10"><li><span class="rank">1</span><span class="badge critical">critical</span><strong>Promesses de sécurité fausses ou non démontrées</strong><p>README/docs annoncent sécurité militaire, zero-knowledge, Spectre, WebAuthn/FIDO2, SECURITY.md et 600 000 itérations alors que le code ne fournit pas ces garanties.</p></li>
+<li><span class="rank">2</span><span class="badge critical">critical</span><strong>KDF insuffisamment industrialisé</strong><p>PBKDF2-SHA512 est codé en dur à 150 000 itérations, sans calibration, sans migration effective de paramètres, sans politique de coût adaptative.</p></li>
+<li><span class="rank">3</span><span class="badge critical">critical</span><strong>Persistance redondante localStorage</strong><p>Le coffre chiffré complet est dupliqué en base64 dans localStorage via vaultBackup, augmentant fortement le rayon d’impact d’une XSS ou d’une extension compromise.</p></li>
+<li><span class="rank">4</span><span class="badge critical">critical</span><strong>Stockage mono-enregistrement fragile</strong><p>IndexedDB stocke un seul blob current et les sauvegardes font clear() puis put(), sans isolation par entrée, sans journal, sans commit/rollback applicatif, sans récupération fine.</p></li>
+<li><span class="rank">5</span><span class="badge critical">critical</span><strong>Import/export .vault trop peu validé</strong><p>L’import accepte un JSON .vault avec validation minimale et aucune enveloppe de format, signature, version crypto stricte, contrôle de migration ou stratégie de rollback.</p></li>
+<li><span class="rank">6</span><span class="badge critical">critical</span><strong>CSP trop faible et partiellement théâtrale</strong><p>index.html autorise cdnjs et unsafe-inline; le module CSP dynamique est pratiquement inactif hors environnement Node-like car il dépend de process.env.NODE_ENV.</p></li>
+<li><span class="rank">7</span><span class="badge high">high</span><strong>Fuites de métadonnées et données chiffrées dans la console</strong><p>StorageManager logge entries/meta et les imports complets; dans un gestionnaire de secrets, la console ne doit pas recevoir de contenu de coffre.</p></li>
+<li><span class="rank">8</span><span class="badge high">high</span><strong>Architecture en générations superposées</strong><p>Des modules racines legacy scripts/crypto.js, scripts/storage.js, scripts/security.js coexistent avec scripts/core/*; cela crée une ambiguïté de cerveau applicatif.</p></li>
+<li><span class="rank">9</span><span class="badge high">high</span><strong>Flux produit critiques non câblés</strong><p>addPasswordBtn, passwordModal, changePasswordBtn et logout existent dans le DOM mais n’ont aucun binding JS détecté; l’ajout par UI et des actions sensibles sont incohérents.</p></li>
+<li><span class="rank">10</span><span class="badge critical">critical</span><strong>Tests et outillage non qualifiants</strong><p>Les commandes Node/NPM échouent dans l’environnement d’audit; la couverture statique existante ignore corruption, tamper, migration, CSP, clipboard, XSS et lock de session.</p></li></ol></section>
+<section id="scores"><h2>Scores par domaine</h2><table><thead><tr><th>Domaine</th><th>Score</th><th>Risque</th><th>Justification</th></tr></thead><tbody><tr><td>Cartographie / structure</td><td>38/100</td><td><span class="badge high">high</span></td><td>Architecture modulaire partielle mais coexistence legacy, docs build ignorées, logs locaux, chemins morts.</td></tr>
+<tr><td>Cryptographie</td><td>45/100</td><td><span class="badge high">high</span></td><td>WebCrypto AES-GCM sain au niveau primitif, mais KDF faible pour 2026, non calibré, non versionné opérationnellement.</td></tr>
+<tr><td>Stockage / persistance</td><td>28/100</td><td><span class="badge critical">critical</span></td><td>Mono-blob current, clear puis put, localStorage redondant, import/export peu validés.</td></tr>
+<tr><td>Sécurité runtime</td><td>42/100</td><td><span class="badge high">high</span></td><td>XSS et lock récemment corrigés dans les chemins principaux, mais CSP faible, clipboard best effort, console trop bavarde.</td></tr>
+<tr><td>Tests / vérification</td><td>15/100</td><td><span class="badge critical">critical</span></td><td>Commandes non exécutables ici et tests très superficiels pour un coffre de secrets.</td></tr>
+<tr><td>Documentation vérité</td><td>18/100</td><td><span class="badge critical">critical</span></td><td>README et docs publiques survendent fortement les garanties réelles.</td></tr>
+<tr><td>UX de confiance</td><td>25/100</td><td><span class="badge critical">critical</span></td><td>Scores et métriques statiques, boutons non câblés, badges de confiance non soutenus par l’ingénierie.</td></tr>
+<tr><td>Préparation production</td><td>22/100</td><td><span class="badge critical">critical</span></td><td>Non acceptable pour vrais identifiants sans refonte ciblée des fondations.</td></tr></tbody></table></section>
 
-      <article class="finding">
-        <div class="finding-title"><h3>1. L'affirmation de force du KDF dans le README est fausse</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> <code>README.md:40</code> affirme 600 000 itérations PBKDF2. Le code actif code en dur 150 000 à trois endroits.</p>
-        <pre>README.md:40
-PBKDF2-HMAC-SHA512 | 600 000 itérations
+<section id="a1"><h2>A1 - Cartographie et structure</h2><div class="grid"><div class="card"><h3>Inventaire</h3><p><span class="fact">Fait.</span> 143 fichiers visibles hors .git dans le workspace, dont 59 JavaScript, 50 CSS, 6 tests, 7 logs ignorés et un build docs/assets ignoré.</p><p><span class="fact">Fait.</span> Le dépôt suivi contient maintenant le rapport HTML et <code>scripts/security/session-lock.js</code>. <code>git diff --stat</code> était vide avant la génération du présent rapport.</p></div><div class="redflag"><h3>Cerveau applicatif multiple</h3><p>Le code actif est dans <code>scripts/core/*</code> et <code>scripts/app.js</code>, mais <code>scripts/crypto.js</code>, <code>scripts/storage.js</code> et <code>scripts/security.js</code> conservent des implémentations legacy parallèles. Ce n’est pas un seul cerveau applicatif clair.</p></div></div><h3>Arbre synthétique</h3><pre><code>.githooks/pre-commit
+.gitignore
+.stylelintrc.json
+404.html
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+README.md
+docs/favicon.ico
+docs/index.html
+docs/placeholder.svg
+docs/robots.txt
+eslint.config.mjs
+export_log.py
+index.html
+package.json
+public/base/global.css
+public/base/reset.css
+public/base/tokens.css
+public/components/*.css (18 fichiers)
+public/icons/* (7 fichiers)
+public/layout/*.css (6 fichiers)
+public/main.css
+public/themes/*.css (15 fichiers)
+public/utilities/*.css (2 fichiers)
+purgecss.config.cjs
+reports/vault-personal-full-audit-report.html
+scripts/app.js
+scripts/core/crypto/aes-gcm.js
+scripts/core/crypto/pbkdf2.js
+scripts/core/crypto/workers/*.worker.js
+scripts/core/storage/backup.js
+scripts/core/storage/indexeddb.js
+scripts/core/storage/manager.js
+scripts/core/storage/migrations/entry-timestamps.js
+scripts/core/storage/schema.js
+scripts/core/vault/manager.js
+scripts/core/vault/vault.js
+scripts/crypto.js
+scripts/security.js
+scripts/security/audit.js
+scripts/security/autolock.js
+scripts/security/csp.js
+scripts/security/hibp-service.js
+scripts/security/memory.js
+scripts/security/password-reuse-groups.js
+scripts/security/security-dashboard-audit.js
+scripts/security/session-lock.js
+scripts/security/severity.js
+scripts/storage.js
+scripts/tools/audit-crypto.js
+scripts/tools/audit-runner.js
+scripts/ui/*.js
+scripts/ui/auth-screen/auth-screen.js
+scripts/ui/password-meter/password-meter.js
+scripts/ui/vault-list/vault-list.js
+scripts/utils/*.js
+scripts/vendor/Chart.min.js
+start_vault_local.bat
+tests/crypto.spec.js
+tests/password-reuse-groups.spec.js
+tests/security-no-plaintext.spec.js
+tests/vault-filters.spec.js
+tests/vault.sample.json
+tests/vault.spec.js
 
-scripts/core/crypto/pbkdf2.js:23
+Ignorés/localement présents au moment de l&#39;audit:
+docs/assets/index-2t0zffAG.css
+docs/assets/index-q6yya6Gb.js
+logs/vault_20260404_101141.log
+logs/vault_20260418_111217.log
+logs/vault_20260423_205419.log
+logs/vault_20260426_191136.log
+logs/vault_20260426_213613.log
+logs/vault_20260426_215701.log
+logs/vault_20260426_221119.log</code></pre></section>
+
+<section id="a2"><h2>A2 - Audit cryptographique</h2><p><span class="fact">Fait.</span> AES-GCM utilise des IV 96 bits via <code>crypto.getRandomValues(new Uint8Array(12))</code>. C’est correct au niveau primitif. <span class="fact">Fait.</span> PBKDF2-HMAC-SHA512 est codé à 150 000 itérations, malgré une documentation à 600 000. <span class="estimate">Estimation.</span> La résistance offline est trop dépendante du mot de passe maître et trop faible pour une promesse premium en 2026.</p><pre><code>scripts/core/crypto/pbkdf2.js:23
+iterations: 150000,
+
+scripts/core/crypto/aes-gcm.js:11
+const iv = crypto.getRandomValues(new Uint8Array(12));</code></pre></section>
+
+<section id="a3"><h2>A3 - Stockage et persistance</h2><p><span class="fact">Fait.</span> IndexedDB ouvre <code>VaultDB</code> version 1, object store <code>vault</code>, et stocke un seul record <code>current</code>. <span class="fact">Fait.</span> Chaque sauvegarde fait <code>store.clear()</code> puis <code>store.put()</code> et écrit aussi <code>vaultBackup</code> dans localStorage. <span class="estimate">Estimation.</span> C’est fonctionnel, pas industriel.</p><pre><code>scripts/core/storage/manager.js:41-48
+await store.clear();
+await store.put({ id: &#39;current&#39;, entries, meta });
+await this.saveToLocalBackup(entries, meta);
+
+scripts/core/storage/manager.js:103-104
+const encoded = btoa(json);
+localStorage.setItem(&#39;vaultBackup&#39;, encoded);</code></pre></section>
+
+<section id="a4"><h2>A4 - Sécurité runtime</h2><p><span class="fact">Fait.</span> Les preuves runtime précédentes ont été traitées dans l’état courant: la liste et le dashboard construisent les nœuds avec DOM APIs; le verrouillage appelle désormais <code>lockVaultSession()</code> et <code>clearSession()</code>. <span class="fact">Fait.</span> Le harness Proof 2 a donné <code>masterKeyNull=true</code>, <code>entryCount=0</code>, <code>passwordDomExists=false</code>, <code>authVisible=true</code>. <span class="fact">Limite.</span> Le clipboard est best-effort et peut être refusé par le navigateur.</p><p>Reste critique: CSP principale permissive, console logging de vault data, audit-panel avec innerHTML, CDN externe, et claims runtime trop forts.</p><pre><code>scripts/security/session-lock.js:66
+await navigator.clipboard.writeText(&#39;&#39;);
+
+index.html:11-12
+script-src &#39;self&#39; https://cdnjs.cloudflare.com;
+style-src &#39;self&#39; &#39;unsafe-inline&#39; https://cdnjs.cloudflare.com;</code></pre></section>
+
+<section id="a5"><h2>A5 - Tests et vérification</h2><p><span class="fact">Commandes exécutées.</span> <code>npm test</code>, <code>npm run test:security</code>, <code>npm run lint</code> et <code>npm run build</code> ont terminé avec code 1 sans sortie dans le shell. L’exécution directe de <code>node tests/vault.spec.js</code> et <code>node tests/security-no-plaintext.spec.js</code> a aborté avec <code>Assertion failed: ncrypto::CSPRNG(nullptr, 0)</code>. Aucun build script n’existe dans package.json.</p><p><span class="fact">Inspection statique.</span> Les tests existants couvrent seulement Vault, crypto happy-path, filtres et une régression source très ciblée. Manquent: mauvais mot de passe, tamper ciphertext/IV, corruption IndexedDB/localStorage, migration KDF, import hostile, XSS, lock runtime, clipboard, CSP, CSV, sauvegarde atomique.</p><pre><code>package.json:8-9
+&quot;test&quot;: &quot;node tests/vault.spec.js &amp;&amp; node tests/crypto.spec.js &amp;&amp; node tests/vault-filters.spec.js&quot;,
+&quot;test:security&quot;: &quot;node tests/security-no-plaintext.spec.js&quot;
+
+Échec observé Node:
+Assertion failed: ncrypto::CSPRNG(nullptr, 0)</code></pre></section>
+
+<section id="a6"><h2>A6 - Vérité documentaire</h2><p><span class="fact">Fait.</span> Le README et docs/index.html contiennent les écarts les plus graves du dépôt. Ils décrivent des garanties non livrées ou non démontrées. Pour un gestionnaire de mots de passe, ces phrases doivent être supprimées ou réécrites avec limites exactes.</p><pre><code>README.md:36 | Architecture Sécurité Militaire
+README.md:40 | 600,000 itérations (ajustable)
+README.md:41 | Web Workers | Protection contre les attaques Spectre
+README.md:117 | biometric-auth / WebAuthn/FIDO2
+README.md:168 | [SECURITY.md](SECURITY.md)
+docs/index.html:7 | Sécurité militaire, architecture zero-knowledge</code></pre></section>
+
+<section id="a7"><h2>A7 - Frontend et UX de confiance</h2><p><span class="fact">Fait.</span> L’UI affiche des métriques statiques de sécurité avant calcul réel et déclare des actions non câblées. Les boutons critiques <code>addPasswordBtn</code>, <code>passwordModal</code>, <code>changePasswordBtn</code> et <code>logout</code> ne sont pas référencés dans les scripts. <span class="estimate">Estimation.</span> La finition visuelle masque une incohérence produit majeure.</p><pre><code>index.html:165 | stats-score = 73%
+index.html:183 | stats-total = 244
+index.html:249 | id=&quot;addPasswordBtn&quot;
+scan scripts/*.js | addPasswordBtn/passwordModal/changePasswordBtn/logout =&gt; 0 occurrence</code></pre></section>
+
+<section id="a8"><h2>A8 - Verdict production</h2><div class="verdict"><p><strong>Décision: non prêt production, non sûr pour vrais identifiants aujourd’hui.</strong></p><p><span class="fact">Fait.</span> Les deux preuves runtime déjà traitées améliorent nettement la sécurité immédiate. <span class="estimate">Mais</span> un produit de secrets exige une chaîne complète: cryptographie versionnée, stockage robuste, tests hostiles, documentation honnête, CSP stricte, workflows fiables et CI reproductible. Ces fondations ne sont pas encore là.</p></div></section>
+
+<section id="findings"><h2>Findings détaillés</h2><article class="finding" id="finding-1">
+  <div class="finding-head"><h3>1. Documentation et claims publics incompatibles avec le code</h3><span class="badge critical">critical</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Le README et la page docs publient un niveau de garantie que le code ne démontre pas. Les claims citent « sécurité militaire », « zero-knowledge », protection Spectre, WebAuthn/FIDO2, emergency kit, DevTools compromis, verrouillage cryptographique au changement d’onglet et SECURITY.md. Plusieurs fichiers ou mécanismes n’existent pas.</p>
+  <p class="refs">Preuves: README.md:36, README.md:40-41, README.md:117-119, README.md:167-176, docs/index.html:7-19</p>
+  <pre><code>README.md:40 | PBKDF2-HMAC-SHA512 | 600,000 itérations (ajustable) |
+README.md:41 | Web Workers | Protection contre les attaques Spectre |
+README.md:167 | Zero-Knowledge Architecture
+README.md:168 | [SECURITY.md](SECURITY.md)
+docs/index.html:7 | Sécurité militaire, architecture zero-knowledge</code></pre>
+</article>
+<article class="finding" id="finding-2">
+  <div class="finding-head"><h3>2. PBKDF2 est codé en dur à 150 000 itérations, pas 600 000</h3><span class="badge critical">critical</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> La dérivation réelle est PBKDF2-HMAC-SHA512 à 150 000 itérations. Ce n’est pas calibré sur l’appareil, pas mis à niveau par migration, et l’écart avec la documentation est direct. Pour un coffre local exposé à l’attaque offline, c’est insuffisant comme posture 2026.</p>
+  <p class="refs">Preuves: scripts/core/crypto/pbkdf2.js:23, scripts/crypto.js:16, scripts/core/storage/schema.js:13</p>
+  <pre><code>scripts/core/crypto/pbkdf2.js:23
 iterations: 150000,
 
 scripts/core/storage/schema.js:13
-iterations: 150000,</pre>
-        <p>Cela surestime matériellement la résistance à la force brute hors ligne. Le nombre d'itérations n'est pas non plus appliqué à partir des métadonnées de version du coffre lors de la dérivation.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>2. Le coffre déchiffré reste résident après le déverrouillage et après le verrouillage automatique</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> L'application déchiffre chaque entrée dans <code>this.vault</code>. Le verrouillage automatique ne met à zéro que <code>masterKey</code> et efface le champ du mot de passe.</p>
-        <pre>scripts/core/vault/manager.js:119-124
-const data = await decryptData(entry, this.masterKey);
-decrypted.push({ id: entry.id, ...data });
-this.vault.clear();
-decrypted.forEach(entry =&gt; this.vault.addEntry(entry));
-
-scripts/app.js:226
-vaultManager.masterKey = null;</pre>
-        <p>L'écran de verrouillage ne prouve pas que le texte en clair est parti. Une extension de navigateur, un script injecté, un accès à la console, ou un état post-XSS peuvent toujours atteindre les entrées précédemment déchiffrées via le graphe d'objets de l'application.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>3. Les mots de passe sont rendus dans les valeurs du DOM</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> La liste du coffre place les mots de passe en texte clair dans les chaînes de modèle HTML et les valeurs d'entrée.</p>
-        <pre>scripts/ui/vault-list/vault-list.js:153
-wrapper.innerHTML = `...`
-
-scripts/ui/vault-list/vault-list.js:196
-navigator.clipboard.writeText(input.value)</pre>
-        <p>La ligne d'entrée exacte se trouve à l'intérieur de ce modèle : <code>&lt;input type="password" value="${entry.password}" ...&gt;</code>. Le masquage du type de champ est uniquement visuel ; le secret est toujours dans le DOM.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>4. La sauvegarde localStorage crée une deuxième surface de persistance du coffre</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> Chaque sauvegarde écrit une copie encodée en base64 du coffre chiffré dans le localStorage.</p>
-        <pre>scripts/core/storage/manager.js:47
-// sauvegarde également dans localStorage
-
-scripts/core/storage/manager.js:104
-localStorage.setItem('vaultBackup', encoded);</pre>
-        <p>La base64 n'est pas une protection. Le localStorage est lisible par les scripts et persistant, élargissant le rayon d'action de toute attaque XSS, compromission d'extension ou vol de profil de navigateur.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>5. Le chemin de mise à jour du stockage efface le coffre avant d'écrire les données de remplacement</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> Les chemins de sauvegarde et d'importation effacent le magasin avant de placer le nouvel enregistrement unique du coffre.</p>
-        <pre>scripts/core/storage/manager.js:41-44
-await store.clear();
-await store.put({
-  id: 'current',
-  entries,
-  meta
-});</pre>
-        <p>Le code n'attend pas la fin de la transaction et n'utilise pas de schéma de validation intermédiaire/retour en arrière. Une défaillance en cours d'opération peut détruire la seule copie IndexedDB avant que le remplacement ne soit durable.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>6. Les affirmations de protection par Web Worker et Spectre ne sont pas étayées</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> Le README affirme l'isolation par Web Worker et la protection contre Spectre. L'application active importe des assistants de worker mais utilise <code>deriveMasterKey</code>, et non <code>deriveMasterKeyWithWorker</code>. Les chemins des workers sont également incorrects pour le chemin de document actuel.</p>
-        <pre>README.md:41
-Web Workers | Protection contre les attaques Spectre
-
-scripts/app.js:257
-const key = await deriveMasterKey(password, salt);
-
-scripts/core/crypto/pbkdf2.js:37
-new Worker('./core/crypto/workers/pbkdf2.worker.js', { type: 'module' });</pre>
-        <p>Depuis <code>index.html</code>, cette URL de worker se résout en dehors de <code>/scripts/</code>. Même si corrigée, les Web Workers ne fournissent pas de protection contre Spectre pour les secrets dans un onglet de navigateur.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>7. La CSP n'est pas stricte et contredit le module de sécurité</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> La CSP HTML expédiée autorise les scripts/styles de CDN externes et les styles <code>unsafe-inline</code>. Le module CSP dynamique plus strict n'est injecté que dans un environnement de développement de type Node, qui n'est pas l'environnement de navigateur d'exécution pour cette application statique.</p>
-        <pre>index.html:11-12
-script-src 'self' https://cdnjs.cloudflare.com ;
-style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com ;
-
-scripts/security/csp.js:25
-"style-src 'self'", // suppression de unsafe-inline</pre>
-        <p>La politique active est plus faible que la politique revendiquée. Font Awesome est chargé depuis cdnjs sans SRI.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>8. La documentation annonce une architecture de sécurité inexistante</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> Le README fait référence à des dossiers et fichiers qui ne sont pas dans le dépôt : <code>core/crypto-engine.js</code>, <code>ui/biometric-auth/</code>, <code>workers/db.worker.js</code>, et <code>SECURITY.md</code>.</p>
-        <pre>README.md:117
-biometric-auth/        # Intégration WebAuthn/FIDO2
-
-README.md:122
-db.worker.js           # Accès IndexedDB
-
-README.md:168
-[SECURITY.md](SECURITY.md)</pre>
-        <p>Ce n'est pas cosmétique. Pour un gestionnaire de mots de passe, les revendications d'architecture de sécurité non étayées affectent directement les décisions de risque des utilisateurs.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>9. La couverture de tests est bien en deçà des standards de coffre à secrets et n'a pas pu être exécutée ici</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Résultat de commande.</span> <code>npm test</code>, <code>npm run test:security</code>, et <code>npm run lint</code> ont quitté avec le code 1 dans ce shell. L'exécution directe des tests Node s'est interrompue avec <code>Assertion failed: ncrypto::CSPRNG(nullptr, 0)</code>.</p>
-        <pre>package.json:8-9
-"test": "node tests/vault.spec.js &amp;&amp; node tests/crypto.spec.js &amp;&amp; node tests/vault-filters.spec.js",
-"test:security": "node tests/security-no-plaintext.spec.js"</pre>
-        <p><span class="fact">Examen statique des tests.</span> Les tests existants couvrent le crypto aller-retour de base, les opérations de collection, les filtres, et une régression. Ils ne couvrent pas le texte chiffré altéré, le comportement de verrouillage par mot de passe erroné, la corruption du stockage, le retour en arrière d'importation, la purge de texte clair par verrouillage automatique, la CSP, l'expiration du presse-papiers, ou les échecs de migration.</p>
-      </article>
-
-      <article class="finding">
-        <div class="finding-title"><h3>10. Les indicateurs de confiance de l'interface sont codés en dur avant que l'état d'audit réel n'existe</h3><span class="badge critical">critique</span></div>
-        <p><span class="fact">Fait.</span> Le tableau de bord affiche des mesures de sécurité visibles temporaires dans <code>index.html</code>, y compris le score et les comptages, avant que le coffre ne soit déverrouillé et mesuré.</p>
-        <pre>index.html:288-303
-score-description: niveau global de sécurité des mots de passe
-weak password count
-reused password count
-old password count</pre>
-        <p>Cela présente de la confiance avant les preuves. Le JavaScript ultérieur met à jour certaines valeurs, mais l'expérience utilisateur initiale commercialise toujours un score de sécurité qui n'est pas lié à une posture de sécurité de produit vérifiée.</p>
-      </article>
-    </section>
-
-    <section id="domain-scores">
-      <h2>Scores par domaine</h2>
-      <table>
-        <thead><tr><th>Domaine</th><th>Score</th><th>Gravité</th><th>Raison</th></tr></thead>
-        <tbody>
-          <tr><td>Structure du dépôt</td><td>30/100</td><td><span class="badge high">élevée</span></td><td>Le code modulaire actif coexiste avec des fichiers hérités dupliqués, des ressources de documents générées, des journaux ignorés et une archive complète non suivie.</td></tr>
-          <tr><td>Implémentation cryptographique</td><td>45/100</td><td><span class="badge high">élevée</span></td><td>Utilise des primitives standard, mais le coût du KDF est surestimé, non calibré, dupliqué et faiblement versionné.</td></tr>
-          <tr><td>Stockage et persistance</td><td>30/100</td><td><span class="badge critical">critique</span></td><td>IndexedDB mono-enregistrement, sauvegardes effacer-avant-placer, sauvegarde localStorage, validation d'importation faible, pas de retour en arrière.</td></tr>
-          <tr><td>Sécurité à l'exécution</td><td>20/100</td><td><span class="badge critical">critique</span></td><td>Le texte clair reste en mémoire/DOM, le verrouillage automatique est partiel, l'effacement du presse-papiers n'est pas mis en œuvre, la CSP est faible.</td></tr>
-          <tr><td>Tests et vérification</td><td>15/100</td><td><span class="badge critical">critique</span></td><td>Tests minimaux, couverture adverse manquante, commandes npm échouées dans cet environnement.</td></tr>
-          <tr><td>Véracité de la documentation</td><td>10/100</td><td><span class="badge critical">critique</span></td><td>Les affirmations de sécurité et les diagrammes d'architecture dépassent le comportement mis en œuvre.</td></tr>
-          <tr><td>Confiance du frontal et de l'expérience utilisateur</td><td>25/100</td><td><span class="badge high">élevée</span></td><td>Une interface soignée et un langage de confiance masquent des contrôles d'ingénierie incomplets.</td></tr>
-          <tr><td>Préparation pour la production</td><td>22/100</td><td><span class="badge critical">critique</span></td><td>Niveau prototype. Non sûr pour de vraies identités sans reconstruction de la sécurité.</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section id="a1">
-      <h2>A1 Cartographie du dépôt et structuration</h2>
-      <p><span class="fact">Fait.</span> L'analyse du dépôt suivi a trouvé du HTML/CSS d'application, du JavaScript modulaire sous <code>scripts/core</code>, du JavaScript hérité à la racine, des tests, des documents, des ressources de documents construites, des crochets git et des scripts de lancement. L'arborescence locale contient également <code>logs/</code> ignorés et <code>.zip</code> non suivi.</p>
-      <table>
-        <thead><tr><th>Zone</th><th>Preuve</th><th>Évaluation</th></tr></thead>
-        <tbody>
-          <tr><td>Application active</td><td><code>index.html</code> charge <code>scripts/app.js</code>, <code>scripts/tools/audit-crypto.js</code>, et les modules d'interface.</td><td>Application de navigateur statique unique.</td></tr>
-          <tr><td>Modules principaux</td><td><code>scripts/core/crypto/*</code>, <code>scripts/core/storage/*</code>, <code>scripts/core/vault/*</code></td><td>Génération active principale.</td></tr>
-          <tr><td>Duplicatas hérités</td><td><code>scripts/crypto.js</code>, <code>scripts/storage.js</code>, <code>scripts/security.js</code></td><td>Implémentation plus ancienne parallèle, non référencée par <code>index.html</code>.</td></tr>
-          <tr><td>Documents générés</td><td><code>docs/assets/index-q6yya6Gb.js</code>, <code>docs/assets/index-2t0zffAG.css</code></td><td>Les artefacts construits sont suivis alors que <code>.gitignore</code> indique que <code>docs/assets/</code> est généré.</td></tr>
-          <tr><td>Artefacts locaux</td><td><code>.zip</code> contient l'instantané complet du dépôt plus les journaux ; <code>logs/</code> contient les journaux d'accès HTTP locaux.</td><td>Problème d'hygiène du dépôt. Aucun impact réel d'identité n'a été observé dans les journaux par balayage simple de mots-clés, mais les journaux et l'archive ne devraient pas se trouver à côté du source du produit.</td></tr>
-        </tbody>
-      </table>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>Plusieurs ères d'implémentation existent en parallèle</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> Les fichiers racine hérités dupliquent la cryptographie et le stockage. <code>scripts/security.js</code> contient également un fragment <code>async getPasswordStats()</code> de niveau supérieur, qui est invalide en tant que membre de module/classe autonome.</p>
-        <p><span class="fact">Estimation.</span> Cela augmente la probabilité que des modifications futures corrigent le mauvais chemin ou réintroduisent une logique obsolète.</p>
-      </div>
-      <div class="finding medium-border">
-        <div class="finding-title"><h3>L'archive et les artefacts ignorés brouillent la portée de la livraison</h3><span class="badge medium">moyenne</span></div>
-        <p><span class="fact">Fait.</span> <code>git status --short --ignored</code> a rapporté <code>?? .zip</code>, <code>!! docs/assets/</code>, et <code>!! logs/</code>. Le <code>.zip</code> non suivi contient le dépôt et les journaux historiques.</p>
-      </div>
-    </section>
-
-    <section id="a2">
-      <h2>A2 Audit de l'implémentation cryptographique</h2>
-      <p><span class="fact">Fait.</span> L'application utilise <code>PBKDF2</code> du WebCrypto avec <code>SHA-512</code>, dérive une clé AES-GCM 256 bits non extractible, et chiffre les charges utiles JSON avec des IV aléatoires de 96 bits.</p>
-      <pre>scripts/core/crypto/aes-gcm.js:11
+iterations: 150000</code></pre>
+</article>
+<article class="finding" id="finding-3">
+  <div class="finding-head"><h3>3. AES-GCM utilise de bons primitifs mais sans enveloppe cryptographique industrialisée</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Les IV de 96 bits sont générés par crypto.getRandomValues, ce qui est correct au niveau primitif. Mais les enregistrements ne portent pas de version crypto par entrée, pas de champ AAD, pas de KDF params scellés par entrée, pas de politique de re chiffrement ni de détection applicative robuste de downgrade.</p>
+  <p class="refs">Preuves: scripts/core/crypto/aes-gcm.js:11, scripts/core/storage/schema.js:9-15</p>
+  <pre><code>scripts/core/crypto/aes-gcm.js:11
 const iv = crypto.getRandomValues(new Uint8Array(12));
 
-scripts/core/crypto/pbkdf2.js:21-28
-name: 'PBKDF2',
-salt: salt,
+scripts/core/storage/schema.js:13
+iterations: 150000</code></pre>
+</article>
+<article class="finding" id="finding-4">
+  <div class="finding-head"><h3>4. localStorage duplique le coffre chiffré complet en base64</h3><span class="badge critical">critical</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> À chaque sauvegarde, l’application écrit une deuxième copie du coffre dans localStorage. La base64 n’est pas une protection. Une XSS, une extension, un outil de support ou une copie de profil navigateur récupère alors IndexedDB plus une copie localStorage.</p>
+  <p class="refs">Preuves: scripts/core/storage/manager.js:95-104, scripts/core/storage/backup.js:35</p>
+  <pre><code>scripts/core/storage/manager.js:103-104
+const encoded = btoa(json); // Simple backup encodé base64
+localStorage.setItem(&#39;vaultBackup&#39;, encoded);</code></pre>
+</article>
+<article class="finding" id="finding-5">
+  <div class="finding-head"><h3>5. Persistance clear() puis put() sur un mono-enregistrement</h3><span class="badge critical">critical</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Le coffre est un objet current contenant toutes les entrées. saveVault efface le store puis remet un objet. Il n’y a pas de modèle par entrée, pas de transaction applicative avec journal, pas de stratégie de récupération si l’écriture échoue entre clear et put, et pas d’intégrité de métadonnées indépendante.</p>
+  <p class="refs">Preuves: scripts/core/storage/manager.js:38-48, scripts/core/storage/indexeddb.js:8-14</p>
+  <pre><code>scripts/core/storage/manager.js:41-42
+await store.clear();
+await store.put({ id: &#39;current&#39;, entries, meta });</code></pre>
+</article>
+<article class="finding" id="finding-6">
+  <div class="finding-head"><h3>6. Import .vault trop permissif</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> L’import vérifie surtout l’extension et JSON.parse. app.js exige meta.salt et meta.validation, mais ne vérifie pas rigoureusement version, kdf, iterations, structure de chaque entrée, taille IV, base64, format ciphertext, duplication d’ID ou stratégie de migration.</p>
+  <p class="refs">Preuves: scripts/core/storage/backup.js:17-23, scripts/app.js:364-373</p>
+  <pre><code>scripts/core/storage/backup.js:21-23
+const content = await file.text();
+return JSON.parse(content);</code></pre>
+</article>
+<article class="finding" id="finding-7">
+  <div class="finding-head"><h3>7. CSP principale trop faible pour absorber une erreur UI</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> La CSP HTML autorise cdnjs en script et style inline. Le module enforceCSP ne s’active qu’en développement si process.env.NODE_ENV existe, condition généralement fausse dans un navigateur statique. Le CSP runtime est donc largement marketing dans le mode réel.</p>
+  <p class="refs">Preuves: index.html:9-13, scripts/security/csp.js:12-25</p>
+  <pre><code>index.html:11-12
+script-src &#39;self&#39; https://cdnjs.cloudflare.com;
+style-src &#39;self&#39; &#39;unsafe-inline&#39; https://cdnjs.cloudflare.com;
+
+scripts/security/csp.js:12
+const isDev = typeof process !== &#39;undefined&#39; &amp;&amp; process.env.NODE_ENV === &#39;development&#39;;</code></pre>
+</article>
+<article class="finding" id="finding-8">
+  <div class="finding-head"><h3>8. Console logging de contenu de coffre</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Le StorageManager logge entries/meta à la sauvegarde et vaultData à l’import. Même chiffrées, ces données sont des artefacts sensibles: salt, iv, ciphertext, volume d’entrées, horodatages et structure du coffre ne doivent pas aller en console de production.</p>
+  <p class="refs">Preuves: scripts/core/storage/manager.js:38, scripts/core/storage/manager.js:65</p>
+  <pre><code>scripts/core/storage/manager.js:38
+console.log(&#39;[Vault DEBUG] Données à sauvegarder :&#39;, entries, meta);
+
+scripts/core/storage/manager.js:65
+console.log(&#39;[Vault DEBUG] Import en base :&#39;, vaultData);</code></pre>
+</article>
+<article class="finding" id="finding-9">
+  <div class="finding-head"><h3>9. XSS principal corrigé, mais il reste des innerHTML non éliminés globalement</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Les sinks critiques entry.title/username/url/password dans vault-list et dashboard ont été remplacés par createElement/textContent/value dans l’état audité. Cependant la base contient encore des innerHTML dans audit-panel, app stats, autolock et audit.js. Les données de coffre ne sont plus injectées dans les deux sinks validés, mais la politique globale “pas d’HTML dynamique” n’est pas encore vraie.</p>
+  <p class="refs">Preuves: scripts/ui/vault-list/vault-list.js:283, scripts/ui/dashboard.js:92, scripts/ui/audit-panel.js:45-47, scripts/app.js:311</p>
+  <pre><code>scripts/ui/audit-panel.js:45-47
+result.innerHTML = &#39;&lt;em&gt;⏳ Analyse en cours…&lt;/em&gt;&#39;;
+const report = await AuditCrypto.runAudit(input.value);
+result.innerHTML = renderReport(report);</code></pre>
+</article>
+<article class="finding" id="finding-10">
+  <div class="finding-head"><h3>10. Verrouillage de session récemment renforcé mais toujours soumis aux limites navigateur</h3><span class="badge medium">medium</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> L’état courant contient clearSession et lockVaultSession. Le harness Proof 2 a confirmé entryCount=0 et DOM vidé après lock. C’est une amélioration réelle. Mais les limites Web restent fortes: le garbage collector, le clipboard et les extensions navigateur ne peuvent pas être contrôlés parfaitement. La documentation doit le dire.</p>
+  <p class="refs">Preuves: scripts/core/vault/manager.js:196-210, scripts/security/session-lock.js:111-136</p>
+  <pre><code>scripts/core/vault/manager.js:196-210
+clearSession() { ... this.vault.clear(); ... window.vault = null; }
+
+scripts/security/session-lock.js:66
+await navigator.clipboard.writeText(&#39;&#39;);</code></pre>
+</article>
+<article class="finding" id="finding-11">
+  <div class="finding-head"><h3>11. Flux UI essentiels non câblés</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Le DOM déclare addPasswordBtn, passwordModal, closeAddModal, cancelAddModalBtn, changePasswordBtn et logout, mais le scan des scripts ne trouve aucun binding pour ces identifiants. Le formulaire entry-form existe et le submit ajoute une entrée, mais le bouton visible d’ouverture de modal n’est pas câblé.</p>
+  <p class="refs">Preuves: index.html:249, index.html:698, index.html:751, scan scripts/*.js</p>
+  <pre><code>index.html:249
+&lt;button class=&quot;add-button&quot; id=&quot;addPasswordBtn&quot;&gt;
+
+index.html:698
+&lt;form id=&quot;entry-form&quot; autocomplete=&quot;off&quot;&gt;
+
+scan JS: addPasswordBtn/passwordModal/changePasswordBtn/logout =&gt; 0 occurrences</code></pre>
+</article>
+<article class="finding" id="finding-12">
+  <div class="finding-head"><h3>12. Dashboard et indicateurs de confiance contiennent des valeurs statiques trompeuses</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Au premier rendu, le dashboard affiche 73%, 244 mots de passe, 16 faibles, 9 réutilisés, 5 anciens. Ces valeurs sont ensuite partiellement remplacées après login, mais l’interface présente des métriques de sécurité crédibles avant preuve réelle.</p>
+  <p class="refs">Preuves: index.html:165-222, scripts/app.js:294-327</p>
+  <pre><code>index.html:165 | &lt;div class=&quot;score&quot; id=&quot;stats-score&quot;&gt;73%&lt;/div&gt;
+index.html:183 | &lt;h3 id=&quot;stats-total&quot;&gt;244&lt;/h3&gt;
+index.html:195 | &lt;h3 id=&quot;stats-weak&quot;&gt;16&lt;/h3&gt;</code></pre>
+</article>
+<article class="finding" id="finding-13">
+  <div class="finding-head"><h3>13. Architecture en plusieurs générations</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Les fichiers legacy racine implémentent crypto/storage/security en parallèle de scripts/core. Même si app.js utilise surtout scripts/core, ces fichiers gardent une logique contradictoire et peuvent être repris par erreur, testés contre le mauvais cerveau, ou documentés à tort.</p>
+  <p class="refs">Preuves: scripts/crypto.js, scripts/storage.js, scripts/security.js, scripts/core/*</p>
+  <pre><code>scripts/crypto.js:16
 iterations: 150000,
-hash: 'SHA-512'</pre>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>Le bon choix de primitive ne compense pas l'absence de politique cryptographique</h3><span class="badge high">élevée</span></div>
-        <p>Il n'y a pas d'objet de politique cryptographique centralisé, pas de calibrage du KDF, pas d'application de version crypto par coffre lors de la dérivation, pas de chemin de mise à niveau pour l'augmentation du travail du KDF, et pas d'authentification de métadonnées indépendante au-delà de l'authentification de charge utile AES-GCM.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>L'acceptation du mot de passe maître est bien trop faible</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> <code>scripts/app.js</code> ne rejette que les mots de passe vides et les mots de passe de moins de 6 caractères. Il n'y a pas de seuil d'entropie pour le mot de passe maître.</p>
-        <pre>scripts/app.js:250-253
-if (!password || password.length &lt; 6) {
-  showToast("The master password must contain at least 6 characters.", "error");
-  return;
-}</pre>
-      </div>
-      <div class="finding medium-border">
-        <div class="finding-title"><h3>La génération d'IV est correcte, mais l'unicité n'est pas surveillée</h3><span class="badge medium">moyenne</span></div>
-        <p>L'IV aléatoire de 12 octets est approprié pour AES-GCM. Cependant, l'application stocke un index <code>iv</code> avec <code>unique: false</code> et n'impose pas ni ne teste la gestion des collisions. La probabilité de collision aléatoire est faible, mais un gestionnaire de mots de passe devrait toujours avoir des tests de régression sur l'unicité de l'IV et la défaillance d'altération.</p>
-      </div>
-      <p><span class="fact">Limite.</span> Le WebCrypto du navigateur ne peut pas protéger contre les scripts malveillants s'exécutant dans la même origine, les extensions de navigateur, les appareils compromis, les lecteurs de presse-papiers, ou le grattage DOM post-déverrouillage. La documentation ne communique pas honnêtement cette limite.</p>
-    </section>
 
-    <section id="a3">
-      <h2>A3 Audit de robustesse du stockage et de la persistance</h2>
-      <p><span class="fact">Fait.</span> IndexedDB utilise une base de données, un magasin d'objets et un enregistrement unique de coffre actuel.</p>
-      <pre>scripts/core/storage/indexeddb.js:8
-const request = indexedDB.open('VaultDB', 1);
+scripts/storage.js:35-36
+await store.clear();
+await store.put({ ... });</code></pre>
+</article>
+<article class="finding" id="finding-14">
+  <div class="finding-head"><h3>14. CSV import cassé en module et parser naïf</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> import-csv.js est importé comme module depuis app.js mais utilise showToast, vaultManager et renderVaultEntries comme identifiants libres non importés. En module ES, cela peut produire ReferenceError. Le parsing CSV split(&#39;,&#39;) ne gère ni virgules échappées ni guillemets complexes.</p>
+  <p class="refs">Preuves: scripts/utils/import-csv.js:21-27, scripts/utils/import-csv.js:55-63</p>
+  <pre><code>scripts/utils/import-csv.js:21-27
+const headers = lines[0].split(&#39;,&#39;)...
+const passwordIdx = headers.indexOf(&#39;password&#39;);
 
-scripts/core/storage/indexeddb.js:14
-db.createObjectStore('vault', { keyPath: 'id' });</pre>
-      <div class="finding">
-        <div class="finding-title"><h3>Le stockage est fonctionnel, pas industriel</h3><span class="badge critical">critique</span></div>
-        <p>Le modèle stocke un coffre entier comme un enregistrement de type blob. L'isolation des entrées est uniquement logique dans le tableau. Il n'y a pas de journal d'ajout, pas de validation en deux phases, pas d'anneau de versions de sauvegarde, pas d'enveloppe de somme de contrôle, pas de récupération de dernière version connue, et pas de registre de migration.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>Le format d'importation/exportation n'est pas prêt pour la migration</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> L'exportation est du JSON brut ; l'importation vérifie l'extension et analyse le JSON. L'importation de l'application vérifie uniquement <code>meta.salt</code> et <code>meta.validation</code>.</p>
-        <pre>scripts/core/storage/backup.js:7-9
-const json = JSON.stringify(vaultData);
-const blob = new Blob([json], { type: 'application/json' });
-
-scripts/app.js:363
-if (!data.meta || !data.meta.salt || !data.meta.validation) { ... }</pre>
-        <p>Il n'y a pas de magie de format, de signature de schéma, d'application de version de politique crypto, ou de validation pré-écrasement par déchiffrement avec la clé actuelle/fournie.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>Le chemin d'importation CSV semble cassé et non sûr</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> <code>scripts/utils/import-csv.js</code> fait référence à <code>showToast</code>, <code>vaultManager</code>, et <code>renderVaultEntries</code> sans les importer. Il analyse également le CSV par <code>split(',')</code>, qui casse les virgules entre guillemets.</p>
-        <pre>scripts/utils/import-csv.js:55-63
+scripts/utils/import-csv.js:55-63
 await vaultManager.addEntry(entry);
-const updated = await vaultManager.decryptAllEntries();
-renderVaultEntries(updated);</pre>
-      </div>
-    </section>
+renderVaultEntries(updated);</code></pre>
+</article>
+<article class="finding" id="finding-15">
+  <div class="finding-head"><h3>15. Dépendances/outillage incohérents</h3><span class="badge high">high</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> Le package déclare lint/test, mais il n’y a pas de lockfile ni node_modules. eslint.config.mjs importe eslint-plugin-react alors que package.json ne le déclare pas. npm échoue dans ce shell et les tests Node abortent sur CSPRNG.</p>
+  <p class="refs">Preuves: package.json:8-9, eslint.config.mjs:3, absence package-lock/node_modules</p>
+  <pre><code>eslint.config.mjs:3
+import reactPlugin from &#39;eslint-plugin-react&#39;;
 
-    <section id="a4">
-      <h2>A4 Audit de la sécurité à l'exécution</h2>
-      <p><span class="fact">Fait.</span> Les contrôles à l'exécution incluent le verrouillage automatique, un assistant de mise à zéro mémoire, des métadonnées CSP, une copie presse-papiers, et du code de vérification de violation HIBP. La profondeur d'application est bien plus faible que ce que l'interface et le README impliquent.</p>
-      <div class="finding">
-        <div class="finding-title"><h3>Le verrouillage automatique est un verrou d'écran, pas une purge de texte clair</h3><span class="badge critical">critique</span></div>
-        <p>Le verrouillage automatique efface la référence de clé dérivée et le champ du mot de passe maître, mais il n'efface pas <code>this.vault.entries</code>, les valeurs de mot de passe DOM déjà rendues, l'état d'accès récent, ou le contenu du presse-papiers.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>L'effacement du presse-papiers est annoncé mais non mis en œuvre</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> Des écritures presse-papiers existent dans <code>scripts/utils/clipboard.js:13</code>, <code>scripts/ui/dashboard.js:51</code>, et <code>scripts/ui/vault-list/vault-list.js:196</code>. Aucun effacement basé sur délai n'a été trouvé. <code>index.html:597</code> décrit un effacement automatique du presse-papiers après 60 secondes.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>La console et la journalisation de l'interface peuvent exposer des objets sensibles à la sécurité</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> <code>StorageManager.saveVault</code> journalise les entrées et les métadonnées. <code>setupUILogger</code> reflète la sortie de la console dans la page.</p>
-        <pre>scripts/core/storage/manager.js:39
-console.log('[Vault DEBUG] Data to save:', entries, meta);
+package.json:8-9
+&quot;test&quot;: &quot;node tests/vault.spec.js &amp;&amp; node tests/crypto.spec.js &amp;&amp; node tests/vault-filters.spec.js&quot;
+&quot;test:security&quot;: &quot;node tests/security-no-plaintext.spec.js&quot;</code></pre>
+</article>
+<article class="finding" id="finding-16">
+  <div class="finding-head"><h3>16. Nom de fichier Chart casse-casse selon OS</h3><span class="badge medium">medium</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> index.html référence scripts/vendor/chart.min.js en minuscules, alors que le fichier suivi est Chart.min.js. Windows le tolère, un hébergement sensible à la casse peut casser le graphique.</p>
+  <p class="refs">Preuves: index.html:808, scripts/vendor/Chart.min.js</p>
+  <pre><code>index.html:808
+&lt;script src=&quot;scripts/vendor/chart.min.js&quot;&gt;&lt;/script&gt;
 
-scripts/utils/logger.js:18-21
-console[method] = function (...args) {
-  write(method.toUpperCase(), args);
-  original.apply(console, args);
-};</pre>
-        <p>Les entrées chiffrées ne sont pas en texte clair, mais les métadonnées et les traces opérationnelles n'ont pas leur place dans la journalisation de l'interface de production.</p>
-      </div>
-      <div class="finding medium-border">
-        <div class="finding-title"><h3>Le code HIBP contredit la messagerie absolue « pas d'internet » si activé</h3><span class="badge medium">moyenne</span></div>
-        <p><span class="fact">Fait.</span> <code>scripts/security/hibp-service.js:60</code> appelle <code>https://api.pwnedpasswords.com/range/</code>. L'application définit <code>window.__VAULT_HIBP_ENABLED__ = false</code>, donc c'est désactivé par défaut, mais la capacité existe et devrait être explicitement divulguée.</p>
-      </div>
-    </section>
+fichier réel
+scripts/vendor/Chart.min.js</code></pre>
+</article>
+<article class="finding" id="finding-17">
+  <div class="finding-head"><h3>17. Artefacts ignorés présents dans le workspace</h3><span class="badge medium">medium</span></div>
+  <p><span class="fact">Fait issu du code, docs ou commandes locales.</span> docs/assets et logs sont ignorés mais présents. Les logs observés contiennent surtout des requêtes localhost et pas de secret brut évident dans l’échantillon inspecté, mais ils restent de la télémétrie locale. Pour un produit de secrets, le dépôt de travail doit séparer strictement artefacts, logs et sources.</p>
+  <p class="refs">Preuves: git status --ignored --short, logs/, docs/assets/</p>
+  <pre><code>git status --ignored --short
+!! docs/assets/
+!! logs/
 
-    <section id="a5">
-      <h2>A5 Profondeur de la suite de tests et de la vérification</h2>
-      <table>
-        <thead><tr><th>Commande</th><th>Résultat observé</th><th>Interprétation</th></tr></thead>
-        <tbody>
-          <tr><td><code>npm test</code></td><td>Code de sortie 1, pas de sortie utile stdout/stderr du shell npm.</td><td>Non vérifié dans cet environnement.</td></tr>
-          <tr><td><code>npm run test:security</code></td><td>Code de sortie 1, pas de sortie utile stdout/stderr du shell npm.</td><td>Non vérifié dans cet environnement.</td></tr>
-          <tr><td><code>npm run lint</code></td><td>Code de sortie 1, pas de sortie utile stdout/stderr du shell npm.</td><td>Non vérifié. La configuration statique importe également <code>eslint-plugin-react</code> manquant.</td></tr>
-          <tr><td><code>C:\Progra~1\nodejs\node.exe tests\*.js</code></td><td>Code de sortie 134 avec <code>Assertion failed: ncrypto::CSPRNG(nullptr, 0)</code>.</td><td>L'environnement d'exécution bloque l'exécution des tests Node.</td></tr>
-        </tbody>
-      </table>
-      <div class="finding">
-        <div class="finding-title"><h3>La portée des tests n'est pas crédible pour un gestionnaire de mots de passe</h3><span class="badge critical">critique</span></div>
-        <p>Les scénarios critiques manquants incluent le comportement de mot de passe maître erroné, le texte chiffré/IV altéré, l'enregistrement IndexedDB corrompu, l'échec d'effacer-avant-placer, le retour en arrière d'importation, la migration du KDF, les mises à niveau de version des métadonnées, la purge mémoire par verrouillage automatique, le délai presse-papiers, la régression CSP, la couverture des puits XSS, le chargement d'URL worker, et le mode hors ligne HIBP.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>La configuration de lint est internement incohérente</h3><span class="badge high">élevée</span></div>
-        <p><span class="fact">Fait.</span> <code>eslint.config.mjs:3</code> importe <code>eslint-plugin-react</code>, mais <code>package.json</code> devDependencies ne le liste pas. Le projet est en JS vanille, donc le plugin React est soit obsolète, soit manquant.</p>
-      </div>
-    </section>
+logs/: 7 fichiers, 44 687 octets</code></pre>
+</article></section>
 
-    <section id="a6">
-      <h2>A6 Audit de la véracité de la documentation</h2>
-      <p><span class="fact">Fait.</span> Le README et les documents utilisent à plusieurs reprises un langage de haute assurance : « sécurité militaire », « connaissance nulle », « aucune donnée ne quitte votre appareil », « Web Workers », « protection contre Spectre », « 600 000 itérations », et des liens vers <code>SECURITY.md</code>.</p>
-      <table>
-        <thead><tr><th>Affirmation</th><th>Preuve</th><th>Réalité</th><th>Gravité</th></tr></thead>
-        <tbody>
-          <tr><td>600 000 itérations PBKDF2</td><td><code>README.md:40</code></td><td>Le code utilise 150 000.</td><td><span class="badge critical">critique</span></td></tr>
-          <tr><td>Isolation par Web Worker et protection contre Spectre</td><td><code>README.md:41</code></td><td>La dérivation active s'exécute dans le chemin principal de l'application ; les assistants worker inutilisés et l'URL probablement erronée.</td><td><span class="badge critical">critique</span></td></tr>
-          <tr><td>Architecture à connaissance nulle</td><td><code>README.md:167</code>, <code>docs/index.html:7</code></td><td>Aucun serveur ne peut connaître les secrets car l'application est locale, mais le contexte du navigateur et les limites de sauvegarde localStorage ne sont pas divulgués.</td><td><span class="badge high">élevée</span></td></tr>
-          <tr><td>Documentation SECURITY.md</td><td><code>README.md:168</code>, <code>README.md:231</code></td><td>Aucun <code>SECURITY.md</code> suivi n'existe.</td><td><span class="badge high">élevée</span></td></tr>
-          <tr><td>Architecture WebAuthn/FIDO2</td><td><code>README.md:117</code></td><td>Aucune mise en œuvre <code>biometric-auth</code> trouvée.</td><td><span class="badge high">élevée</span></td></tr>
-          <tr><td>Accès HTTPS sécurisé</td><td><code>README.md:103</code></td><td>Le lanceur démarre un simple <code>http://127.0.0.1:8000</code>.</td><td><span class="badge medium">moyenne</span></td></tr>
-        </tbody>
-      </table>
-      <div class="red-flag">La documentation devrait être réécrite avant toute utilisation publique. Le langage actuel amène les utilisateurs à déduire un niveau d'assurance de sécurité que la mise en œuvre ne fournit pas.</div>
-    </section>
+<section id="roadmap"><h2>Roadmap priorisée de reconstruction</h2><ol class="roadmap"><li><strong>Réécrire la documentation sécurité.</strong> Supprimer sécurité militaire, Spectre, WebAuthn/FIDO2, 600k, SECURITY.md inexistant, DevTools/changement d’onglet non implémentés. Ajouter les limites navigateur.</li><li><strong>Remplacer le modèle KDF par une configuration versionnée et migrable.</strong> Calibration locale ou Argon2id via bibliothèque auditée/WASM si acceptable; sinon PBKDF2 augmenté avec migration progressive et tests.</li><li><strong>Supprimer vaultBackup localStorage.</strong> Garder un export explicite utilisateur ou un journal IndexedDB chiffré versionné, pas une copie base64 silencieuse.</li><li><strong>Refondre le stockage.</strong> Enregistrements par entrée, manifest chiffré/authentifié, commits atomiques, recovery, tamper detection, migrations testées.</li><li><strong>Durcir CSP et dépendances front.</strong> Servir assets localement, enlever unsafe-inline, éviter CDN, corriger Chart.min.js/chart.min.js, retirer scripts non nécessaires.</li><li><strong>Nettoyer l’architecture legacy.</strong> Supprimer ou archiver scripts/crypto.js, scripts/storage.js, scripts/security.js; documenter l’API active.</li><li><strong>Brancher les workflows UI essentiels.</strong> Ajout modal, changement master password réel ou suppression du bouton, logout, import CSV robuste, messages honnêtes.</li><li><strong>Éliminer les logs de coffre.</strong> Aucun entries/meta/vaultData en console; logs locaux minimisés et désactivables.</li><li><strong>Créer une suite hostile.</strong> Tamper IV/ciphertext, mauvais password, corruption IndexedDB/localStorage, import hostile, XSS, lock, clipboard, migration, CSP.</li><li><strong>Rendre CI reproductible.</strong> Ajouter lockfile, dépendances cohérentes, lint fonctionnel, exécution browser/headless stable.</li></ol></section>
 
-    <section id="a7">
-      <h2>A7 Analyse de la confiance du frontal et de l'expérience utilisateur</h2>
-      <p><span class="fact">Fait.</span> L'application présente des cartes de score de sécurité, des mesures, des zones critiques, des vues de rapport de sécurité, des panneaux d'audit, de nombreux thèmes, et un langage de tableau de bord soigné. Plusieurs contrôles sont temporaires ou non reliés à des garanties de sécurité solides.</p>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>Le soin de l'interface masque des contrôles de sécurité incomplets</h3><span class="badge high">élevée</span></div>
-        <p>Le gestionnaire de mots de passe a une surface riche, mais les modes de défaillance principaux ne sont pas gérés au même niveau : coffre corrompu, sauvegarde interrompue, importation de format incompatible, faiblesse du mot de passe maître, état de verrouillage, effacement du presse-papiers, et confinement XSS.</p>
-      </div>
-      <div class="finding high-border">
-        <div class="finding-title"><h3>Les flux de sauvegarde et de restauration ne sont pas sûrs pour les utilisateurs non experts</h3><span class="badge high">élevée</span></div>
-        <p>L'importation écrase le coffre actuel après une confirmation générique. Elle ne valide pas par déchiffrement le coffre importé avant remplacement, ne conserve pas de point de restauration visible de dernière version connue, et demande à l'utilisateur de recharger après l'importation.</p>
-      </div>
-      <div class="finding medium-border">
-        <div class="finding-title"><h3>L'interface de compte/persona sape la clarté de la confiance local-only</h3><span class="badge medium">moyenne</span></div>
-        <p>La barre latérale inclut des valeurs d'identité temporaires telles que « John Doe » et un langage de suppression de compte, alors que le produit est local-only et n'a pas de véritable backend de compte. Cela peut confondre les utilisateurs sur ce qui existe et ce qui est protégé.</p>
-      </div>
-    </section>
+<section id="terminal"><h2>Sortie terminal synthétique</h2><pre><code>Rapport généré : C:\Users\cadet\Documents\GitHub\vault-personal\reports\vault-personal-full-audit-report.html
 
-    <section id="a8">
-      <h2>A8 Verdict de préparation pour la production industrielle</h2>
-      <div class="red-flag">
-        <strong>Verdict final :</strong> Ne stockez pas de vraies identifiants dans cette application aujourd'hui. Elle devrait être traitée comme un prototype éducatif/local jusqu'à ce que le stockage, la sécurité à l'exécution, la documentation et le modèle de vérification soient reconstruits.
-      </div>
-      <p><span class="fact">Fait.</span> Le code démontre une preuve de concept WebCrypto locale plausible. <span class="fact">Estimation.</span> Il est approximativement à 20 à 25 pour cent du chemin vers un gestionnaire de mots de passe local industriel, en supposant que la cible souhaitée est un coffre de navigateur autonome digne de confiance.</p>
-      <table>
-        <thead><tr><th>Porte de préparation</th><th>État</th><th>Raison</th></tr></thead>
-        <tbody>
-          <tr><td>Politique cryptographique</td><td>Échec</td><td>Pas de KDF calibré, affirmation d'itérations fausse, porte de mot de passe maître faible.</td></tr>
-          <tr><td>Confinement du texte clair</td><td>Échec</td><td>Le texte clair vit dans la mémoire de l'application et le DOM après le déverrouillage.</td></tr>
-          <tr><td>Stockage durable</td><td>Échec</td><td>Enregistrement actuel unique, écritures effacer-avant-placer, pas de journal de récupération.</td></tr>
-          <tr><td>Documentation de sécurité</td><td>Échec</td><td>Les affirmations dépassent la mise en œuvre.</td></tr>
-          <tr><td>Tests de régression</td><td>Échec</td><td>Couverture statique et aller-retour minimale uniquement.</td></tr>
-          <tr><td>Hygiène de livraison</td><td>Échec</td><td>Artefacts ignorés et archive non suivie présents.</td></tr>
-        </tbody>
-      </table>
-    </section>
+10 pires findings critiques/hauts :
+1. Documentation sécurité fausse/non démontrée.
+2. PBKDF2 150 000 itérations au lieu des 600 000 annoncées.
+3. KDF non calibré, non migré, non versionné opérationnellement.
+4. Sauvegarde redondante du coffre dans localStorage en base64.
+5. IndexedDB mono-record avec clear() puis put().
+6. Import/export .vault trop peu validé.
+7. CSP permissive avec CDN et unsafe-inline.
+8. Console logging de contenu de coffre chiffré/métadonnées.
+9. Architecture legacy parallèle et chemins morts.
+10. Tests/outillage non qualifiants pour un gestionnaire de secrets.</code></pre></section>
 
-    <section id="roadmap">
-      <h2>Feuille de route de reconstruction priorisée</h2>
-      <ol>
-        <li><strong>Réécrire la promesse de sécurité.</strong> Supprimer « militaire », « protection contre Spectre », les garanties de Web Worker non étayées, les comptages de KDF faux, les références de fichiers inexistants, et les affirmations absolues de contexte de navigateur.</li>
-        <li><strong>Centraliser la politique crypto.</strong> Ajouter une configuration crypto versionnée unique, appliquer les paramètres du KDF pilotés par métadonnées, élever/calibrer le travail du KDF, et construire un chemin de migration.</li>
-        <li><strong>Reconstruire la sémantique de verrouillage.</strong> Lors du verrouillage, purger l'état du coffre déchiffré, effacer les valeurs de mot de passe rendues, effacer les champs d'édition, annuler les minuteries, et tenter l'écrasement du presse-papiers avec une messagerie honnête des limites du navigateur.</li>
-        <li><strong>Remplacer le modèle de persistance.</strong> Utiliser des écritures intermédiaires, des promesses d'achèvement de transaction, des instantanés de dernière version connue, des métadonnées d'intégrité, du versionnage de schéma, et des flux de récupération.</li>
-        <li><strong>Supprimer la sauvegarde du coffre localStorage.</strong> Si une redondance est nécessaire, utiliser une exportation chiffrée explicite ou des enregistrements de récupération IndexedDB versionnés, pas un localStorage ambiant lisible par les scripts.</li>
-        <li><strong>Corriger les contrats d'importation/exportation.</strong> Ajouter une magie de format, une version de schéma, une version de politique crypto, une validation avant écrasement, une sauvegarde avant importation, et des erreurs claires pour les fichiers incompatibles/corrompus.</li>
-        <li><strong>Réduire le texte clair du DOM.</strong> Afficher les secrets uniquement lors d'une révélation délibérée, minimiser la durée de vie, échapper tous les champs contrôlés par l'utilisateur, et supprimer les puits HTML de chaînes de modèle pour les entrées du coffre.</li>
-        <li><strong>Renforcer la CSP et le chargement des dépendances.</strong> Supprimer la dépendance d'exécution CDN ou ajouter SRI, supprimer <code>unsafe-inline</code>, aligner le code et la politique expédiée, et tester les régressions de politique.</li>
-        <li><strong>Supprimer ou mettre en quarantaine les fichiers hérités.</strong> Supprimer les fichiers racine de crypto/stockage/sécurité dupliqués ou les déplacer sous un statut d'archive documenté pour que les futurs correctifs ne puissent pas viser le mauvais chemin de code.</li>
-        <li><strong>Construire des tests adversariaux.</strong> Ajouter la couverture d'altération, de corruption, de migration, de mot de passe erroné, de verrouillage automatique, de presse-papiers, de retour en arrière d'importation, de puits XSS, de chargement de worker, et de lint CI avant toute affirmation de production.</li>
-      </ol>
-    </section>
-
-    <section id="terminal-output">
-      <h2>Résumé terminal final</h2>
-      <div class="terminal">Rapport généré :
-C:\Users\cadet\Documents\GitHub\vault-personal\reports\vault-personal-full-audit-report.html
-
-10 pires constatations critiques :
-1. Le README affirme 600 000 itérations PBKDF2, mais le code actif utilise 150 000.
-2. Les entrées du coffre déchiffrées restent en mémoire après le déverrouillage et ne sont pas purgées par le verrouillage automatique.
-3. Les mots de passe en texte clair sont rendus dans les valeurs d'entrée du DOM.
-4. Le localStorage stocke une sauvegarde du coffre redondante encodée en base64.
-5. La sauvegarde/importation IndexedDB efface le magasin avant d'écrire le coffre de remplacement.
-6. Les affirmations de protection par Web Worker et Spectre ne sont pas étayées par le code actif.
-7. La CSP expédiée autorise cdnjs et les styles unsafe-inline ; le module CSP plus strict est uniquement pour le développement.
-8. Le README/docs annoncent une architecture manquante et un SECURITY.md inexistant.
-9. La suite de tests est bien en deçà des exigences d'un gestionnaire de mots de passe et n'a pas pu s'exécuter dans cet environnement.
-10. L'interface de score/confiance de sécurité présente de la confiance avant que l'état de sécurité vérifié n'existe.</div>
-    </section>
-  </main>
-</body>
-</html>
+<p class="small">Rapport généré en lecture seule sur les sources; seule cette sortie HTML a été écrite. Les conclusions marquées “Fait” viennent des fichiers ou commandes locales; les conclusions marquées “Estimation” sont des jugements d’ingénierie sécurité.</p>
+</main></body></html>
