@@ -1,14 +1,5 @@
 // ✅ EN HAUT
 import { renderSecurityChart } from './security-chart.js';
-import { auditVault, getPasswordEntropy } from '../security/audit.js';
-import { vaultManager } from '../core/vault/manager.js';
-
-// ✅ DEBUG uniquement en local
-if (location.hostname === 'localhost') {
-  window.vault = vaultManager.getEntries();
-  window.debugAudit = (entries = window.vault) => auditVault(entries);
-  window.debugEntropy = getPasswordEntropy;
-}
 
 // ✅ APPEL AU CHARGEMENT GRAPHIQUE
 document.addEventListener('DOMContentLoaded', () => {

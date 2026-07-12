@@ -1,3 +1,7 @@
+import { vaultManager } from '../core/vault/manager.js';
+import { renderVaultEntries } from '../ui/vault-list/vault-list.js';
+import { showToast } from './toast.js';
+
 document.addEventListener('DOMContentLoaded', () => {
 
   const importBtn = document.getElementById('btn-csv-import');

@@ -1,235 +1,406 @@
-import { VaultSchema } from '../../core/storage/schema.js';
-import { StorageManager } from '../../core/storage/manager.js';
-import { Vault } from './vault.js';
-import { encryptData, decryptData } from '../../core/crypto/aes-gcm.js';
-import { deriveMasterKey } from '../../core/crypto/pbkdf2.js';
+import { encryptData, decryptData } from '../crypto/aes-gcm.js';
+import { deriveMasterKey } from '../crypto/pbkdf2.js';
+import { StorageManager } from '../storage/manager.js';
+import {
+  CURRENT_PBKDF2_ITERATIONS,
+  CURRENT_VAULT_FORMAT_VERSION,
+  VAULT_SALT_BYTES,
+  base64ToBytes,
+  bytesToBase64,
+  createVaultMetadata,
+  entryAdditionalData,
+  metadataNeedsMigration,
+  parseVaultMetadata,
+  validateVaultRecord,
+  validationAdditionalData
+} from '../storage/vault-format.js';
 import { migrateEntryTimestamps, touchEntryModified } from '../storage/migrations/entry-timestamps.js';
 import { isPasswordOld } from '../../utils/password-age.js';
+import { Vault } from './vault.js';
+
+function entryEncryptionOptions(entryId, formatVersion) {
+  if (formatVersion < CURRENT_VAULT_FORMAT_VERSION) {
+    return {};
+  }
+
+  return { additionalData: entryAdditionalData(entryId, formatVersion) };
+}
+
+function validationEncryptionOptions(formatVersion) {
+  if (formatVersion < CURRENT_VAULT_FORMAT_VERSION) {
+    return {};
+  }
+
+  return { additionalData: validationAdditionalData(formatVersion) };
+}
 
 export class VaultManager {
-  constructor() {
-    this.storage = new StorageManager(); // ✅ Utilisation unique
-    this.vault = new Vault();            // Entrées déchiffrées en mémoire
-    this.masterKey = null;               // CryptoKey AES-GCM dérivée
-    this.salt = null;                    // Uint8Array
+  constructor(options = {}) {
+    this.storage = options.storage || new StorageManager();
+    this.vault = new Vault();
+    this.masterKey = null;
+    this.salt = null;
+    this.formatVersion = null;
+    this.isFirstTime = false;
+  }
+
+  async initializeStorage() {
+    await this.storage.initializeDB();
+  }
+
+  async hasVault() {
+    await this.initializeStorage();
+    return Boolean(await this.storage.loadVault());
+  }
+
+  async restoreFromLocalBackup() {
+    await this.initializeStorage();
+    return this.storage.restoreFromLocalBackup();
   }
 
   async initialize(password) {
-    await this.storage.initializeDB(); // ✅ ouverture assurée
-    const vaultRecord = await this.storage.loadVault();
-
-    if (!vaultRecord) {
-      this.salt = crypto.getRandomValues(new Uint8Array(16));
-      this.masterKey = await deriveMasterKey(password, this.salt);
-
-      const newVault = structuredClone(VaultSchema);
-      newVault.meta.salt = this._arrayToBase64(this.salt);
-      newVault.meta.created_at = new Date().toISOString();
-      newVault.meta.last_modified = new Date().toISOString();
-
-      await this.storage.saveVault([], newVault.meta);
-    } else {
-      this.salt = this._base64ToArray(vaultRecord.meta.salt);
-      this.masterKey = await deriveMasterKey(password, this.salt);
-
-      this.vault.clear();
-      const decryptedEntries = [];
-      for (const entry of vaultRecord.entries) {
-        const data = await decryptData(entry, this.masterKey);
-        decryptedEntries.push({ id: entry.id, ...data });
-      }
-
-      const didMigrate = migrateEntryTimestamps(decryptedEntries, vaultRecord.meta);
-      for (const entry of decryptedEntries) {
-        this.vault.addEntry(entry);
-      }
-
-      if (didMigrate) {
-        const reencryptedEntries = [];
-        for (const entry of decryptedEntries) {
-          const { id, ...payload } = entry;
-          const encrypted = await encryptData(payload, this.masterKey);
-          reencryptedEntries.push({ id, ...encrypted });
-        }
-        vaultRecord.meta.last_modified = new Date().toISOString();
-        await this.storage.saveVault(reencryptedEntries, vaultRecord.meta);
-      }
-
-      window.vault = this.vault;
+    if (await this.hasVault()) {
+      return this.unlock(password);
     }
+
+    return this.createVault(password);
+  }
+
+  async createVault(password) {
+    await this.initializeStorage();
+    if (await this.storage.loadVault()) {
+      throw new Error('A vault already exists.');
+    }
+
+    const salt = crypto.getRandomValues(new Uint8Array(VAULT_SALT_BYTES));
+    const key = await deriveMasterKey(password, salt, {
+      iterations: CURRENT_PBKDF2_ITERATIONS
+    });
+    const metadata = createVaultMetadata(bytesToBase64(salt));
+    const validation = await encryptData(
+      { check: 'ok' },
+      key,
+      validationEncryptionOptions(CURRENT_VAULT_FORMAT_VERSION)
+    );
+
+    await this.storage.saveVault([], { ...metadata, validation });
+    this._setSession(key, salt, [], CURRENT_VAULT_FORMAT_VERSION);
+    return this.getEntries();
+  }
+
+  async unlock(password) {
+    const vaultRecord = await this._loadVaultRecord();
+    const metadata = parseVaultMetadata(vaultRecord.meta);
+    const salt = base64ToBytes(metadata.salt, 'salt');
+    const key = await deriveMasterKey(password, salt, {
+      iterations: metadata.iterations
+    });
+
+    const validation = await decryptData(
+      vaultRecord.meta.validation,
+      key,
+      validationEncryptionOptions(metadata.formatVersion)
+    );
+
+    if (!validation || validation.check !== 'ok') {
+      throw new Error('Vault validation failed.');
+    }
+
+    const decryptedEntries = await this._decryptEntries(
+      vaultRecord.entries,
+      key,
+      metadata.formatVersion
+    );
+    const timestampsChanged = migrateEntryTimestamps(decryptedEntries, vaultRecord.meta);
+
+    if (metadataNeedsMigration(metadata)) {
+      const migrated = await this._migrateToCurrentFormat(password, decryptedEntries, metadata);
+      this._setSession(
+        migrated.key,
+        migrated.salt,
+        decryptedEntries,
+        CURRENT_VAULT_FORMAT_VERSION
+      );
+      return this.getEntries();
+    }
+
+    if (timestampsChanged) {
+      const updatedMeta = {
+        ...vaultRecord.meta,
+        last_modified: new Date().toISOString()
+      };
+      const encryptedEntries = await this._encryptEntries(
+        decryptedEntries,
+        key,
+        metadata.formatVersion
+      );
+      await this.storage.saveVault(encryptedEntries, updatedMeta);
+    }
+
+    this._setSession(key, salt, decryptedEntries, metadata.formatVersion);
+    return this.getEntries();
   }
 
   async addEntry(entryData) {
+    this._requireUnlocked();
+
+    const { id: ignoredId, ...payload } = entryData || {};
+    void ignoredId;
+
     const id = crypto.randomUUID();
     const nowIso = new Date().toISOString();
-    const entryWithMeta = {
-      ...entryData,
-      created_at: entryData.created_at || nowIso,
+    const entry = {
+      ...payload,
+      created_at: payload.created_at || nowIso,
       last_modified: nowIso
     };
-    const encrypted = await encryptData(entryWithMeta, this.masterKey);
-    const vault = await this._loadRawVault();
+    const vaultRecord = await this._loadVaultRecord();
+    const metadata = parseVaultMetadata(vaultRecord.meta);
+    const encrypted = await encryptData(
+      entry,
+      this.masterKey,
+      entryEncryptionOptions(id, metadata.formatVersion)
+    );
 
-    vault.entries.push({
-      id,
-      ...encrypted
-    });
-
-    vault.meta.last_modified = new Date().toISOString();
-    await this.storage.saveVault(vault.entries, vault.meta);
-
-    this.vault.addEntry({ id, ...entryWithMeta }); // pour l'affichage direct
+    vaultRecord.entries.push({ id, ...encrypted });
+    vaultRecord.meta.last_modified = nowIso;
+    await this.storage.saveVault(vaultRecord.entries, vaultRecord.meta);
+    this.vault.addEntry({ ...entry, id });
   }
 
   async updateEntry(entryId, partialData) {
-    const vault = await this._loadRawVault();
-    const entryIndex = vault.entries.findIndex((entry) => entry.id === entryId);
+    this._requireUnlocked();
+
+    const vaultRecord = await this._loadVaultRecord();
+    const metadata = parseVaultMetadata(vaultRecord.meta);
+    const entryIndex = vaultRecord.entries.findIndex((entry) => entry.id === entryId);
     if (entryIndex === -1) {
-      throw new Error('Entrée introuvable.');
+      throw new Error('Entry not found.');
     }
 
-    const decrypted = await decryptData(vault.entries[entryIndex], this.masterKey);
+    const currentEntry = await decryptData(
+      vaultRecord.entries[entryIndex],
+      this.masterKey,
+      entryEncryptionOptions(entryId, metadata.formatVersion)
+    );
+    const { id: ignoredId, ...safePartialData } = partialData || {};
+    void ignoredId;
+
     const updatedEntry = {
-      ...decrypted,
-      ...partialData,
+      ...currentEntry,
+      ...safePartialData,
       last_modified: new Date().toISOString()
     };
     touchEntryModified(updatedEntry);
-    const encrypted = await encryptData(updatedEntry, this.masterKey);
 
-    vault.entries[entryIndex] = {
-      id: entryId,
-      ...encrypted
-    };
-    vault.meta.last_modified = new Date().toISOString();
-    await this.storage.saveVault(vault.entries, vault.meta);
+    const encrypted = await encryptData(
+      updatedEntry,
+      this.masterKey,
+      entryEncryptionOptions(entryId, metadata.formatVersion)
+    );
+    vaultRecord.entries[entryIndex] = { id: entryId, ...encrypted };
+    vaultRecord.meta.last_modified = new Date().toISOString();
+    await this.storage.saveVault(vaultRecord.entries, vaultRecord.meta);
+    this.vault.updateEntry(entryId, { ...updatedEntry, id: entryId });
+  }
 
-    this.vault.updateEntry(entryId, {
-      ...this.vault.getEntryById(entryId),
-      ...updatedEntry,
-      id: entryId
-    });
+  async deleteEntry(entryId) {
+    this._requireUnlocked();
+
+    const vaultRecord = await this._loadVaultRecord();
+    const remainingEntries = vaultRecord.entries.filter((entry) => entry.id !== entryId);
+    if (remainingEntries.length === vaultRecord.entries.length) {
+      throw new Error('Entry not found.');
+    }
+
+    vaultRecord.meta.last_modified = new Date().toISOString();
+    await this.storage.saveVault(remainingEntries, vaultRecord.meta);
+    this.vault.removeEntry(entryId);
   }
 
   async decryptAllEntries() {
-    const vault = await this._loadRawVault();
-    const decrypted = [];
+    this._requireUnlocked();
 
-    for (const entry of vault.entries) {
-      const data = await decryptData(entry, this.masterKey);
-      decrypted.push({ id: entry.id, ...data });
-    }
+    const vaultRecord = await this._loadVaultRecord();
+    const metadata = parseVaultMetadata(vaultRecord.meta);
+    const decryptedEntries = await this._decryptEntries(
+      vaultRecord.entries,
+      this.masterKey,
+      metadata.formatVersion
+    );
 
-    this.vault.clear();
-    decrypted.forEach(entry => this.vault.addEntry(entry));
-    return decrypted;
+    this._replaceEntries(decryptedEntries);
+    return this.getEntries();
   }
-
-async getPasswordStats() {
-  const entries = this.vault.getAllEntries();
-  const stats = { total: entries.length, reused: 0, weak: 0, old: 0 };
-
-  const seen = new Set();
-
-  for (const e of entries) {
-    if (seen.has(e.password)) stats.reused++;
-    else seen.add(e.password);
-
-    if (e.password.length < 10 || !/[A-Z]/.test(e.password) || !/[0-9]/.test(e.password)) {
-      stats.weak++;
-    }
-
-    if (isPasswordOld(e, 365)) {
-      stats.old++;
-    }
-  }
-
-  // === AJOUT CALCUL SCORE ===
-  let score = 0;
-  if (stats.total > 0) {
-    score = Math.round(100 * (stats.total - stats.weak - stats.reused) / stats.total);
-    if (score < 0) score = 0;
-  }
-
-  return {
-    ...stats,
-    score
-  };
-}
 
   async markEntryAccessed(entryId) {
-    const vault = await this._loadRawVault();
-    const now = Date.now();
-    
-    for (let encryptedEntry of vault.entries) {
-      if (encryptedEntry.id === entryId) {
-        // Déchiffrer l’entrée
-        const data = await decryptData(encryptedEntry, this.masterKey);
-        data.lastAccessed = now;
-        data.accessCount = (data.accessCount || 0) + 1;
+    this._requireUnlocked();
 
-        // Réencrypter avec les nouveaux champs
-        const updatedEncrypted = await encryptData(data, this.masterKey);
-        Object.assign(encryptedEntry, updatedEncrypted);
-        break;
+    const vaultRecord = await this._loadVaultRecord();
+    const metadata = parseVaultMetadata(vaultRecord.meta);
+    const entryIndex = vaultRecord.entries.findIndex((entry) => entry.id === entryId);
+    if (entryIndex === -1) {
+      throw new Error('Entry not found.');
+    }
+
+    const data = await decryptData(
+      vaultRecord.entries[entryIndex],
+      this.masterKey,
+      entryEncryptionOptions(entryId, metadata.formatVersion)
+    );
+    data.lastAccessed = Date.now();
+    data.accessCount = (data.accessCount || 0) + 1;
+
+    const encrypted = await encryptData(
+      data,
+      this.masterKey,
+      entryEncryptionOptions(entryId, metadata.formatVersion)
+    );
+    vaultRecord.entries[entryIndex] = { id: entryId, ...encrypted };
+    vaultRecord.meta.last_modified = new Date().toISOString();
+    await this.storage.saveVault(vaultRecord.entries, vaultRecord.meta);
+    this.vault.updateEntry(entryId, { ...data, id: entryId });
+  }
+
+  async getPasswordStats() {
+    const entries = this.vault.getAllEntries();
+    const stats = { total: entries.length, reused: 0, weak: 0, old: 0 };
+    const seen = new Set();
+
+    for (const entry of entries) {
+      const password = String(entry.password || '');
+      if (seen.has(password)) {
+        stats.reused += 1;
+      } else {
+        seen.add(password);
+      }
+
+      if (password.length < 10 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+        stats.weak += 1;
+      }
+
+      if (isPasswordOld(entry, 365)) {
+        stats.old += 1;
       }
     }
 
-    vault.meta.last_modified = new Date().toISOString();
-    await this.storage.saveVault(vault.entries, vault.meta);
+    const score = stats.total > 0
+      ? Math.max(0, Math.round(100 * (stats.total - stats.weak - stats.reused) / stats.total))
+      : 0;
 
-    // Met aussi à jour en mémoire
-    const localEntry = this.vault.getEntryById(entryId);
-    if (localEntry) {
-      localEntry.lastAccessed = now;
-      localEntry.accessCount = (localEntry.accessCount || 0) + 1;
-	  this.vault.updateEntry(entryId, localEntry);
-
-    }
+    return { ...stats, score };
   }
-
 
   getEntries() {
     return this.vault.getAllEntries();
   }
 
+  async exportVaultRecord() {
+    const vaultRecord = await this._loadVaultRecord();
+    return structuredClone(vaultRecord);
+  }
+
+  async importVaultRecord(vaultRecord) {
+    await this.initializeStorage();
+    const normalizedVault = validateVaultRecord(vaultRecord);
+    await this.storage.importFullVault(normalizedVault);
+    this.clearSession();
+  }
+
   clearSession() {
-    try {
-      this.masterKey = null;
+    if (this.salt instanceof Uint8Array) {
+      this.salt.fill(0);
+    }
 
-      if (this.vault && typeof this.vault.clear === 'function') {
-        this.vault.clear();
-      } else {
-        this.vault = new Vault();
-      }
+    this.masterKey = null;
+    this.salt = null;
+    this.formatVersion = null;
+    this.vault.clear();
+  }
 
-      if (typeof window !== 'undefined' && window.vault) {
-        if (typeof window.vault.clear === 'function') {
-          window.vault.clear();
-        }
-        window.vault = null;
-      }
-    } catch (error) {
-      console.warn('[Vault] Nettoyage de session incomplet :', error);
-      this.masterKey = null;
-      this.vault = new Vault();
+  async _migrateToCurrentFormat(password, entries, previousMetadata) {
+    const salt = crypto.getRandomValues(new Uint8Array(VAULT_SALT_BYTES));
+    const key = await deriveMasterKey(password, salt, {
+      iterations: CURRENT_PBKDF2_ITERATIONS
+    });
+    const now = new Date().toISOString();
+    const metadata = createVaultMetadata(bytesToBase64(salt), {
+      createdAt: previousMetadata.createdAt || now,
+      lastModified: now
+    });
+    const encryptedEntries = await this._encryptEntries(
+      entries,
+      key,
+      CURRENT_VAULT_FORMAT_VERSION
+    );
+    const validation = await encryptData(
+      { check: 'ok' },
+      key,
+      validationEncryptionOptions(CURRENT_VAULT_FORMAT_VERSION)
+    );
+
+    await this.storage.saveVault(encryptedEntries, { ...metadata, validation });
+    return { key, salt };
+  }
+
+  async _decryptEntries(entries, key, formatVersion) {
+    const decryptedEntries = [];
+
+    for (const entry of entries) {
+      const data = await decryptData(
+        entry,
+        key,
+        entryEncryptionOptions(entry.id, formatVersion)
+      );
+      decryptedEntries.push({ ...data, id: entry.id });
+    }
+
+    return decryptedEntries;
+  }
+
+  async _encryptEntries(entries, key, formatVersion) {
+    const encryptedEntries = [];
+
+    for (const entry of entries) {
+      const { id, ...payload } = entry;
+      const encrypted = await encryptData(
+        payload,
+        key,
+        entryEncryptionOptions(id, formatVersion)
+      );
+      encryptedEntries.push({ id, ...encrypted });
+    }
+
+    return encryptedEntries;
+  }
+
+  async _loadVaultRecord() {
+    await this.initializeStorage();
+    const vaultRecord = await this.storage.loadVault();
+    if (!vaultRecord) {
+      throw new Error('No vault exists.');
+    }
+
+    return vaultRecord;
+  }
+
+  _setSession(key, salt, entries, formatVersion) {
+    this.masterKey = key;
+    this.salt = salt;
+    this.formatVersion = formatVersion;
+    this._replaceEntries(entries);
+  }
+
+  _replaceEntries(entries) {
+    this.vault.clear();
+    entries.forEach((entry) => this.vault.addEntry(entry));
+  }
+
+  _requireUnlocked() {
+    if (!this.masterKey) {
+      throw new Error('Vault is locked.');
     }
   }
-
-  // 🔐 Chargement direct du vault (brut)
-  async _loadRawVault() {
-    await this.storage.initializeDB();
-    const result = await this.storage.loadVault();
-    return result || structuredClone(VaultSchema);
-  }
-
-  // 🔧 conversion de base64 <-> Uint8Array
-  _arrayToBase64(arr) {
-    return btoa(String.fromCharCode(...arr));
-  }
-
-  _base64ToArray(str) {
-    return Uint8Array.from(atob(str), c => c.charCodeAt(0));
-  }
 }
+
 export const vaultManager = new VaultManager();

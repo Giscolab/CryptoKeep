@@ -25,6 +25,7 @@ export function showToast(message, type = 'success', duration = 3000) {
   }
 
   const messageNode = document.createElement('span');
+  messageNode.className = 'toast__message';
   messageNode.textContent = message || '';
   toast.appendChild(messageNode);
 
@@ -35,12 +36,14 @@ export function showToast(message, type = 'success', duration = 3000) {
   toast.appendChild(closeButton);
 
   // Supprimer au clic sur la croix
-  closeButton.onclick = () => toast.remove();
+  const dismiss = () => toast.remove();
+  closeButton.onclick = dismiss;
 
   // Timer auto-suppression
-  setTimeout(() => toast.remove(), duration);
+  setTimeout(dismiss, duration);
 
   container.appendChild(toast);
+  return toast;
 }
 
 function iconClassForType(type) {

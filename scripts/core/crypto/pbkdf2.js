@@ -1,59 +1,59 @@
-/**
- * Dérive une clé maître AES-GCM à partir d’un mot de passe utilisateur.
- * Utilise PBKDF2 avec SHA-512, 150 000 itérations.
- * @param {string} password - Le mot de passe maître en clair.
- * @param {Uint8Array} salt - Le sel de dérivation (aléatoire et persistant).
- * @returns {Promise<CryptoKey>} - Clé AES-GCM dérivée prête à l’usage.
- */
-export async function deriveMasterKey(password, salt) {
-    const encoder = new TextEncoder();
+import {
+  CURRENT_PBKDF2_ITERATIONS,
+  MAX_PBKDF2_ITERATIONS,
+  MIN_PBKDF2_ITERATIONS,
+  PBKDF2_HASH
+} from '../storage/vault-format.js';
 
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(password),
-        'PBKDF2',
-        false,
-        ['deriveKey']
-    );
-
-    return await crypto.subtle.deriveKey(
-        {
-            name: 'PBKDF2',
-            salt: salt,
-            iterations: 150000,
-            hash: 'SHA-512'
-        },
-        keyMaterial,
-        {
-            name: 'AES-GCM',
-            length: 256
-        },
-        false,
-        ['encrypt', 'decrypt']
-    );
+function assertIterations(iterations) {
+  if (!Number.isInteger(iterations) || iterations < MIN_PBKDF2_ITERATIONS || iterations > MAX_PBKDF2_ITERATIONS) {
+    throw new Error(`Invalid PBKDF2 iteration count: ${iterations}`);
+  }
 }
-export function deriveMasterKeyWithWorker(password, salt, iterations = 150000) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker('./core/crypto/workers/pbkdf2.worker.js', { type: 'module' });
 
-    worker.postMessage({ password, salt: Array.from(salt), iterations });
+/**
+ * Derives a non-extractable AES-GCM key from a user password.
+ */
+export async function deriveMasterKey(password, salt, options = {}) {
+  if (typeof password !== 'string' || password.length === 0) {
+    throw new Error('A master password is required.');
+  }
 
-    worker.onmessage = async (e) => {
-      const rawKey = new Uint8Array(e.data);
-      const key = await crypto.subtle.importKey(
-        'raw',
-        rawKey,
-        'AES-GCM',
-        false,
-        ['encrypt', 'decrypt']
-      );
-      worker.terminate();
-      resolve(key);
-    };
+  if (!(salt instanceof Uint8Array)) {
+    throw new Error('PBKDF2 requires a Uint8Array salt.');
+  }
 
-    worker.onerror = (err) => {
-      worker.terminate();
-      reject(err);
-    };
-  });
+  const iterations = options.iterations ?? CURRENT_PBKDF2_ITERATIONS;
+  assertIterations(iterations);
+
+  const passwordBytes = new TextEncoder().encode(password);
+  let keyMaterial;
+
+  try {
+    keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordBytes,
+      'PBKDF2',
+      false,
+      ['deriveKey']
+    );
+  } finally {
+    passwordBytes.fill(0);
+  }
+
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt,
+      iterations,
+      hash: PBKDF2_HASH
+    },
+    keyMaterial,
+    {
+      name: 'AES-GCM',
+      length: 256
+    },
+    false,
+    ['encrypt', 'decrypt']
+  );
 }

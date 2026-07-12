@@ -1,5 +1,3 @@
-import { lockVaultSession } from './session-lock.js';
-
 const DELAY_OPTIONS = {
   '1 minute': 60,
   '2 minutes': 120,
@@ -104,12 +102,7 @@ export class AutoLock {
   }
 
   lockVault() {
-    void lockVaultSession(typeof window !== 'undefined' ? window.vaultManager : null, {
-      message: 'Session verrouillée automatiquement.',
-      type: 'error'
-    }).then((result) => {
-      console.log("[LOCK] Session nettoyée ? ", result.masterKeyNull && result.entryCount === 0);
-    });
+    void this.onLock();
   }
 
   _reset() {

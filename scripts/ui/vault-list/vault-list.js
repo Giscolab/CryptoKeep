@@ -1,5 +1,7 @@
 import { showToast } from '../../utils/toast.js';
 import { filterEntries, inferCategory, sortEntries } from '../../utils/vault-filters.js';
+import { vaultManager } from '../../core/vault/manager.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
 
 const vaultUIState = {
   initialized: false,
@@ -267,7 +269,7 @@ function initializeVaultControls() {
   if (refreshButton) {
     refreshButton.addEventListener('click', async () => {
       try {
-        const decrypted = await window.vaultManager.decryptAllEntries();
+        const decrypted = await vaultManager.decryptAllEntries();
         renderVaultEntries(decrypted);
         showToast('Liste des mots de passe actualisée.', 'success');
       } catch (error) {
@@ -311,19 +313,19 @@ function renderVaultEntries(entries) {
 
 function bindEntryActions(container) {
   container.querySelectorAll('.action-btn.copy').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const input = btn.closest('.vault-item')?.querySelector('.password-input');
       if (!input) return;
 
-      navigator.clipboard.writeText(input.value).then(() => {
-        const id = btn.closest('.vault-item')?.dataset.id;
-        if (id) window.vaultManager.markEntryAccessed(id);
-        setButtonIcon(btn, 'fa-check');
-        setTimeout(() => {
-          setButtonIcon(btn, 'fa-copy');
-        }, 1500);
-        showToast('Mot de passe copié dans le presse-papiers !', 'success');
-      });
+      const copied = await copyToClipboard(input.value);
+      if (!copied) return;
+
+      const id = btn.closest('.vault-item')?.dataset.id;
+      if (id) await vaultManager.markEntryAccessed(id);
+      setButtonIcon(btn, 'fa-check');
+      setTimeout(() => {
+        setButtonIcon(btn, 'fa-copy');
+      }, 1500);
     });
   });
 
@@ -346,11 +348,8 @@ function bindEntryActions(container) {
       if (!confirm('Supprimer cette entrée ?')) return;
 
       try {
-        const vault = await window.vaultManager.storage.loadVault();
-        const updated = vault.entries.filter(entry => entry.id !== id);
-        await window.vaultManager.storage.saveVault(updated, vault.meta);
-        const decrypted = await window.vaultManager.decryptAllEntries();
-        renderVaultEntries(decrypted);
+        await vaultManager.deleteEntry(id);
+        renderVaultEntries(vaultManager.getEntries());
         await renderRecentAccesses();
         showToast('Entrée supprimée.', 'success');
       } catch (error) {
@@ -387,13 +386,12 @@ function bindEntryActions(container) {
         const id = item.dataset.id;
 
         try {
-          await window.vaultManager.updateEntry(id, {
+          await vaultManager.updateEntry(id, {
             password: input.value,
             url: urlInput?.value || ''
           });
-          await window.vaultManager.markEntryAccessed(id);
-          const decrypted = await window.vaultManager.decryptAllEntries();
-          renderVaultEntries(decrypted);
+          await vaultManager.markEntryAccessed(id);
+          renderVaultEntries(vaultManager.getEntries());
           await renderRecentAccesses();
           showToast('Mot de passe mis à jour.', 'success');
         } catch (error) {
@@ -417,7 +415,7 @@ async function renderRecentAccesses(limit = 4) {
 
   container.replaceChildren();
 
-  const entries = window.vaultManager.getEntries()
+  const entries = vaultManager.getEntries()
     .filter(entry => entry.lastAccessed)
     .sort((a, b) => b.lastAccessed - a.lastAccessed)
     .slice(0, limit);
@@ -430,9 +428,10 @@ async function renderRecentAccesses(limit = 4) {
   for (const entry of entries) {
     const wrapper = createRecentEntryElement(entry);
 
-    wrapper.querySelector('.copy')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(entry.password);
-      window.vaultManager.markEntryAccessed(entry.id);
+    wrapper.querySelector('.copy')?.addEventListener('click', async () => {
+      const copied = await copyToClipboard(entry.password);
+      if (!copied) return;
+      await vaultManager.markEntryAccessed(entry.id);
       renderRecentAccesses();
     });
 
