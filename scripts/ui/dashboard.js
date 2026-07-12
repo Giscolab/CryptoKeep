@@ -1,5 +1,7 @@
 // ✅ Import de showView utilisé pour la redirection depuis les accès récents
 import { showView } from './sidebar.js';
+import { vaultManager } from '../core/vault/manager.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 
 function toText(value, fallback = '') {
   return value === null || value === undefined ? fallback : String(value);
@@ -89,7 +91,7 @@ export async function renderRecentAccesses(limit = 4) {
 
   container.replaceChildren(); // ✅ On vide le conteneur à chaque appel pour éviter les éléments morts
 
-  const entries = window.vaultManager.getEntries()
+  const entries = vaultManager.getEntries()
     .filter(e => e.lastAccessed)
     .sort((a, b) => b.lastAccessed - a.lastAccessed)
     .slice(0, limit);
@@ -104,9 +106,10 @@ export async function renderRecentAccesses(limit = 4) {
 
     // ✅ Bouton COPIER : copie dans le presse-papiers + met à jour l'historique
     const copyBtn = wrapper.querySelector('.copy');
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(entry.password);
-      window.vaultManager.markEntryAccessed(entry.id);
+    copyBtn.addEventListener('click', async () => {
+      const copied = await copyToClipboard(entry.password);
+      if (!copied) return;
+      await vaultManager.markEntryAccessed(entry.id);
       renderRecentAccesses(); // ✅ On re-render pour garder l'ordre à jour
     });
 
@@ -116,7 +119,7 @@ export async function renderRecentAccesses(limit = 4) {
   const proceed = confirm("Souhaitez-vous modifier cette entrée dans la liste des mots de passe ?");
   if (!proceed) return;
 
-  window.vaultManager.markEntryAccessed(entry.id);
+  void vaultManager.markEntryAccessed(entry.id);
   showView('passwords-view');
 
   const onRendered = () => {

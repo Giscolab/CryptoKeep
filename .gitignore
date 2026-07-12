@@ -35,6 +35,14 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.claude/settings.local.json
+
+# 🤖 Claude Code — sorties de scan locales
+VULN-FINDINGS.json
+VULN-FINDINGS.md
+TRIAGE.json
+TRIAGE.md
+PATCHES/
 
 # 🐍 Python (export_log.py)
 __pycache__/

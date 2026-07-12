@@ -1,3 +1,7 @@
+import { validateVaultRecord } from './vault-format.js';
+
+const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+
 /**
  * Exporte le contenu chiffré du vault dans un fichier `.vault`.
  * @param {Object} vaultData - Objet JSON complet à exporter (entries + meta).
@@ -19,8 +23,12 @@ export async function importVault(file) {
         throw new Error('Fichier invalide. Format requis : .vault');
     }
 
+    if (file.size > MAX_IMPORT_BYTES) {
+        throw new Error('Fichier .vault trop volumineux.');
+    }
+
     const content = await file.text();
-    return JSON.parse(content);
+    return validateVaultRecord(JSON.parse(content));
 }
 
 // === Fichier: scripts/core/storage/backup.js
@@ -43,7 +51,7 @@ export function restoreFromLocal() {
   const raw = localStorage.getItem('vaultBackup');
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    return validateVaultRecord(JSON.parse(raw));
   } catch (e) {
     console.warn('[Vault] Backup corrompu.');
     return null;

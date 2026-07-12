@@ -1,47 +1,12 @@
-import {
-	setupUILogger
-} from './utils/logger.js';
-setupUILogger();
 import './utils/import-csv.js';
-// === Logger de debug conditionnel
-const DEBUG = false;
-
-function debugLog(...args) {
-	if (DEBUG) console.log('[LOG]', ...args);
-}
-// === Cryptographie
-import {
-	encryptData,
-	decryptData,
-	encryptDataWithWorker,
-	decryptDataWithWorker
-} from './core/crypto/aes-gcm.js';
-import {
-	deriveMasterKey,
-	deriveMasterKeyWithWorker
-} from './core/crypto/pbkdf2.js';
-// === Stockage
-import {
-	openDB
-} from './core/storage/indexeddb.js';
 import {
 	exportVault,
 	importVault
 } from './core/storage/backup.js';
 import {
-	VaultSchema
-} from './core/storage/schema.js';
-import {
-	StorageManager
-} from './core/storage/manager.js';
-// === Vault
-import {
-	VaultManager
+	vaultManager
 } from './core/vault/manager.js';
-import {
-	Vault
-} from './core/vault/vault.js';
-// === Sécurité
+import { assertSecureWebCrypto } from './core/crypto/runtime.js';
 import {
 	AutoLock,
 	getStoredDelay
@@ -49,15 +14,7 @@ import {
 import {
 	lockVaultSession
 } from './security/session-lock.js';
-import {
-	zeroize
-} from './security/memory.js';
-import {
-	enforceCSP
-} from './security/csp.js';
-import {
-	auditVault
-} from './security/audit.js';
+import { validateNewMasterPassword } from './security/master-password-policy.js';
 import {
 	auditSecurityDashboard
 } from './security/security-dashboard-audit.js';
@@ -88,9 +45,6 @@ import {
 	openReuseResolver
 } from './ui/reuse-resolver-modal.js';
 import {
-	renderSecurityChart
-} from './ui/security-chart.js';
-import {
 	showView
 } from './ui/sidebar.js';
 import {
@@ -107,19 +61,18 @@ import {
 	PasswordGenerator
 } from './utils/password-generator.js';
 import {
-	IDBHelper
-} from './utils/idb-helper.js';
-import {
 	showToast
 } from './utils/toast.js';
-// === Sécurité CSP
-enforceCSP();
-// === INITIALISATION PRINCIPALE ===
-const vaultManager = new VaultManager();
-vaultManager.storage = new StorageManager();
+
+try {
+	assertSecureWebCrypto();
+} catch (error) {
+	console.error('[Vault] Secure Web Crypto is unavailable:', error);
+	showToast('Web Crypto securise indisponible. Le coffre ne peut pas demarrer.', 'error', 10000);
+	throw error;
+}
+
 vaultManager.isFirstTime = false;
-window.vaultManager = vaultManager;
-window.__VAULT_HIBP_ENABLED__ = false;
 
 document.addEventListener('vault:open-reuse-resolver', async (event) => {
 	const { groupId, groupData } = event.detail || {};
@@ -200,33 +153,37 @@ if (!window.indexedDB) {
 	showToast("IndexedDB n’est pas supporté par ce navigateur ou ce mode.");
 	throw new Error("IndexedDB not supported.");
 }
-// === Ouverture IndexedDB et détection du premier lancement
-vaultManager.storage.initializeDB().then(async () => {
-	const existingVault = await vaultManager.storage.loadVault();
-	updateSidebarProfile();
-	if (!existingVault) {
-		const restored = await vaultManager.storage.restoreFromLocalBackup();
-		if (restored) {
-			debugLog('[INIT] Vault restauré depuis backup localStorage.');
-		} else {
-			debugLog('[INIT] Aucun vault détecté — création du mot de passe maître requise.');
-			const titleElement = document.getElementById('auth-title');
-			const btnElement = document.getElementById('unlock-vault');
-			if (titleElement) titleElement.textContent = 'Créer un mot de passe maître';
-			if (btnElement) btnElement.textContent = 'Créer';
-			vaultManager.isFirstTime = true;
-		}
-	} else {
-		debugLog('[INIT] Vault détecté — déverrouillage nécessaire.');
+// === Ouverture IndexedDB et detection du premier lancement
+let vaultReady = false;
+const unlockButton = document.getElementById('unlock-vault');
+if (unlockButton) unlockButton.disabled = true;
+
+vaultManager.initializeStorage().then(async () => {
+	let hasVault = await vaultManager.hasVault();
+	if (!hasVault) {
+		hasVault = await vaultManager.restoreFromLocalBackup();
 	}
+
+	await updateSidebarProfile();
+	if (!hasVault) {
+		const titleElement = document.getElementById('auth-title');
+		if (titleElement) titleElement.textContent = 'Creer un mot de passe maitre';
+		if (unlockButton) unlockButton.textContent = 'Creer';
+		vaultManager.isFirstTime = true;
+	} else {
+		vaultManager.isFirstTime = false;
+	}
+
+	vaultReady = true;
+	if (unlockButton) unlockButton.disabled = false;
 }).catch((err) => {
 	console.error('[ERREUR] Impossible d’ouvrir la base IndexedDB :', err);
-	showToast("Erreur critique : échec d’accès au stockage sécurisé.");
+	showToast('Erreur critique : echec d acces au stockage securise.', 'error');
 });
 // AutoLock actif après authentification
-const locker = new AutoLock(() => {
+void new AutoLock(() => {
 	void lockVaultSession(vaultManager, {
-		message: 'Session verrouillée automatiquement.',
+		message: 'Session verrouillee automatiquement.',
 		type: 'error'
 	});
 }, getStoredDelay() * 1000);
@@ -247,48 +204,36 @@ document.getElementById('password').addEventListener('input', (e) => {
 document.getElementById('auth-form').addEventListener('submit', async (e) => {
 	e.preventDefault();
 	const password = document.getElementById('master-password').value;
-	if (!password || password.length < 6) {
-		showToast("Le mot de passe maître doit contenir au moins 6 caractères.", "error");
+	if (!vaultReady) {
+		showToast('Le stockage securise est encore en cours de chargement.', 'warning');
 		return;
 	}
-	const vault = await vaultManager.storage.loadVault();
-	if (!vault) {
-		const salt = crypto.getRandomValues(new Uint8Array(16));
-		const key = await deriveMasterKey(password, salt);
-		vaultManager.masterKey = key;
-		const validation = await encryptData({
-			check: 'ok'
-		}, key);
-		await vaultManager.storage.saveVault(
-			[], {
-				salt: btoa(String.fromCharCode(...salt)),
-				last_modified: new Date().toISOString(),
-				validation
-			});
-		vaultManager.isFirstTime = false;
-		showToast("Vault initialisé avec succès.", "success");
-	} else {
-		try {
-			const salt = Uint8Array.from(atob(vault.meta.salt), c => c.charCodeAt(0));
-			const key = await deriveMasterKey(password, salt);
-			vaultManager.masterKey = key;
-			if (DEBUG) {
-				debugLog("Salt utilisé:", vault.meta.salt);
-				if (vault.meta.validation) {
-					debugLog("IV utilisé:", vault.meta.validation.iv);
-					debugLog("Ciphertext:", vault.meta.validation.ciphertext);
-				}
+	if (!password) {
+		showToast('Le mot de passe maitre est requis.', 'error');
+		return;
+	}
+
+	const hasVault = await vaultManager.hasVault();
+	try {
+		if (!hasVault) {
+			const policy = validateNewMasterPassword(password);
+			if (!policy.valid) {
+				showToast(policy.message, 'error');
+				return;
 			}
-			const validation = vault.meta.validation;
-			const test = await decryptData(validation, key);
-			if (!test || test.check !== 'ok') throw new Error('Validation échouée');
-			await vaultManager.decryptAllEntries();
-			renderRecentAccesses();
-		} catch (err) {
-			vaultManager.masterKey = null;
-			showToast("Mot de passe maître incorrect.", "error");
-			return;
+
+			await vaultManager.createVault(password);
+			vaultManager.isFirstTime = false;
+			showToast('Coffre initialise avec succes.', 'success');
+		} else {
+			await vaultManager.unlock(password);
+			await renderRecentAccesses();
 		}
+	} catch (err) {
+		vaultManager.clearSession();
+		console.warn('[Vault] Unlock or migration failed:', err);
+		showToast('Impossible de deverrouiller ou migrer le coffre.', 'error');
+		return;
 	}
 	hideAuthScreen();
 	const stats = await vaultManager.getPasswordStats();
@@ -308,8 +253,15 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 	}
 	// Message info sous le score
 	if (document.getElementById('stats-info')) {
-		document.getElementById('stats-info').innerHTML = `Améliorez votre score de sécurité en mettant à jour les mots de passe faibles et réutilisés. 
-    Nous avons trouvé <span id="stats-weak-in-info">${stats.weak}</span> mots de passe qui nécessitent une attention particulière.`;
+		const info = document.getElementById('stats-info');
+		const weakCount = document.createElement('span');
+		weakCount.id = 'stats-weak-in-info';
+		weakCount.textContent = String(stats.weak);
+		info.replaceChildren(
+			document.createTextNode('Ameliorez votre score de securite en mettant a jour les mots de passe faibles et reutilises. Nous avons trouve '),
+			weakCount,
+			document.createTextNode(' mots de passe qui necessitent une attention particuliere.')
+		);
 	}
 	// Nombres de métriques diverses
 	if (document.getElementById('stats-total')) {
@@ -331,7 +283,7 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 // === EXPORT DU COFFRE (.vault)
 document.getElementById('btn-export').addEventListener('click', async () => {
 	try {
-		const vault = await vaultManager.storage.loadVault();
+		const vault = await vaultManager.exportVaultRecord();
 		const blob = exportVault(vault);
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -360,17 +312,9 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 	}
 	try {
 		const data = await importVault(file);
-		if (!data.meta || !data.meta.salt || !data.meta.validation) {
-			showToast("Fichier .vault invalide ou incomplet.", "error");
-			return;
-		}
-		const vaultToImport = {
-			id: 'current',
-			entries: Array.isArray(data.entries) ? data.entries : [],
-			meta: data.meta
-		};
-		await vaultManager.storage.importFullVault(vaultToImport);
-		showToast('Vault importé avec succès. Rechargez la page pour l’utiliser.', 'success');
+		await vaultManager.importVaultRecord(data);
+		await lockVaultSession(vaultManager, { notify: false });
+		showToast('Coffre importe. Deverrouillez-le avec son mot de passe maitre.', 'success');
 	} catch (err) {
 		console.error('[Vault Import] Échec :', err);
 		showToast('Erreur à l’importation : vault invalide.', 'error');
@@ -389,14 +333,16 @@ if (entryForm) {
 			return;
 		}
 		try {
-			await vaultManager.addEntry({
+		await vaultManager.addEntry({
 				title,
 				username,
 				password
 			});
 			document.getElementById('entry-title').value = '';
 			document.getElementById('entry-username').value = '';
-			document.getElementById('password').value = '';
+		document.getElementById('password').value = '';
+		renderVaultEntries(vaultManager.getEntries());
+		await renderRecentAccesses();
 			const stats = await vaultManager.getPasswordStats();
 			document.getElementById('stats-section').innerText = `Total: ${stats.total} | Réutilisés: ${stats.reused} | Faibles: ${stats.weak}`;
 			showToast("Entrée enregistrée avec succès.", "success");

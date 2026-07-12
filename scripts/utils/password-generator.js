@@ -25,9 +25,22 @@ export class PasswordGenerator {
       throw new Error('Aucun caractère autorisé pour la génération.');
     }
 
-    const array = new Uint32Array(config.length);
-    crypto.getRandomValues(array);
+    const range = 0x1_0000_0000;
+    const limit = range - (range % charset.length);
+    const randomValues = new Uint32Array(Math.max(16, config.length * 2));
+    let password = '';
 
-    return Array.from(array, x => charset[x % charset.length]).join('');
+    while (password.length < config.length) {
+      crypto.getRandomValues(randomValues);
+
+      for (const value of randomValues) {
+        if (value >= limit) continue;
+        password += charset[value % charset.length];
+        if (password.length === config.length) break;
+      }
+    }
+
+    randomValues.fill(0);
+    return password;
   }
 }

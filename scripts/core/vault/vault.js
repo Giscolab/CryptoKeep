@@ -4,7 +4,7 @@ export class Vault {
   }
 
   addEntry(entry) {
-    this.entries.push(entry);
+    this.entries.push({ ...entry });
   }
 
   removeEntry(id) {
@@ -12,11 +12,11 @@ export class Vault {
   }
 
   getAllEntries() {
-    return [...this.entries];
+    return this.entries.map((entry) => ({ ...entry }));
   }
 
   updateEntry(id, updatedEntry) {
-    this.entries = this.entries.map(e => (e.id === id ? updatedEntry : e));
+    this.entries = this.entries.map((entry) => (entry.id === id ? { ...updatedEntry } : entry));
   }
 
   hasEntry(id) {
@@ -29,7 +29,8 @@ export class Vault {
    * @returns {Object|null}
    */
   getEntryById(id) {
-    return this.entries.find(e => e.id === id) || null;
+    const entry = this.entries.find((candidate) => candidate.id === id);
+    return entry ? { ...entry } : null;
   }
 
   clear() {

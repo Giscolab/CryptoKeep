@@ -1,6 +1,7 @@
 import { showAuthScreen } from '../ui/auth-screen/auth-screen.js';
 import { clearVaultListSession } from '../ui/vault-list/vault-list.js';
 import { showToast } from '../utils/toast.js';
+import { clearOwnedClipboard } from '../utils/clipboard.js';
 
 function clearInputValue(selector) {
   document.querySelectorAll(selector).forEach((input) => {
@@ -47,31 +48,6 @@ function clearRenderedVaultDom() {
   clearVaultListSession();
 }
 
-async function clearClipboardBestEffort() {
-  const result = {
-    attempted: false,
-    succeeded: false
-  };
-
-  try {
-    if (
-      typeof navigator === 'undefined' ||
-      !navigator.clipboard ||
-      typeof navigator.clipboard.writeText !== 'function'
-    ) {
-      return result;
-    }
-
-    result.attempted = true;
-    await navigator.clipboard.writeText('');
-    result.succeeded = true;
-  } catch (error) {
-    console.warn('[LOCK] Nettoyage du presse-papiers non garanti :', error);
-  }
-
-  return result;
-}
-
 function clearMasterPasswordInput() {
   const pwInput = document.getElementById('master-password');
   if (pwInput) pwInput.value = '';
@@ -109,7 +85,7 @@ function clearVaultManagerSession(vaultManager) {
 }
 
 export async function lockVaultSession(
-  vaultManager = typeof window !== 'undefined' ? window.vaultManager : null,
+  vaultManager,
   options = {}
 ) {
   const {
@@ -123,7 +99,7 @@ export async function lockVaultSession(
   showLockedAuthScreen();
   clearMasterPasswordInput();
 
-  const clipboard = await clearClipboardBestEffort();
+  const clipboard = await clearOwnedClipboard();
 
   if (notify) {
     showToast(message, type);

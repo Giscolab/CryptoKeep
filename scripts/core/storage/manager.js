@@ -1,6 +1,15 @@
 import {
 	openDB
 } from './indexeddb.js';
+import { validateVaultRecord } from './vault-format.js';
+
+function waitForTransaction(transaction) {
+	return new Promise((resolve, reject) => {
+		transaction.oncomplete = () => resolve();
+		transaction.onabort = () => reject(transaction.error || new Error('IndexedDB transaction aborted.'));
+		transaction.onerror = () => reject(transaction.error || new Error('IndexedDB transaction failed.'));
+	});
+}
 /**
  * Gère les opérations de lecture/écriture sur IndexedDB pour le vault.
  */
@@ -35,17 +44,16 @@ export class StorageManager {
 	 */
 	async saveVault(entries, meta) {
 		if (!this.db) this.db = await openDB();
-		console.log('[Vault DEBUG] Données à sauvegarder :', entries, meta);
-		const tx = this.db.transaction('vault', 'readwrite');
-		const store = tx.objectStore('vault');
-		await store.clear();
-		await store.put({
+		const vaultRecord = validateVaultRecord({
 			id: 'current',
 			entries,
 			meta
 		});
-		// 🔐 Sauvegarde aussi dans localStorage
-		await this.saveToLocalBackup(entries, meta);
+		const tx = this.db.transaction('vault', 'readwrite');
+		const store = tx.objectStore('vault');
+		store.put(vaultRecord);
+		await waitForTransaction(tx);
+		this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
 	}
 	/**
 	 * Efface toutes les données du vault.
@@ -54,7 +62,8 @@ export class StorageManager {
 		if (!this.db) this.db = await openDB();
 		const tx = this.db.transaction('vault', 'readwrite');
 		const store = tx.objectStore('vault');
-		return store.clear();
+		store.clear();
+		await waitForTransaction(tx);
 	}
 	/**
 	 * Importe un fichier `.vault` complet dans la base de données.
@@ -62,12 +71,12 @@ export class StorageManager {
 	 */
 	async importFullVault(vaultData) {
 		if (!this.db) this.db = await openDB();
-		console.log('[Vault DEBUG] Import en base :', vaultData);
+		const vaultRecord = validateVaultRecord(vaultData);
 		const tx = this.db.transaction('vault', 'readwrite');
 		const store = tx.objectStore('vault');
-		await store.clear();
-		if (!vaultData.id) vaultData.id = 'current';
-		await store.put(vaultData);
+		store.put(vaultRecord);
+		await waitForTransaction(tx);
+		this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
 	}
 	/**
 	 * Restaure le vault à partir du backup local dans localStorage (si présent).
@@ -80,10 +89,9 @@ export class StorageManager {
 			const json = atob(encoded);
 			const vaultData = JSON.parse(json);
 			await this.importFullVault(vaultData);
-			console.log('[Vault Backup] Vault restauré depuis localStorage.');
 			return true;
 		} catch (err) {
-			console.warn('[Vault Backup] Échec de restauration locale :', err);
+			console.warn('[Vault Backup] Local backup restoration failed:', err);
 			return false;
 		}
 	}
@@ -102,9 +110,8 @@ export class StorageManager {
 			const json = JSON.stringify(backupData);
 			const encoded = btoa(json); // Simple backup encodé base64
 			localStorage.setItem('vaultBackup', encoded);
-			console.log('[Vault Backup] Copie sauvegardée dans localStorage.');
 		} catch (err) {
-			console.warn('[Vault Backup] Échec de la sauvegarde locale :', err);
+			console.warn('[Vault Backup] Local backup save failed:', err);
 		}
 	}
 	/**

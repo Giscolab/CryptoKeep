@@ -9,10 +9,15 @@ export const VaultSchema = {
 
   meta: {
     salt: '',                    // Sel PBKDF2 encodé en base64
-    kdf: 'PBKDF2-HMAC-SHA512',   // Algorithme de dérivation
-    iterations: 150000,          // Nombre d'itérations
+    kdf: PBKDF2_ALGORITHM,       // Algorithme de dérivation
+    iterations: CURRENT_PBKDF2_ITERATIONS,
     created_at: '',              // ISO 8601 — rempli lors de l'init
     last_modified: '',           // ISO 8601 — mis à jour après modif
-    version: '1.0.0'             // Pour migrations futures
+    version: CURRENT_VAULT_FORMAT_VERSION
   }
 };
+import {
+  CURRENT_PBKDF2_ITERATIONS,
+  CURRENT_VAULT_FORMAT_VERSION,
+  PBKDF2_ALGORITHM
+} from './vault-format.js';

@@ -1,3 +1,5 @@
+import { vaultManager } from '../core/vault/manager.js';
+
 function showView(viewId) {
   document.querySelectorAll('.view').forEach(sec => sec.hidden = true);
   document.getElementById(viewId).hidden = false;
@@ -8,8 +10,8 @@ function showView(viewId) {
     document.getElementById('nav-dashboard').classList.add('active');
 
     import('./vault-list/vault-list.js').then(async ({ renderRecentAccesses }) => {
-      if (window.vaultManager.masterKey) {
-        await window.vaultManager.decryptAllEntries();
+      if (vaultManager.masterKey) {
+        await vaultManager.decryptAllEntries();
       }
       renderRecentAccesses();
     });
@@ -19,7 +21,7 @@ function showView(viewId) {
     document.getElementById('nav-passwords').classList.add('active');
 
     import('./vault-list/vault-list.js').then(({ renderVaultEntries }) => {
-      const entries = window.vaultManager.getEntries();
+      const entries = vaultManager.getEntries();
       renderVaultEntries(entries);
     });
   }

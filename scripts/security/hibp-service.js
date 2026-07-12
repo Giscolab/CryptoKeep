@@ -4,17 +4,18 @@
 
 const HIBP_API = 'https://api.pwnedpasswords.com/range/';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
+const HIBP_ENABLED_BY_DEFAULT = false;
 
 const pwnedCache = new Map();
 let offlineNoticeShown = false;
 
 function isHibpEnabled() {
-  if (typeof window !== 'undefined' && window.__VAULT_HIBP_ENABLED__ === false) {
-    return false;
-  }
-
   if (typeof localStorage !== 'undefined') {
     try {
+      if (localStorage.getItem('vault.security.hibp.enabled') === 'true') {
+        return true;
+      }
+
       if (localStorage.getItem('vault.security.hibp.enabled') === 'false') {
         return false;
       }
@@ -23,7 +24,7 @@ function isHibpEnabled() {
     }
   }
 
-  return true;
+  return HIBP_ENABLED_BY_DEFAULT;
 }
 
 async function sha1(text) {

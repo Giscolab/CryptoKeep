@@ -1,11 +1,9 @@
 // scripts/ui/security-report.js
 import { getMonthlyStats } from '../utils/vault-stats.js';
 import { renderSecurityChart } from './security-chart.js'; // tu l'as déjà dans init
+import { vaultManager } from '../core/vault/manager.js';
 
 export async function renderSecurityReport() {
-  const vaultManager = window.vaultManager; // Utilisation sûre, pas d'import circulaire
-  if (!vaultManager) return; // Sécurité
-
   // Récupère les stats du vault (affichera 0 si vault pas déchiffré)
   const stats = await vaultManager.getPasswordStats();
 

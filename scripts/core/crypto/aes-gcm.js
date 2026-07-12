@@ -1,99 +1,86 @@
-// ===== AES-GCM 256 bits =====
-// Nécessite une clé CryptoKey AES-GCM (obtenue via PBKDF2 par exemple)
-
-/**
- * Chiffre un objet JavaScript avec AES-GCM.
- * @param {Object} data - Les données à chiffrer.
- * @param {CryptoKey} key - La clé AES-GCM.
- * @returns {Promise<Object>} - { iv, ciphertext } tous deux en base64.
- */
-export async function encryptData(data, key) {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(JSON.stringify(data));
-
-    const ciphertext = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        encoded
-    );
-
-    return {
-        iv: arrayToBase64(iv),
-        ciphertext: arrayToBase64(ciphertext)
-    };
-}
-
-/**
- * Déchiffre un objet AES-GCM base64 avec la clé.
- * @param {Object} encrypted - { iv, ciphertext } en base64.
- * @param {CryptoKey} key - La clé AES-GCM.
- * @returns {Promise<Object>} - Les données d'origine (objet JS).
- */
-export async function decryptData(encrypted, key) {
-    const iv = base64ToArray(encrypted.iv);
-    const ciphertext = base64ToArray(encrypted.ciphertext);
-
-    const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        ciphertext
-    );
-
-    const decoder = new TextDecoder();
-    return JSON.parse(decoder.decode(decrypted));
-}
-
-// ===== Utils base64 <-> ArrayBuffer =====
-
 function arrayToBase64(buffer) {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+
+  return btoa(binary);
 }
 
 function base64ToArray(base64) {
-    return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-}
-export function encryptDataWithWorker(data, rawKey) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker('./core/crypto/workers/aes-gcm.worker.js', { type: 'module' });
-
-    worker.postMessage({
-      action: 'encrypt',
-      data,
-      keyBuffer: rawKey.buffer
-    });
-
-    worker.onmessage = (e) => {
-      worker.terminate();
-      resolve(e.data);
-    };
-
-    worker.onerror = (err) => {
-      worker.terminate();
-      reject(err);
-    };
-  });
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-export function decryptDataWithWorker(iv, ciphertext, rawKey) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker('./core/crypto/workers/aes-gcm.worker.js', { type: 'module' });
+function normalizeAdditionalData(additionalData) {
+  if (additionalData === undefined || additionalData === null) {
+    return undefined;
+  }
 
-    worker.postMessage({
-      action: 'decrypt',
-      ivBase64: iv,
-      ciphertextBase64: ciphertext,
-      keyBuffer: rawKey.buffer
-    });
+  if (typeof additionalData === 'string') {
+    return new TextEncoder().encode(additionalData);
+  }
 
-    worker.onmessage = (e) => {
-      worker.terminate();
-      resolve(JSON.parse(e.data.plaintext));
+  if (additionalData instanceof Uint8Array || additionalData instanceof ArrayBuffer) {
+    return additionalData;
+  }
+
+  throw new Error('AES-GCM additional data must be a string or byte buffer.');
+}
+
+function buildAlgorithm(iv, additionalData) {
+  const algorithm = { name: 'AES-GCM', iv };
+  const normalizedAdditionalData = normalizeAdditionalData(additionalData);
+
+  if (normalizedAdditionalData) {
+    algorithm.additionalData = normalizedAdditionalData;
+  }
+
+  return algorithm;
+}
+
+export async function encryptData(data, key, options = {}) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+
+  try {
+    const ciphertext = await crypto.subtle.encrypt(
+      buildAlgorithm(iv, options.additionalData),
+      key,
+      encoded
+    );
+
+    return {
+      iv: arrayToBase64(iv),
+      ciphertext: arrayToBase64(ciphertext)
     };
+  } finally {
+    encoded.fill(0);
+    iv.fill(0);
+  }
+}
 
-    worker.onerror = (err) => {
-      worker.terminate();
-      reject(err);
-    };
-  });
+export async function decryptData(encrypted, key, options = {}) {
+  const iv = base64ToArray(encrypted.iv);
+  const ciphertext = base64ToArray(encrypted.ciphertext);
+
+  try {
+    const decrypted = await crypto.subtle.decrypt(
+      buildAlgorithm(iv, options.additionalData),
+      key,
+      ciphertext
+    );
+    const plaintextBytes = new Uint8Array(decrypted);
+
+    try {
+      return JSON.parse(new TextDecoder().decode(plaintextBytes));
+    } finally {
+      plaintextBytes.fill(0);
+    }
+  } finally {
+    iv.fill(0);
+    ciphertext.fill(0);
+  }
 }
