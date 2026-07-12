@@ -27,9 +27,9 @@ export function initTogglePassword() {
       }
       const isPassword = input.type === 'password';
       input.type = isPassword ? 'text' : 'password';
-      this.innerHTML = isPassword
-        ? '<i class="fas fa-eye-slash"></i>'
-        : '<i class="fas fa-eye"></i>';
+      const icon = document.createElement('i');
+      icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+      this.replaceChildren(icon);
       logInfo(`Champ mot de passe basculé en ${input.type}`);
     });
   });

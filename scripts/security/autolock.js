@@ -92,7 +92,12 @@ export class AutoLock {
   _updateDisplay() {
     const minutes = Math.floor(this.remaining / 60000);
     const seconds = Math.floor((this.remaining % 60000) / 1000);
-    this.displayElement.innerHTML = `<i class="fas fa-lock"></i> Verrouillage auto dans ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-lock';
+    this.displayElement.replaceChildren(
+      icon,
+      document.createTextNode(` Verrouillage auto dans ${minutes}:${seconds.toString().padStart(2, '0')}`)
+    );
 
     if (this.remaining <= 10000) {
       this.displayElement.classList.add('warning');

@@ -21,6 +21,10 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function hasOwn(object, property) {
+  return Object.prototype.hasOwnProperty.call(object, property);
+}
+
 function normalizeFormatVersion(version) {
   if (version === undefined || version === null || version === '' || version === '1.0.0' || version === '1' || version === 1) {
     return LEGACY_VAULT_FORMAT_VERSION;
@@ -102,8 +106,8 @@ export function parseVaultMetadata(metadata) {
   assertSalt(metadata.salt);
 
   const formatVersion = normalizeFormatVersion(metadata.version);
-  const hasKdf = Object.hasOwn(metadata, 'kdf');
-  const hasIterations = Object.hasOwn(metadata, 'iterations');
+  const hasKdf = hasOwn(metadata, 'kdf');
+  const hasIterations = hasOwn(metadata, 'iterations');
 
   if (formatVersion === CURRENT_VAULT_FORMAT_VERSION && (!hasKdf || !hasIterations)) {
     fail('current vaults must declare KDF metadata');

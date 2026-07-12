@@ -1,27 +1,56 @@
-import { deriveMasterKey } from '../scripts/core/crypto/pbkdf2.js';
+import './webcrypto-setup.js';
 import { encryptData, decryptData } from '../scripts/core/crypto/aes-gcm.js';
+import { deriveMasterKey } from '../scripts/core/crypto/pbkdf2.js';
+import {
+  CURRENT_PBKDF2_ITERATIONS,
+  entryAdditionalData
+} from '../scripts/core/storage/vault-format.js';
+import { assertSecureWebCrypto } from '../scripts/core/crypto/runtime.js';
 
-(async () => {
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+async function expectRejection(action, message) {
+  try {
+    await action();
+  } catch {
+    return;
+  }
+  throw new Error(message);
+}
+
+try {
   console.log('=== TEST CRYPTO ===');
+  assertSecureWebCrypto();
 
   const password = 'SuperSecret123!';
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const testData = { msg: 'Confidentiel', level: 5 };
+  const entryId = 'entry-crypto-test';
+  const additionalData = entryAdditionalData(entryId);
+  const key = await deriveMasterKey(password, salt, {
+    iterations: CURRENT_PBKDF2_ITERATIONS
+  });
 
-  try {
-    const key = await deriveMasterKey(password, salt);
-    console.assert(key instanceof CryptoKey, '❌ Clé non générée');
+  assert(key.type === 'secret', 'Cle non generee');
+  assert(key.extractable === false, 'La cle maitre ne doit pas etre extractible');
 
-    const encrypted = await encryptData(testData, key);
-    console.assert(typeof encrypted.iv === 'string', '❌ IV manquant');
-    console.assert(typeof encrypted.ciphertext === 'string', '❌ Chiffrement invalide');
+  const encrypted = await encryptData(testData, key, { additionalData });
+  assert(typeof encrypted.iv === 'string', 'IV manquant');
+  assert(typeof encrypted.ciphertext === 'string', 'Chiffrement invalide');
 
-    const decrypted = await decryptData(encrypted, key);
-    console.assert(decrypted.msg === testData.msg, '❌ Données incorrectes');
-    console.assert(decrypted.level === testData.level, '❌ Données altérées');
+  const decrypted = await decryptData(encrypted, key, { additionalData });
+  assert(decrypted.msg === testData.msg, 'Donnees incorrectes');
+  assert(decrypted.level === testData.level, 'Donnees alterees');
 
-    console.log('✅ Tous les tests cryptographiques ont réussi.');
-  } catch (err) {
-    console.error('❌ Erreur durant les tests crypto :', err);
-  }
-})();
+  await expectRejection(
+    () => decryptData(encrypted, key, { additionalData: entryAdditionalData('different-entry') }),
+    'L AAD doit empecher la permutation des entrees.'
+  );
+
+  console.log('Crypto tests passed.');
+} catch (error) {
+  console.error('Crypto tests failed:', error);
+  process.exitCode = 1;
+}

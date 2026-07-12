@@ -5,23 +5,26 @@
 	<meta charset="UTF-8">
 	<title>Vault Personal</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<!-- 🛡️ CSP raisonnable pour développement -->
+	<!-- CSP fallback for static hosting. Production must also send this as an HTTP header. -->
 	<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' https://cdnjs.cloudflare.com;
-  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
-  font-src https://cdnjs.cloudflare.com;
+  default-src 'none';
+  script-src 'self';
+  style-src 'self';
+  font-src 'self';
   img-src 'self' data:;
+  connect-src 'self' https://api.pwnedpasswords.com;
   manifest-src 'self';
-  base-uri 'self';
-  form-action 'self';
+  worker-src 'self';
+  frame-src 'none';
+  base-uri 'none';
+  form-action 'none';
   object-src 'none';
 ">
 	<!-- 🎨 Chargement initial du thème -->
 	<script src="scripts/utils/theme-loader.js"></script>
 	<!-- 🎨 Styles -->
 	<link rel="stylesheet" href="public/main.css" crossorigin="anonymous" />
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<link rel="stylesheet" href="public/vendor/vault-icons.css">
 	<link rel="stylesheet" href="public/components/audit-panel.css">
 	<!-- 🔖 Favicons -->
 	<link rel="icon" href="public/icons/favicon.ico" type="image/x-icon">
@@ -811,8 +814,6 @@
 		<script type="module" src="scripts/ui/security-report-init.js"></script>
 		<script src="scripts/tools/audit-crypto.js"></script>
 		<script src="scripts/ui/audit-panel.js" defer></script>
-		<!-- 📺 UI auxiliaire -->
-		<div id="log-console"></div>
 	</main>
 </body>
 

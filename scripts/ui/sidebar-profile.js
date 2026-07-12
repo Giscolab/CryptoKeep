@@ -25,14 +25,14 @@ export async function updateSidebarProfile() {
     avatarEl.textContent = hasName ? getInitials(profile.name) : '';
 
     // Masquer la section complète si aucune info
-    userSection.style.display = hasName || hasEmail ? '' : 'none';
+    userSection.hidden = !(hasName || hasEmail);
 
   } catch (err) {
     console.error('[Sidebar] Erreur chargement profil :', err);
     nameEl.textContent = '';
     emailEl.textContent = '';
     avatarEl.textContent = '';
-    userSection.style.display = 'none';
+    userSection.hidden = true;
   }
 }
 
