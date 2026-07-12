@@ -10,6 +10,10 @@ export class PasswordGenerator {
 
     const config = { ...defaults, ...options };
 
+    if (!Number.isInteger(config.length) || config.length < 1 || config.length > 512) {
+      throw new Error('La longueur du mot de passe doit etre comprise entre 1 et 512.');
+    }
+
     const lowercaseChars = 'abcdefghijklmnopqrstuvwxyz';
     const uppercaseChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const numberChars   = '0123456789';

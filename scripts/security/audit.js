@@ -101,26 +101,32 @@ export function updatePasswordEntropyBar(password, container) {
   if (!barContainer) {
     barContainer = document.createElement('div');
     barContainer.className = 'entropy-bar-container';
-    barContainer.innerHTML = `
-      <div class="entropy-bar">
-        <div class="entropy-fill"></div>
-      </div>
-      <div class="entropy-label">Entropie : <span class="entropy-value">0 bits</span></div>
-    `;
+    const bar = document.createElement('div');
+    bar.className = 'entropy-bar';
+    const fill = document.createElement('div');
+    fill.className = 'entropy-fill';
+    bar.appendChild(fill);
+
+    const label = document.createElement('div');
+    label.className = 'entropy-label';
+    label.append(document.createTextNode('Entropie : '));
+    const value = document.createElement('span');
+    value.className = 'entropy-value';
+    value.textContent = '0 bits';
+    label.appendChild(value);
+
+    barContainer.append(bar, label);
     container.querySelector('.account-details')?.appendChild(barContainer);
   }
 
   const fill = barContainer.querySelector('.entropy-fill');
   const label = barContainer.querySelector('.entropy-value');
 
-  const percent = Math.min(entropy, 100);
-  fill.style.width = `${percent}%`;
-
-  // Couleurs dynamiques selon niveau
-  if (entropy < 40) fill.style.backgroundColor = '#ff4d4f';
-  else if (entropy < 60) fill.style.backgroundColor = '#ff9800';
-  else if (entropy < 80) fill.style.backgroundColor = '#ffc107';
-  else fill.style.backgroundColor = '#4caf50';
+  const level = entropy < 40 ? 'low'
+    : entropy < 60 ? 'medium'
+      : entropy < 80 ? 'good'
+        : 'strong';
+  fill.className = `entropy-fill entropy-fill--${level}`;
 
   label.textContent = `${entropy} bits`;
 }

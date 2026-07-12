@@ -1,28 +1,66 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
 function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
+  if (!condition) throw new Error(message);
 }
 
-const vaultListSource = fs.readFileSync('scripts/ui/vault-list/vault-list.js', 'utf8');
-const managerSource = fs.readFileSync('scripts/core/vault/manager.js', 'utf8');
+function listJavaScriptFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return entry.name === 'vendor' ? [] : listJavaScriptFiles(fullPath);
+    }
+    return entry.name.endsWith('.js') ? [fullPath] : [];
+  });
+}
 
-// Régression : l'UI ne doit plus écrire directement dans vault.entries + saveVault
-assert(
-  !vaultListSource.includes('const updated = vault.entries.map'),
-  'Régression détectée: mutation directe de vault.entries dans l’UI.'
-);
-assert(
-  vaultListSource.includes('window.vaultManager.updateEntry('),
-  'Le flux sécurisé updateEntry n’est pas utilisé dans la sauvegarde d’édition.'
-);
+try {
+  const scriptFiles = listJavaScriptFiles('scripts');
+  const sources = scriptFiles.map((file) => ({ file, source: fs.readFileSync(file, 'utf8') }));
+  const combinedSource = sources.map(({ source }) => source).join('\n');
+  const indexSource = fs.readFileSync('index.html', 'utf8');
+  const vaultListSource = fs.readFileSync('scripts/ui/vault-list/vault-list.js', 'utf8');
 
-// Régression API : updateEntry doit être appelée avec (id, updatedEntry)
-assert(
-  managerSource.includes('this.vault.updateEntry(entryId, localEntry);'),
-  'Signature updateEntry invalide dans markEntryAccessed.'
-);
+  assert(
+    !/window\.(vaultManager|vault\b|debugAudit)/.test(combinedSource),
+    'Des objets de coffre sensibles sont encore exposes sur window.'
+  );
+  assert(
+    !/exportKey\(\s*['"]raw['"]/.test(combinedSource),
+    'Une cle cryptographique est encore exportee en brut.'
+  );
+  assert(
+    !/\[Vault DEBUG\]/.test(combinedSource),
+    'Un log de debug du coffre est encore present.'
+  );
+  assert(
+    !/\.innerHTML\s*=/.test(combinedSource),
+    'Le code applicatif ne doit pas injecter de HTML avec innerHTML.'
+  );
+  assert(
+    !vaultListSource.includes('.storage.'),
+    'L UI ne doit pas acceder directement au stockage du coffre.'
+  );
+  assert(
+    !indexSource.includes('cdnjs.cloudflare.com'),
+    'Le CDN ne doit pas etre autorise par la page du coffre.'
+  );
+  assert(
+    !indexSource.includes("'unsafe-inline'"),
+    'La CSP ne doit pas autoriser les styles inline.'
+  );
+  assert(
+    indexSource.includes("default-src 'none'"),
+    'La CSP doit partir de default-src none.'
+  );
+  assert(
+    indexSource.includes("script-src 'self'"),
+    'La CSP doit limiter les scripts a self.'
+  );
 
-console.log('✅ Security regression checks passed.');
+  console.log('Security regression checks passed.');
+} catch (error) {
+  console.error('Security regression checks failed:', error);
+  process.exitCode = 1;
+}

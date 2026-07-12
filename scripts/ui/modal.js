@@ -40,7 +40,7 @@ class ModalManager {
       return;
     }
     modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
+    document.body.classList.add('modal-open');
     logInfo(`Modal "${modalId}" opened.`);
   }
 
@@ -51,7 +51,7 @@ class ModalManager {
       return;
     }
     modal.classList.remove('active');
-    document.body.style.overflow = '';
+    document.body.classList.remove('modal-open');
     logInfo(`Modal "${modalId}" closed.`);
   }
 

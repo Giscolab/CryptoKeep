@@ -27,7 +27,7 @@ Vault Personal is a local-first browser password vault. The primary security pro
 - No CSPRNG means no startup and no tests. Never add a `Math.random()` fallback or homegrown crypto polyfill.
 - The unlocked `masterKey` and decrypted entries must be cleared when locking, timing out, changing sensitive state, or ending a session.
 - UI rendering must avoid `innerHTML` for attacker-controlled vault data. Prefer DOM APIs and `textContent`.
-- Network access is disabled by default for HIBP in `scripts/app.js`. If re-enabled, only k-anonymity SHA-1 prefixes may leave the device.
+- Network access is disabled by default for HIBP in `scripts/security/hibp-service.js`. If re-enabled, only k-anonymity SHA-1 prefixes may leave the device.
 - CSP changes must be reviewed as security changes. Avoid adding broad `unsafe-inline`, `unsafe-eval`, wildcard script sources, or remote dependencies.
 
 ## Files To Inspect First

@@ -1,6 +1,5 @@
 import js from '@eslint/js';
 import globals from 'globals';
-import reactPlugin from 'eslint-plugin-react';
 import security from 'eslint-plugin-security';
 
 export default [
@@ -14,12 +13,10 @@ export default [
       }
     },
     plugins: {
-      react: reactPlugin,
       security: security
     },
     rules: {
       ...js.configs.recommended.rules,
-      ...reactPlugin.configs.recommended.rules,
       ...security.configs.recommended.rules
     }
   }

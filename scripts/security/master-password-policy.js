@@ -15,6 +15,13 @@ export function validateNewMasterPassword(password) {
     };
   }
 
+  if (/^(.)\1+$/.test(password)) {
+    return {
+      valid: false,
+      message: 'Le mot de passe maitre ne doit pas etre une repetition triviale.'
+    };
+  }
+
   const entropyBits = estimatePasswordEntropyBits(password);
   if (entropyBits < MIN_MASTER_PASSWORD_ENTROPY_BITS) {
     return {

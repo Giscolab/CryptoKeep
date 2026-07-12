@@ -13,7 +13,7 @@
 
 ## 🌟 Présentation Premium
 
-**Vault Personal** révolutionne la gestion sécurisée des identifiants avec une approche 100% locale et chiffrée de bout en bout. Conçu pour les utilisateurs exigeants, ce coffre-fort numérique garantit que vos données sensibles **ne quittent jamais votre appareil**.
+**Vault Personal** est un gestionnaire local de mots de passe chiffre dans le navigateur. Il fonctionne hors ligne par defaut; la verification HIBP reste desactivee tant que l'utilisateur ne l'active pas explicitement.
 
 ```mermaid
 graph TD
@@ -23,7 +23,7 @@ graph TD
   D --> E[(IndexedDB - Stockage local)]
   E --> F[Données chiffrées]
   F --> G[Interface sécurisée]
-  G --> H[Web Workers]
+  G --> H[Web Crypto API]
   style A fill:#2E7D32,stroke:#1B5E20
   style D fill:#EF6C00,stroke:#E65100
   style E fill:#0277BD,stroke:#01579B
@@ -33,12 +33,12 @@ graph TD
 
 ## 🚀 Fonctionnalités Avancées
 
-### 🛡️ Architecture Sécurité Militaire
+### 🛡️ Architecture de securite
 | Composant | Technologie | Protection |
 |-----------|-------------|------------|
 | **Chiffrement** | AES-GCM 256-bit | IV unique par entrée |
-| **Dérivation de clé** | PBKDF2-HMAC-SHA512 | 600,000 itérations (ajustable) |
-| **Isolation mémoire** | Web Workers | Protection contre les attaques Spectre |
+| **Dérivation de clé** | PBKDF2-HMAC-SHA512 | 220,000 iterations et metadata versionnee par coffre |
+| **Gestion de clé** | Web Crypto `CryptoKey` | Cle AES-GCM non extractible |
 | **Verrouillage** | Auto-détection d'inactivité | Configurable (1-60 min) |
 
 ### 💼 Gestion Professionnelle
@@ -49,7 +49,7 @@ graph TD
 | **🔍 Audit de sécurité** | Analyse en temps réel des vulnérabilités | Détection des mots de passe faibles/réutilisés |
 | **🗂️ Organisation hiérarchique** | Catégories, tags et collections | Structure personnalisable |
 | **🔄 Synchronisation chiffrée** | Export .vault (AES-256) | Transfert sécurisé entre appareils |
-| **⌛ Presse-papiers intelligent** | Auto-nettoyage après 30s | Protection contre les fuites mémoire |
+| **⌛ Presse-papiers** | Effacement conditionnel apres 30 s | N'ecrase pas une copie plus recente |
 
 </div>
 
@@ -69,7 +69,7 @@ pie
   "IndexedDB" : 30
   "Vanilla JS" : 15
   "CSS3 Variables" : 5
-  "Web Workers" : 10
+  "CSP et en-tetes locaux" : 10
 
 ```
 
@@ -117,9 +117,7 @@ vault-personal/
 │   ├── biometric-auth/        # Intégration WebAuthn/FIDO2
 │   ├── password-meter/        # Analyseur de robustesse
 │   └── emergency-kit/         # Gestion de secours
-├── workers/
-│   ├── crypto.worker.js       # Opérations cryptographiques
-│   └── db.worker.js           # Accès IndexedDB
+├── security/                  # Verrouillage, politique de mot de passe et audit
 └── tests/
     ├── stress-tests/          # Tests de performance
     └── penetration-tests/     # Scénarios d'attaque
@@ -129,10 +127,8 @@ vault-personal/
 ```mermaid
 sequenceDiagram
   Utilisateur->>+Application: Saisie master password
-  Application->>+Web Worker: Demande dérivation clé
-  Web Worker->>+Crypto API: PBKDF2-HMAC-SHA512
-  Crypto API-->>-Web Worker: Clé dérivée
-  Web Worker-->>-Application: Clé de chiffrement
+  Application->>+Crypto API: PBKDF2-HMAC-SHA512
+  Crypto API-->>-Application: CryptoKey AES-GCM non extractible
   Application->>+Crypto API: Chiffrement AES-GCM
   Crypto API-->>-Application: Données chiffrées
   Application->>+IndexedDB: Stockage sécurisé

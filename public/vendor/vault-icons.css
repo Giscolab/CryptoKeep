@@ -1,0 +1,50 @@
+/* Local, dependency-free icon fallback for the legacy Font Awesome class names. */
+.fas::before,
+.far::before,
+.fab::before {
+  display: inline-block;
+  font-family: "Segoe UI Symbol", "Apple Symbols", sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+}
+
+.fa-arrow-right::before { content: "\\2192"; }
+.fa-calendar::before { content: "\\1F4C5"; }
+.fa-check::before { content: "\\2713"; }
+.fa-check-circle::before { content: "\\2714"; }
+.fa-clock::before { content: "\\1F550"; }
+.fa-cloud::before { content: "\\2601"; }
+.fa-cog::before, .fa-cogs::before { content: "\\2699"; }
+.fa-copy::before { content: "\\29C9"; }
+.fa-database::before { content: "\\25C9"; }
+.fa-download::before { content: "\\21E9"; }
+.fa-edit::before { content: "\\270E"; }
+.fa-envelope::before { content: "\\2709"; }
+.fa-exclamation-triangle::before { content: "\\26A0"; }
+.fa-eye::before { content: "\\25C9"; }
+.fa-eye-slash::before { content: "\\2298"; }
+.fa-file-export::before { content: "\\21E5"; }
+.fa-film::before { content: "\\25A3"; }
+.fa-filter::before { content: "\\25BD"; }
+.fa-history::before { content: "\\21B6"; }
+.fa-home::before { content: "\\2302"; }
+.fa-info-circle::before { content: "\\24D8"; }
+.fa-key::before { content: "\\1F511"; }
+.fa-lock::before { content: "\\1F512"; }
+.fa-plus::before { content: "+"; }
+.fa-random::before { content: "\\21C4"; }
+.fa-redo::before, .fa-sync-alt::before { content: "\\21BB"; }
+.fa-save::before { content: "\\1F4BE"; }
+.fa-search::before { content: "\\2315"; }
+.fa-share-alt::before { content: "\\21AA"; }
+.fa-shield-alt::before { content: "\\1F6E1"; }
+.fa-shopping-cart::before { content: "\\1F6D2"; }
+.fa-sign-out-alt::before { content: "\\21AA"; }
+.fa-sort::before, .fa-sort-alpha-down::before, .fa-sort-amount-down::before { content: "\\2195"; }
+.fa-times::before, .fa-times-circle::before { content: "\\00D7"; }
+.fa-trash::before { content: "\\1F5D1"; }
+.fa-university::before { content: "\\1F3DB"; }
+.fa-unlock::before { content: "\\1F513"; }
+.fa-user::before { content: "\\1F464"; }
+.fa-user-shield::before { content: "\\1F6E1"; }

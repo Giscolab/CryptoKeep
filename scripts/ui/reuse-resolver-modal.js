@@ -57,7 +57,10 @@ function updateProgress() {
   const progressText = document.getElementById('progress-text');
   const progressFill = document.getElementById('progress-fill');
   if (progressText) progressText.textContent = `${done}/${total} modifiés`;
-  if (progressFill) progressFill.style.width = `${(done / total) * 100}%`;
+  if (progressFill) {
+    progressFill.max = total;
+    progressFill.value = done;
+  }
 }
 
 function showEntryEditor(index) {
@@ -284,11 +287,12 @@ function buildModal(group) {
   const progressText = createElement('span', '', `0/${group.entries.length} modifiés`);
   progressText.id = 'progress-text';
 
-  const progressBar = createElement('div', 'progress-bar');
-  const progressFill = document.createElement('div');
+  const progressBar = document.createElement('progress');
+  progressBar.className = 'progress-bar';
+  const progressFill = progressBar;
   progressFill.id = 'progress-fill';
-  progressFill.style.width = '0%';
-  progressBar.appendChild(progressFill);
+  progressFill.max = group.entries.length;
+  progressFill.value = 0;
 
   progress.append(progressText, progressBar);
   footer.append(progress, createActionButton('btn btn-outline', 'Fermer (annuler le reste)', 'close'));

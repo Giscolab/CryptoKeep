@@ -65,13 +65,13 @@ Vault Personal is a static browser application for storing password vault entrie
 
 ## Current Security Assumptions To Verify
 
-- `scripts/core/crypto/pbkdf2.js` and `scripts/core/storage/schema.js` currently use 150000 PBKDF2 iterations, while the README claims 600000. This must be resolved before presenting a final security posture.
+- New coffres use PBKDF2-HMAC-SHA512 with 220000 iterations, an explicit KDF identifier, and a versioned metadata record. Historical v1 coffres use 150000 iterations only for a successful unlock, then migrate to v2 with a new salt and key.
 - Argon2id would be the preferred long-term password-hashing/KDF direction if an audited implementation and migration plan are added. Until then, PBKDF2 parameters must remain explicit, high enough for current clients, and consistent across code and docs.
-- `index.html` permits `https://cdnjs.cloudflare.com` for Font Awesome and allows inline styles. This is a supply-chain and CSP review item.
-- `scripts/app.js` exposes the active `VaultManager` through `window.vaultManager`; related UI and debug code also exposes decrypted vault state through `window.vault`. These globals must be removed and replaced with explicit module dependencies before treating the vault as safe to unlock in the page.
-- `scripts/app.js` sets `window.__VAULT_HIBP_ENABLED__ = false`, so HIBP is currently offline by default.
+- `index.html` uses a strict local-only CSP fallback. `scripts/secure_local_server.py` sends the production-equivalent CSP header and frame protection for local use; any deployment must send equivalent HTTP headers.
+- Sensitive vault objects are module-scoped. UI code imports the singleton `VaultManager` and must not expose it or decrypted entries on `window`.
+- HIBP is offline by default in `scripts/security/hibp-service.js`; enabling it must remain an explicit local opt-in.
 - `scripts/core/storage/manager.js` saves an encrypted backup to localStorage. The backup is base64-encoded, not additionally protected beyond the encrypted entries it contains.
-- Clipboard exposure remains a real local risk: copied secrets may be read by other applications until cleared. Auto-clear duration and failure handling should be explicit.
+- Clipboard exposure remains a real local risk. The app schedules a conditional cleanup after 30 seconds and will not overwrite clipboard content that has changed; browsers can deny clipboard reads, so cleanup remains best effort.
 - Node-based tests could not be executed in the current Codex runtime because Node crashes on `require('crypto').randomBytes(16)` with `Assertion failed: ncrypto::CSPRNG(nullptr, 0)`. Treat this as a critical local toolchain blocker, not a normal test failure.
 
 ## Acceptance Criteria For Security Fixes
@@ -81,4 +81,5 @@ Vault Personal is a static browser application for storing password vault entrie
 - No plaintext vault secrets are added to persistent storage, logs, exports, fixtures, or docs.
 - New DOM rendering of vault data uses DOM APIs or explicit sanitization.
 - Crypto changes include a migration or compatibility plan for existing vault metadata.
+- AES-GCM v2 entries authenticate their entry identifier and format version as additional authenticated data.
 - Any network feature documents exactly what leaves the device and is disabled or consented by default.

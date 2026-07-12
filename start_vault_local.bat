@@ -102,7 +102,7 @@ if not exist "!PAGE!" (
 
 REM ======== LANCEMENT SERVEUR ========
 title Vault Personal – Serveur Local
-start /b "" "!PYTHON!" -m http.server !PORT! --bind !BIND! >>"%LOG_FILE%" 2>&1
+start /b "" "!PYTHON!" scripts\secure_local_server.py --port !PORT! --bind !BIND! --directory . >>"%LOG_FILE%" 2>&1
 
 REM ======== HEALTHCHECK ========
 set /a try=0

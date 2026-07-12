@@ -42,9 +42,9 @@
     runBtn.className = 'audit-run-btn';
     runBtn.onclick = async () => {
       runBtn.disabled = true;
-      result.innerHTML = '<em>⏳ Analyse en cours…</em>';
+      result.textContent = 'Analyse en cours...';
       const report = await AuditCrypto.runAudit(input.value);
-      result.innerHTML = renderReport(report);
+      result.textContent = renderReport(report);
       runBtn.disabled = false;
     };
     modal.appendChild(runBtn);
@@ -61,45 +61,42 @@
   }
 
   function renderReport(report) {
-  let html = `<div class="audit-report">`;
-  html += `<h3>🛡️ Résultat de l'audit cryptographique</h3>`;
+  const lines = ['Resultat de l audit cryptographique'];
 
   // IV uniqueness
   if (report.ivDuplicates.length === 0) {
-    html += `<p><span class="tooltip" title="Chaque IV (vecteur d'initialisation) doit être unique pour chaque entrée chiffrée. S'il est dupliqué, la sécurité de AES-GCM s'effondre.">✔️ IV uniques : OK</span></p>`;
+    lines.push('IV uniques : OK');
   } else {
-    html += `<p><span class="tooltip" title="Des IV dupliqués ont été détectés. Cela compromet totalement la sécurité des données associées.">❌ IV dupliqués détectés !</span></p>`;
+    lines.push('IV dupliques detectes.');
     report.ivDuplicates.forEach(d => {
-      html += `<p>- ${d.iv} utilisé par : ${d.entries.join(', ')}</p>`;
+      lines.push(`- ${d.iv} utilise par : ${d.entries.join(', ')}`);
     });
   }
 
   // Master password strength
   if (report.masterPasswordStrength) {
     const s = report.masterPasswordStrength;
-    html += `<p><span class="tooltip" title="La robustesse du mot de passe maître est estimée selon son entropie et sa composition.">🔐 Force du mot de passe : ${s.rating}</span></p>`;
-    html += `<p><span class="tooltip" title="L'entropie mesure le niveau d'imprévisibilité du mot de passe. Supérieure à 80 bits = excellente.">🔢 Entropie : ${s.entropyBits.toFixed(1)} bits</span></p>`;
-    html += `<p><span class="tooltip" title="Temps estimé pour casser ce mot de passe par force brute. Ces durées sont approximatives selon le matériel utilisé.">🕒 Temps de cassage estimé :</span><br>
-      • CPU local : ${s.crackTime.local}<br>
-      • GPU : ${s.crackTime.gpu}<br>
-      • Cluster distribué : ${s.crackTime.cluster}</p>`;
+    lines.push(`Force du mot de passe : ${s.rating}`);
+    lines.push(`Entropie estimee : ${s.entropyBits.toFixed(1)} bits`);
+    lines.push(`Temps estime - CPU local : ${s.crackTime.local}`);
+    lines.push(`Temps estime - GPU : ${s.crackTime.gpu}`);
+    lines.push(`Temps estime - Cluster : ${s.crackTime.cluster}`);
   } else {
-    html += `<p><em>🔐 Aucun mot de passe fourni pour l’analyse.</em></p>`;
+    lines.push('Aucun mot de passe fourni pour l analyse.');
   }
 
   // Salt
   if (report.saltReuse.saltHex) {
-    html += `<p><span class="tooltip" title="Le salt est une valeur aléatoire ajoutée à la dérivation de clé pour éviter les attaques par table arc-en-ciel.">🧂 Salt détecté</span> (${report.saltReuse.saltBytesLength} octets)</p>`;
-    html += `<p><span class="tooltip" title="Réutiliser le même salt sur plusieurs dérivations fragilise l’unicité des clés.">♻️ Réutilisation : ${report.saltReuse.reused ? 'Oui' : 'Non'}</span></p>`;
+    lines.push(`Salt detecte (${report.saltReuse.saltBytesLength} octets)`);
+    lines.push(`Reutilisation : ${report.saltReuse.reused ? 'Oui' : 'Non'}`);
   }
 
   // PBKDF2 collision test
-  html += `<p><span class="tooltip" title="Ce test vérifie que la fonction PBKDF2 réagit correctement : mêmes entrées = même clé ; entrées différentes = clés différentes.">🔄 Test PBKDF2 :</span><br>
-    • Même mot de passe + même salt → ${report.pbkdf2CollisionTest.identicalPasswordKeysMatch ? '✔️ OK' : '❌ Problème'}<br>
-    • Mots de passe différents → ${report.pbkdf2CollisionTest.differentPasswordKeysMatch ? '❌ Collision' : '✔️ Différent'}</p>`;
+  lines.push('Test PBKDF2 :');
+  lines.push(`- Meme mot de passe + meme salt : ${report.pbkdf2CollisionTest.identicalPasswordKeysMatch ? 'OK' : 'Probleme'}`);
+  lines.push(`- Mots de passe differents : ${report.pbkdf2CollisionTest.differentPasswordKeysMatch ? 'Collision' : 'Different'}`);
 
-  html += `</div>`;
-  return html;
+  return lines.join('\n');
 }
 
 function waitForAuditButtonAndAttach() {
