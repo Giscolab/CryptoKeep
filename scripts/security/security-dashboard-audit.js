@@ -5,7 +5,7 @@
 import { isPasswordPwned } from './hibp-service.js';
 import { classifyFinding, getEntrySeverity, sortBySeverity, SEVERITY } from './severity.js';
 import { categorizePasswordAge } from '../utils/password-age.js';
-import { getPasswordEntropy } from './audit.js';
+import { getPasswordEntropy } from './audit.js?v=20260719-1';
 import { groupPasswordReuse } from './password-reuse-groups.js';
 
 function analyzeLocal(entries = []) {

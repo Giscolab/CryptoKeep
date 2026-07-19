@@ -94,7 +94,6 @@ function getStrengthLevel(entropy) {
  */
 export function updatePasswordEntropyBar(password, container) {
   const entropy = getPasswordEntropy(password);
-  const level = getStrengthLevel(entropy);
 
   // Vérifie si le DOM contient déjà la barre
   let barContainer = container.querySelector('.entropy-bar-container');
@@ -122,11 +121,11 @@ export function updatePasswordEntropyBar(password, container) {
   const fill = barContainer.querySelector('.entropy-fill');
   const label = barContainer.querySelector('.entropy-value');
 
-  const level = entropy < 40 ? 'low'
+  const strengthClass = entropy < 40 ? 'low'
     : entropy < 60 ? 'medium'
       : entropy < 80 ? 'good'
         : 'strong';
-  fill.className = `entropy-fill entropy-fill--${level}`;
+  fill.className = `entropy-fill entropy-fill--${strengthClass}`;
 
   label.textContent = `${entropy} bits`;
 }
