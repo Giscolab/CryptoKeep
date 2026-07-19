@@ -1,10 +1,15 @@
 @echo off
 REM === VAULT PERSONAL - LOCAL LAUNCHER ===
-REM Fichier à sauvegarder en UTF-8 avec BOM
+REM IMPORTANT : fichier 100%% ASCII (pas d'accents), fins de ligne CRLF.
+REM Les caracteres multi-octets (UTF-8) desynchronisent le parseur cmd.exe
+REM apres chaque goto, d'ou les erreurs type "'cho' n'est pas reconnu".
 
-chcp 65001 >nul
 setlocal enabledelayedexpansion
 color 0A
+
+REM Se placer dans le dossier du script (sinon un lancement "en admin"
+REM demarre le serveur depuis C:\Windows\System32 et sert ce dossier).
+cd /d "%~dp0"
 
 REM ======== CONFIGURATION ========
 set "PORT=8000"
@@ -15,9 +20,10 @@ set "LOG_DIR=%~dp0logs"
 REM ======== ENVIRONNEMENT ========
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
-REM === TIMESTAMP ROBUSTE (Corrige les espaces parasites WMIC) ===
-for /f "tokens=2 delims==." %%I in ('wmic os get localdatetime /value ^| find "="') do set "DATETIME=%%I"
-set "TIMESTAMP=%DATETIME:~0,8%_%DATETIME:~8,6%"
+REM === TIMESTAMP (PowerShell : WMIC est deprecie/absent de Windows 11 recent) ===
+set "TIMESTAMP="
+for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "TIMESTAMP=%%I"
+if not defined TIMESTAMP set "TIMESTAMP=session"
 set "LOG_FILE=%LOG_DIR%\vault_%TIMESTAMP%.log"
 
 REM ======== DETECTION PYTHON ========
@@ -41,7 +47,7 @@ REM ======== MENU PRINCIPAL ========
 cls
 call :Banner
 echo ================== MENU ==================
-echo 1. Démarrer le serveur local
+echo 1. Demarrer le serveur local
 echo 2. Exporter les logs en HTML
 echo 3. Quitter
 echo ==========================================
@@ -56,16 +62,16 @@ goto :menu
 REM ======== NETTOYAGE SECURISE ========
 :quitter
 cls
-echo Arrêt du serveur local...
-REM Vérifie que le processus sur le PORT est bien Python avant de tuer
+echo Arret du serveur local...
+REM Verifie que le processus sur le PORT est bien Python avant de tuer
 for /f "tokens=2,5" %%a in ('netstat -aon ^| findstr ":%PORT%" ^| findstr "LISTENING"') do (
     REM %%b contient le PID
     for /f "tokens=1" %%p in ('tasklist /FI "PID eq %%b" /NH ^| findstr /i "python"') do (
         taskkill /F /PID %%b >nul 2>&1
-        echo [OK] Processus Python (PID %%b) arrêté.
+        echo [OK] Processus Python (PID %%b) arrete.
     )
 )
-echo Session terminée.
+echo Session terminee.
 timeout /t 1 >nul
 exit
 
@@ -78,45 +84,50 @@ REM ======== VERIF PORT DISPONIBLE ========
 netstat -an | findstr ":%PORT%" | findstr "LISTENING" >nul
 if not errorlevel 1 (
     echo.
-    echo [ERREUR] Le port %PORT% est déjà utilisé.
-    echo         Vérifiez si une autre instance tourne ou changez le PORT.
+    echo [ERREUR] Le port %PORT% est deja utilise.
+    echo          Verifiez si une autre instance tourne ou changez le PORT.
     echo.
     pause
     goto :menu
 )
 
 echo.
-echo === Démarrage du serveur local ===
+echo === Demarrage du serveur local ===
 echo.
 echo -^> Port : %PORT%
-echo -^> Log : %LOG_FILE%
+echo -^> Log  : %LOG_FILE%
 echo.
 pause
 
 REM ======== VERIF FICHIERS ========
-if not exist "!PAGE!" (
-    echo [ERREUR] Fichier "!PAGE!" introuvable.
+if not exist "%PAGE%" (
+    echo [ERREUR] Fichier "%PAGE%" introuvable.
+    pause
+    goto :menu
+)
+if not exist "scripts\secure_local_server.py" (
+    echo [ERREUR] scripts\secure_local_server.py introuvable.
     pause
     goto :menu
 )
 
 REM ======== LANCEMENT SERVEUR ========
-title Vault Personal – Serveur Local
-start /b "" "!PYTHON!" scripts\secure_local_server.py --port !PORT! --bind !BIND! --directory . >>"%LOG_FILE%" 2>&1
+title Vault Personal - Serveur Local
+start /b "" "%PYTHON%" scripts\secure_local_server.py --port %PORT% --bind %BIND% --directory . >>"%LOG_FILE%" 2>&1
 
 REM ======== HEALTHCHECK ========
 set /a try=0
 echo.
-echo En attente du démarrage du serveur...
+echo En attente du demarrage du serveur...
 :wait_server
 set /a try+=1
 timeout /t 1 >nul
-powershell -Command "$r=$null; try { $r = Invoke-WebRequest -Uri 'http://!BIND!:!PORT!' -UseBasicParsing -TimeoutSec 1 -EA SilentlyContinue } catch {}; if ($r -ne $null) { exit 0 } else { exit 1 }"
+powershell -NoProfile -Command "$r=$null; try { $r = Invoke-WebRequest -Uri 'http://%BIND%:%PORT%' -UseBasicParsing -TimeoutSec 1 } catch {}; if ($r -ne $null) { exit 0 } else { exit 1 }"
 if !errorlevel! equ 0 goto :server_ok
 
 if !try! geq 20 (
     echo.
-    echo [ERREUR] Timeout démarrage. Vérifiez : %LOG_FILE%
+    echo [ERREUR] Timeout demarrage. Verifiez : %LOG_FILE%
     pause
     goto :menu
 )
@@ -125,7 +136,7 @@ goto :wait_server
 
 :server_ok
 echo.
-echo [OK] Serveur opérationnel.
+echo [OK] Serveur operationnel.
 
 REM ======== LANCEMENT NAVIGATEUR (FALLBACK COMPLET) ========
 set "URL=http://%BIND%:%PORT%/%PAGE%"
@@ -133,23 +144,23 @@ echo Lancement du navigateur...
 
 REM 1. Edge (Chromium)
 if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
-    start "" "msedge.exe" --app="%URL%" --disable-cache --incognito
+    start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app="%URL%" --incognito
     goto :browser_launched
 )
 
-REM 2. Chrome (User Install - Très courant)
+REM 2. Chrome (installation utilisateur - tres courant)
 if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" (
-    start "" "%LocalAppData%\Google\Chrome\Application\chrome.exe" --app="%URL%" --disable-cache --incognito
+    start "" "%LocalAppData%\Google\Chrome\Application\chrome.exe" --app="%URL%" --incognito
     goto :browser_launched
 )
 
-REM 3. Chrome (System Install x86)
+REM 3. Chrome (installation systeme x86)
 if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" (
-    start "" "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" --app="%URL%" --disable-cache --incognito
+    start "" "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" --app="%URL%" --incognito
     goto :browser_launched
 )
 
-REM 4. Fallback défaut
+REM 4. Fallback navigateur par defaut
 start "" "%URL%"
 
 :browser_launched
@@ -178,13 +189,13 @@ if exist "%~dp0export-log.html" start "" "%~dp0export-log.html"
 pause
 goto :menu
 
-REM ======== BANNIÈRE ========
+REM ======== BANNIERE ========
 :Banner
-echo ╔════════════════════════════════════════════════════╗
-echo              VAULT PERSONAL – LOCAL LAUNCH
-echo ╠════════════════════════════════════════════════════╣
+echo ======================================================
+echo            VAULT PERSONAL - LOCAL LAUNCH
+echo ======================================================
 echo        Encrypted password vault (100%% LOCAL)
 echo      Static HTML front-end + Python local server
-echo        Launching: http://!BIND!:!PORT!/!PAGE!
-echo ╚════════════════════════════════════════════════════╝
+echo        Launching: http://%BIND%:%PORT%/%PAGE%
+echo ======================================================
 goto :eof

@@ -29,6 +29,7 @@ CONTENT_SECURITY_POLICY = "; ".join(
 
 class SecureStaticHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store, max-age=0")
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Content-Type-Options", "nosniff")

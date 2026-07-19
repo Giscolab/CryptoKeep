@@ -17,7 +17,7 @@ import {
 import { validateNewMasterPassword } from './security/master-password-policy.js';
 import {
 	auditSecurityDashboard
-} from './security/security-dashboard-audit.js';
+} from './security/security-dashboard-audit.js?v=20260719-1';
 import {
 	getReuseGroupEntries
 } from './security/password-reuse-groups.js';
