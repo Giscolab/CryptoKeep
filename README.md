@@ -1,19 +1,19 @@
-# 🔐 Vault Personal - Gestionnaire de mots de passe chiffré 100% local  
+# 🔐 CryptoKeep - Gestionnaire de mots de passe chiffré 100% local  
 **Votre coffre-fort numérique personnel et ultra-sécurisé**  
 
 <p align="center">
   <img src="https://img.shields.io/badge/Chiffrement-AES--GCM_256--bit-green?style=flat&logo=lock">
   <img src="https://img.shields.io/badge/Stockage-100%25_local-blue?style=flat&logo=hard-drive">
   <img src="https://img.shields.io/badge/Zero_Cloud-Zero_Tracking-success?style=flat&logo=privacy">
-  <img src="https://img.shields.io/github/last-commit/Giscolab/vault-personal?color=blue">
+  <img src="https://img.shields.io/github/last-commit/Giscolab/CryptoKeep?color=blue">
   <img src="https://img.shields.io/badge/Licence-MIT-brightgreen">
 </p>
 
 ---
 
-## 🌟 Présentation Premium
+## 🌟 Présentation
 
-**Vault Personal** est un gestionnaire local de mots de passe chiffre dans le navigateur. Il fonctionne hors ligne par defaut; la verification HIBP reste desactivee tant que l'utilisateur ne l'active pas explicitement.
+**CryptoKeep** est un gestionnaire local de mots de passe chiffre dans le navigateur. Il fonctionne hors ligne par defaut; la verification HIBP reste desactivee tant que l'utilisateur ne l'active pas explicitement.
 
 ```mermaid
 graph TD
@@ -73,7 +73,7 @@ pie
 
 ```
 
-![Présentation Vault Personal](docs/vault-demo.gif)  
+![Présentation CryptoKeep](docs/vault-demo.gif)  
 *Interface principale avec navigation sécurisée*
 
 ---
@@ -90,8 +90,8 @@ pie
 ### Lancement Local
 ```bash
 # Cloner le dépôt
-git clone https://github.com/Giscolab/vault-personal.git
-cd vault-personal
+git clone https://github.com/Giscolab/CryptoKeep.git
+cd CryptoKeep
 
 # Windows
 ./start.bat
@@ -108,7 +108,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory .
 
 ### Structure Avancée du Projet
 ```bash
-vault-personal/
+CryptoKeep/
 ├── core/
 │   ├── crypto-engine.js       # Moteur cryptographique
 │   ├── vault-manager.js       # Gestionnaire de coffre
@@ -173,7 +173,7 @@ gantt
 
 ---
 
-## 💡 Pourquoi Choisir Vault Personal?
+## 💡 Pourquoi Choisir CryptoKeep?
 
 <table>
 <tr>
@@ -184,7 +184,7 @@ gantt
   <th>Local First</th>
 </tr>
 <tr>
-  <td><b>Vault Personal</b></td>
+  <td><b>CryptoKeep</b></td>
   <td align="center">✅ 100% Local</td>
   <td align="center">✅ AES-256</td>
   <td align="center">✅ MIT License</td>
@@ -216,16 +216,16 @@ gantt
 ```
 
 **Support technique :**    
-🐛 [Signaler un bug](https://github.com/Giscolab/vault-personal/issues)  
-💡 [Soumettre une idée](https://github.com/Giscolab/vault-personal/discussions)
+🐛 [Signaler un bug](https://github.com/Giscolab/CryptoKeep/issues)  
+💡 [Soumettre une idée](https://github.com/Giscolab/CryptoKeep/discussions)
 
 ---
 
 <p align="center">
   Développé avec ❤️ par <b>Franck</b> | 
-  <a href="https://github.com/Giscolab/vault-personal">⭐ GitHub</a> •
-  <a href="https://github.com/Giscolab/vault-personal/blob/main/SECURITY.md">🛡️ Documentation Sécurité</a> •
-  <a href="https://github.com/Giscolab/vault-personal/releases">📦 Téléchargements</a>
+  <a href="https://github.com/Giscolab/CryptoKeep">⭐ GitHub</a> •
+  <a href="https://github.com/Giscolab/CryptoKeep/blob/main/SECURITY.md">🛡️ Documentation Sécurité</a> •
+  <a href="https://github.com/Giscolab/CryptoKeep/releases">📦 Téléchargements</a>
 </p>
 
 <p align="center">
@@ -235,5 +235,5 @@ gantt
 
 <p align="center">
   <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs bienvenus">
-  <img src="https://img.shields.io/github/contributors/Giscolab/vault-personal" alt="Contributeurs">
+  <img src="https://img.shields.io/github/contributors/Giscolab/CryptoKeep" alt="Contributeurs">
 </p>
