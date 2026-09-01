@@ -1,7 +1,9 @@
 import './utils/import-csv.js';
+// `importVault` reste exportee par ./core/storage/backup.js et delegue
+// desormais au service securise. app.js appelle directement le flux complet
+// `importVaultFile`, qui verifie la cryptographie avant toute ecriture.
 import {
-	exportVault,
-	importVault
+	exportVault
 } from './core/storage/backup.js';
 import {
 	vaultManager
@@ -21,6 +23,13 @@ import {
 	installMasterPasswordHygiene
 } from './security/master-password-field.js';
 import { initLogoutControl } from './security/logout.js';
+import { importVaultFile } from './core/storage/vault-import-service.js';
+import {
+	inspectRestoreSituation,
+	restoreBackupWhenPrimaryMissing
+} from './core/storage/backup-restore-service.js';
+import { migrateLegacyBackup } from './core/storage/local-backup.js';
+import { requestPasswordDialog, confirmDialog } from './ui/secure-dialogs.js';
 import {
 	probeStoragePersistence,
 	describePersistenceIssue
@@ -181,15 +190,74 @@ void probeStoragePersistence().then((report) => {
 }).catch((err) => {
 	console.warn('[Vault] Sonde de persistance indisponible :', err?.message || err);
 });
+// === Restauration CONTROLEE de la sauvegarde secondaire (Lot 2) ===
+// Cette fonction PROPOSE. Elle n'ecrit rien sans confirmation explicite,
+// mot de passe et verification cryptographique complete.
+async function proposeBackupRestoreIfNeeded() {
+	try {
+		const situation = await inspectRestoreSituation({
+			storage: vaultManager.storage,
+			localStorageRef: localStorage
+		});
+
+		if (!situation.offerRestore) return false;
+
+		const report = await restoreBackupWhenPrimaryMissing({
+			storage: vaultManager.storage,
+			localStorageRef: localStorage,
+			requestPassword: requestPasswordDialog,
+			confirmRestore: (info) => confirmDialog({
+				title: 'Restaurer la sauvegarde locale ?',
+				message: 'Aucun coffre exploitable n\'a ete trouve dans le stockage principal.',
+				lines: [
+					['Entrees sauvegardees', String(info.entryCount)],
+					['Date de la sauvegarde', String(info.backupCreatedAt)],
+					['Format du coffre', `v${info.formatVersion}`]
+				],
+				warning: situation.stale
+					? 'Cette sauvegarde semble plus ancienne que le dernier etat connu. Les horodatages ne sont pas authentifies.'
+					: '',
+				confirmLabel: 'Restaurer'
+			})
+		});
+
+		showToast(`Coffre restaure : ${report.entryCount} entree(s). Deverrouillez-le.`, 'success');
+		return true;
+	} catch (err) {
+		if (err?.code === 'cancelled') {
+			showToast('Restauration annulee. Le stockage principal est inchange.', 'warning');
+		} else if (err?.code && err.code !== 'no_backup') {
+			console.warn('[Vault Backup] Restauration impossible :', err.code);
+			showToast('Restauration impossible.', 'error');
+		}
+		return false;
+	}
+}
+
 // === Ouverture IndexedDB et detection du premier lancement
 let vaultReady = false;
 const unlockButton = document.getElementById('unlock-vault');
 if (unlockButton) unlockButton.disabled = true;
 
 vaultManager.initializeStorage().then(async () => {
-	let hasVault = await vaultManager.hasVault();
+	const hasVault = await vaultManager.hasVault();
+
+	// === Lot 2 : plus AUCUNE restauration automatique au demarrage ===
+	// L'appel precedent a vaultManager.restoreFromLocalBackup() ecrasait le
+	// coffre principal par une sauvegarde secondaire potentiellement obsolete,
+	// sans confirmation ni verification cryptographique. La methode est
+	// conservee dans StorageManager mais n'est plus declenchee seule.
+	//
+	// A la place : migration silencieuse de l'ancienne cle vers l'enveloppe
+	// versionnee, puis simple PROPOSITION si le coffre principal manque.
+	void migrateLegacyBackup({ storage: localStorage }).then((migration) => {
+		if (migration.migrated) {
+			console.info('[Vault Backup] Sauvegarde historique migree :', migration.sourceFormat);
+		}
+	}).catch(() => { /* migration best-effort */ });
+
 	if (!hasVault) {
-		hasVault = await vaultManager.restoreFromLocalBackup();
+		void proposeBackupRestoreIfNeeded();
 	}
 
 	await updateSidebarProfile();
@@ -360,23 +428,58 @@ document.getElementById('btn-import').addEventListener('click', () => {
 	document.getElementById('file-import').click();
 });
 // === IMPORT DU COFFRE (.vault)
+// Lot 2 : le coffre courant n'est plus remplace avant validation structurelle
+// ET cryptographique complete, puis confirmation explicite. Le confirm()
+// natif prealable est remplace par un resume verifie presente APRES
+// dechiffrement integral du fichier importe.
 document.getElementById('file-import').addEventListener('change', async (e) => {
-	const file = e.target.files[0];
+	const input = e.target;
+	const file = input.files[0];
 	if (!file) return;
-	const confirmation = confirm("Cette action écrasera le coffre actuel. Continuer ?");
-	if (!confirmation) {
-		showToast("Import annulé par l'utilisateur.", "warning");
-		return;
-	}
+
 	try {
-		const data = await importVault(file);
-		await vaultManager.importVaultRecord(data);
+		const report = await importVaultFile(file, {
+			storage: vaultManager.storage,
+			requestPassword: requestPasswordDialog,
+			confirmImport: (summary) => confirmDialog({
+				title: 'Remplacer le coffre actuel ?',
+				message: 'Le fichier a ete valide et entierement dechiffre. Le coffre actuel sera remplace.',
+				lines: [
+					['Entrees importees', String(summary.entryCount)],
+					['Format du coffre', `v${summary.formatVersion}`],
+					['Derivation', `${summary.kdf} - ${summary.iterations} iterations`],
+					['IV distincts verifies', String(summary.distinctIvCount)],
+					['Derniere modification', summary.lastModified || 'inconnue']
+				],
+				warning: 'Cette action remplace le coffre actuel. Exportez-le avant si besoin.',
+				confirmLabel: 'Remplacer le coffre'
+			}),
+			localStorageRef: localStorage
+		});
+
+		// Le coffre a change : la session en cours ne correspond plus.
 		await lockVaultSession(vaultManager, { notify: false });
 		autoLock.disarm();
-		showToast('Coffre importe. Deverrouillez-le avec son mot de passe maitre.', 'success');
+
+		if (report.backup && !report.backup.written) {
+			showToast(report.backup.message, 'warning', 10000);
+		}
+		showToast(
+			`Coffre importe (${report.summary.entryCount} entrees). Deverrouillez-le avec son mot de passe.`,
+			'success'
+		);
 	} catch (err) {
-		console.error('[Vault Import] Échec :', err);
-		showToast('Erreur à l’importation : vault invalide.', 'error');
+		// Aucun detail exploitable n'est journalise : seul le code de refus.
+		console.warn('[Vault Import] Refus :', err?.code || 'inconnu');
+		if (err?.code === 'cancelled') {
+			showToast('Import annule. Le coffre actuel est inchange.', 'warning');
+		} else {
+			showToast(err?.message || 'Import impossible : fichier refuse.', 'error', 8000);
+		}
+	} finally {
+		// Le champ fichier est reinitialise : reselectionner le meme fichier
+		// doit redeclencher l'evenement.
+		try { input.value = ''; } catch { /* nettoyage best-effort */ }
 	}
 });
 // Formulaire d'ajout d'entrée

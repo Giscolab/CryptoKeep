@@ -56,6 +56,29 @@ export class StorageManager {
 		this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
 	}
 	/**
+	 * Lot 2 : ecrit un record de coffre deja normalise dans UNE transaction
+	 * IndexedDB, sans effet de bord.
+	 *
+	 * Difference avec saveVault() et importFullVault(), qui sont conserves :
+	 * cette methode ne met PAS a jour la sauvegarde secondaire. La sauvegarde
+	 * locale ne doit etre actualisee qu'apres verification de l'ecriture
+	 * principale, ce que decide l'appelant (vault-transaction.js).
+	 *
+	 * Si la transaction est annulee, la promesse est rejetee et l'ancien
+	 * record reste intact : IndexedDB garantit l'atomicite de la transaction.
+	 *
+	 * @param {Object} vaultRecord record deja valide et normalise
+	 */
+	async putVaultRecord(vaultRecord) {
+		if (!this.db) this.db = await openDB();
+		const normalized = validateVaultRecord(vaultRecord);
+		const tx = this.db.transaction('vault', 'readwrite');
+		const store = tx.objectStore('vault');
+		store.put(normalized);
+		await waitForTransaction(tx);
+		return normalized;
+	}
+	/**
 	 * Efface toutes les données du vault.
 	 */
 	async clearVault() {

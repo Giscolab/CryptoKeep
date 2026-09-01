@@ -1,6 +1,6 @@
 # CryptoKeep Threat Model
 
-Last updated: 2026-09-01
+Last updated: 2026-09-01 (Lot 2)
 
 ## System Summary
 
@@ -54,6 +54,11 @@ CryptoKeep is a static browser application for storing password vault entries lo
 - Missing authentication checks before decrypting, rendering, exporting, or editing entries.
 - Session-lock bypasses, incomplete memory cleanup, and clipboard cleanup failures.
 - Import parsing bugs that can corrupt vault state or inject UI content.
+- Partial-write states: an import or restore that fails midway and leaves
+  only part of the data persisted, or that destroys a valid vault while
+  replacing it.
+- Automatic restoration paths that can silently overwrite a newer primary
+  vault with an older secondary copy.
 - CSP regressions that allow broader script execution than needed.
 - Remote dependency or CDN supply-chain risks.
 - Network leakage of passwords, full hashes, decrypted entries, metadata, or vault contents.
@@ -109,6 +114,36 @@ CryptoKeep is a static browser application for storing password vault entries lo
   preflight passing. The Windows-host Node CSPRNG crash recorded earlier remains
   unverified on that host and must still be resolved before trusting results run
   there.
+
+- Lot 2 (import): the current vault is never replaced before full structural
+  AND cryptographic validation of the imported file, plus explicit user
+  confirmation. Unexpected properties are REFUSED, never silently stripped.
+  Entry ids and AES-GCM IVs must be unique across the whole imported vault,
+  validation block included, compared on DECODED bytes.
+- Lot 2: no separate `authTag` field is required or accepted. With AES-GCM
+  through Web Crypto the authentication tag is part of `ciphertext`.
+- Lot 2: wrong password, wrong AAD and tampered data must remain
+  indistinguishable to the user. A single generic message covers all three.
+- Lot 2: post-write verification uses canonical serialisation of the whole
+  record. A size comparison is explicitly insufficient. Restoration is
+  attempted only when the write COMMITTED but the re-read diverges; an
+  aborted transaction leaves the previous record intact by construction and
+  triggers no further write.
+- Lot 2 (backup): `localStorage` is a secondary copy only, updated after the
+  IndexedDB write has been verified. Neither JSON nor base64 provides any
+  encryption; the envelope is safe only because its content is already
+  AES-GCM encrypted. No decrypted field may ever be persisted there.
+- Lot 2: automatic restore at startup is REMOVED. A structurally valid
+  primary vault always wins; a backup can only replace it through a distinct
+  manual action with reinforced confirmation and the same full cryptographic
+  verification as a `.vault` import. Backup timestamps are an indication, not
+  an authenticated proof.
+- Lot 2 (CSV): input is decoded with `TextDecoder(utf-8, {fatal:true})`.
+  Rows are added with fresh `crypto.randomUUID()` identifiers and never
+  overwrite existing entries. Encryption of all rows happens in memory before
+  any transaction, so no partial import can be persisted.
+- Lot 2: `prompt()` is not used anywhere. Passwords are collected in a
+  dedicated dialog with a real `type="password"` field cleared in a `finally`.
 
 ## Acceptance Criteria For Security Fixes
 

@@ -1,6 +1,17 @@
 import { validateVaultRecord } from './vault-format.js';
+import { MAX_VAULT_FILE_BYTES } from './import-limits.js';
+import { validateImportedVaultStructure } from './vault-import-validator.js';
+import { assertImportableFile, readVaultFile } from './vault-import-service.js';
 
-const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+/**
+ * Limite de taille du fichier importe.
+ *
+ * Lot 2 : la valeur n'est plus definie ici. Elle est CENTRALISEE dans
+ * scripts/core/storage/import-limits.js, documentee et couverte par les
+ * tests. Cette constante est conservee comme alias de compatibilite pour
+ * tout code qui l'importerait encore.
+ */
+export const MAX_IMPORT_BYTES = MAX_VAULT_FILE_BYTES;
 
 /**
  * Exporte le contenu chiffré du vault dans un fichier `.vault`.
@@ -19,16 +30,19 @@ export function exportVault(vaultData) {
  * @returns {Promise<Object>} - Données JSON désérialisées (vault complet).
  */
 export async function importVault(file) {
-    if (!file || !file.name.endsWith('.vault')) {
-        throw new Error('Fichier invalide. Format requis : .vault');
-    }
-
-    if (file.size > MAX_IMPORT_BYTES) {
-        throw new Error('Fichier .vault trop volumineux.');
-    }
-
-    const content = await file.text();
-    return validateVaultRecord(JSON.parse(content));
+    // FONCTION CONSERVEE. Depuis le Lot 2 elle DELEGUE au service securise :
+    // controle preliminaire (extension insensible a la casse, taille verifiee
+    // AVANT lecture), lecture protegee avec retrait du BOM, puis validation
+    // structurelle stricte propre a chaque version de format.
+    //
+    // ATTENTION : cette fonction ne realise QUE la validation structurelle.
+    // Elle ne derive aucune cle, ne verifie aucun bloc de validation et
+    // n'ecrit rien. Le flux complet — verification cryptographique,
+    // dechiffrement de toutes les entrees, confirmation, remplacement
+    // atomique verifie — est importVaultFile() dans vault-import-service.js.
+    assertImportableFile(file);
+    const parsed = await readVaultFile(file, (f) => f.text());
+    return validateImportedVaultStructure(parsed).normalized;
 }
 
 // === Fichier: scripts/core/storage/backup.js

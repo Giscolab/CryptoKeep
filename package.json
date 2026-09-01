@@ -5,7 +5,7 @@
   "scripts": {
     "lint": "eslint .",
     "lint:security": "eslint .",
-    "test": "node tests/vault.spec.js && node tests/crypto.spec.js && node tests/vault-format.spec.js && node tests/vault-manager-migration.spec.js && node tests/master-password-policy.spec.js && node tests/vault-filters.spec.js && node tests/password-reuse-groups.spec.js && node tests/master-password-field.spec.js && node tests/logout-session.spec.js && node tests/autolock-controller.spec.js && node tests/storage-persistence.spec.js",
+    "test": "node tests/vault.spec.js && node tests/crypto.spec.js && node tests/vault-format.spec.js && node tests/vault-manager-migration.spec.js && node tests/master-password-policy.spec.js && node tests/vault-filters.spec.js && node tests/password-reuse-groups.spec.js && node tests/master-password-field.spec.js && node tests/logout-session.spec.js && node tests/autolock-controller.spec.js && node tests/storage-persistence.spec.js && node tests/vault-import-validator.spec.js && node tests/vault-import-service.spec.js && node tests/local-backup.spec.js && node tests/csv-parser.spec.js && node tests/csv-import-service.spec.js",
     "test:security": "node tests/security-no-plaintext.spec.js && node tests/launcher-persistence.spec.js"
   },
   "devDependencies": {

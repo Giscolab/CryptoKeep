@@ -2,6 +2,80 @@
 
 ---
 
+## 📦 [Lot 2] Import, sauvegarde et intégrité – *1er septembre 2026*
+
+**Résumé :** approche additive. Aucun fichier supprimé, aucune donnée réelle
+touchée, tous les tests sur coffres et stockages synthétiques.
+
+### Import `.vault` sécurisé
+- Le coffre courant n'est plus JAMAIS remplacé avant validation structurelle
+  **et** cryptographique complète, puis confirmation explicite.
+- Nouveau `scripts/core/storage/import-limits.js` : toutes les limites
+  (10 Mio, 5 000 entrées, tailles de champ, totaux) centralisées et testées.
+- Nouveau `vault-import-validator.js` : liste **exacte** de propriétés par
+  version, refus (jamais suppression silencieuse) des propriétés inattendues,
+  identifiants et IV uniques comparés **décodés**, v1 historique préservé.
+- Aucun champ `authTag` séparé n'est exigé ni toléré : avec AES-GCM via Web
+  Crypto, le tag est inclus dans `ciphertext`.
+- Nouveau `plaintext-validator.js` : type, structure et taille vérifiés après
+  déchiffrement, avant toute persistance.
+- Nouveau `vault-crypto-verify.js` : source unique partagée avec la
+  restauration. v1 sans AAD, v2 avec les AAD exactes du format. Mot de passe
+  incorrect, AAD incorrecte et altération produisent le **même** message.
+- Nouveau `vault-transaction.js` : écriture atomique, vérification
+  post-écriture par **sérialisation canonique** (pas une comparaison de
+  taille), restauration vérifiée uniquement si l'écriture a été validée mais
+  diverge. Aucune restauration après une transaction annulée, aucune boucle.
+- Nouveau `vault-import-service.js` : les 18 étapes du cahier des charges.
+- `backup.js` : `importVault()` **conservée**, délègue au service sécurisé.
+- `StorageManager.putVaultRecord()` ajouté ; `saveVault`, `importFullVault`,
+  `saveToLocalBackup` et `restoreFromLocalBackup` **tous conservés**.
+
+### Sauvegarde locale
+- Nouvelle enveloppe versionnée `cryptokeep.backup.v1` : version d'enveloppe
+  distincte de `meta.version`, horodatage, record chiffré normalisé.
+- Migration rétrocompatible des **deux** formats historiques partageant
+  `vaultBackup` (JSON direct et base64). L'ancienne clé n'est supprimée
+  qu'après écriture, relecture et vérification de la nouvelle enveloppe.
+- Il est documenté explicitement que **ni le JSON ni le base64 ne chiffrent**.
+- Quota `localStorage` géré : un échec de sauvegarde secondaire n'invalide
+  pas le coffre principal, mais l'utilisateur est averti.
+- **Plus aucune restauration automatique au démarrage.** Nouveau
+  `backup-restore-service.js` : détection, validation, information,
+  confirmation, mot de passe, vérification complète, transaction unique,
+  relecture vérifiée. Un coffre principal valide est toujours prioritaire.
+- `clearLocalBackup()` implémentée et testée, **volontairement non raccordée**
+  au bouton de suppression : ce flux appartient au Lot 8.
+
+### Import CSV
+- Nouveau `csv-parser.js` : parseur local sans dépendance — BOM, CRLF/LF/CR,
+  guillemets, virgules internes, `""` échappés, champs multilignes. La limite
+  de lignes est appliquée **pendant** le parsing.
+- Lecture via `TextDecoder('utf-8', { fatal: true })` : les séquences UTF-8
+  invalides sont refusées au lieu d'être silencieusement remplacées.
+- Nouveau `csv-import-service.js` : en-têtes dans un ordre quelconque, mot de
+  passe obligatoire, au moins un champ identifiant parmi titre/URL/utilisateur.
+- Chaque ligne acceptée reçoit un `crypto.randomUUID()`. L'import **ajoute**
+  et ne remplace jamais implicitement. Les ressemblances sont signalées.
+- Aperçu avec mapping, lignes acceptées/ignorées/rejetées et motifs de rejet,
+  **sans jamais afficher un mot de passe**.
+- Ajout atomique : tout est chiffré et assemblé en mémoire avant la moindre
+  transaction. Aucune persistance partielle possible.
+- `import-csv.js` **conservé**, délègue désormais au service.
+
+### Interface
+- Nouveau `scripts/ui/secure-dialogs.js` : fenêtre dédiée avec
+  `<input type="password">`, vidée dans un `finally`. **`prompt()` n'est plus
+  utilisé nulle part**, ni le `confirm()` natif pour l'import.
+
+### Tests
+- 5 nouveaux specs (`node:assert/strict`) ajoutés à `npm test` :
+  `vault-import-validator`, `vault-import-service`, `local-backup`,
+  `csv-parser`, `csv-import-service`, plus les fixtures synthétiques
+  `tests/helpers/vault-fixtures.js`.
+
+---
+
 ## 🧹 [Lot 1 — clôture] Qualité et cohérence – *1er septembre 2026*
 
 **Résumé :** aucune suppression de fichier, aucune règle de lint désactivée,

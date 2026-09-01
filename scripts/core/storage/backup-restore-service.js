@@ -1,0 +1,263 @@
+/**
+ * CryptoKeep - Restauration CONTROLEE d'une sauvegarde secondaire (Lot 2).
+ *
+ * Regle centrale : plus AUCUNE restauration automatique au demarrage.
+ *
+ * L'ancien comportement (`StorageManager.restoreFromLocalBackup()` appele
+ * depuis app.js au chargement) est conserve dans son fichier mais n'est plus
+ * declenche seul. Il pouvait ecraser un coffre principal par une sauvegarde
+ * secondaire arbitrairement ancienne, sans que l'utilisateur le sache.
+ *
+ * Le flux impose ici :
+ *   1. detecter la sauvegarde secondaire ;
+ *   2. valider son enveloppe ET son record chiffre ;
+ *   3. informer l'utilisateur ;
+ *   4. obtenir une confirmation explicite ;
+ *   5. demander le mot de passe du coffre sauvegarde ;
+ *   6. verifier le bloc de validation et dechiffrer TOUTES les entrees ;
+ *   7. ecrire dans UNE transaction IndexedDB ;
+ *   8. relire et verifier le record restaure.
+ *
+ * Un coffre principal structurellement valide est TOUJOURS prioritaire : une
+ * sauvegarde ne l'ecrase jamais automatiquement. Le remplacer exige l'action
+ * manuelle distincte `restoreBackupDeliberately`, avec confirmation renforcee
+ * et la meme verification cryptographique complete qu'un import `.vault`.
+ *
+ * Aucune restauration n'est declenchee apres une ecriture : il n'existe pas
+ * de boucle de restauration possible.
+ */
+
+import { readLocalBackup, compareBackupFreshness } from './local-backup.js';
+import { validateImportedVaultStructure } from './vault-import-validator.js';
+import { verifyAndDecryptVault } from './vault-crypto-verify.js';
+import { createEncryptedSnapshot, writeVaultRecordVerified } from './vault-transaction.js';
+
+export class BackupRestoreError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'BackupRestoreError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
+/**
+ * Le coffre principal est-il structurellement exploitable ?
+ * Un record present mais invalide n'est pas considere comme prioritaire.
+ */
+export function isUsablePrimaryVault(record) {
+  if (!record) return false;
+  try {
+    validateImportedVaultStructure(record);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Etape 1 a 3 : inspecte la situation et decrit ce qui peut etre propose.
+ * N'ECRIT RIEN et ne demande rien.
+ *
+ * @returns {Promise<object>} diagnostic destine a l'interface
+ */
+export async function inspectRestoreSituation(deps = {}) {
+  const { storage, localStorageRef } = deps;
+
+  let primary = null;
+  try {
+    primary = storage ? await storage.loadVault() : null;
+  } catch {
+    primary = null;
+  }
+
+  const primaryUsable = isUsablePrimaryVault(primary);
+
+  let envelope = null;
+  let backupError = null;
+  try {
+    envelope = readLocalBackup({ storage: localStorageRef });
+  } catch (error) {
+    backupError = error.code || 'corrupt';
+  }
+
+  if (!envelope) {
+    return {
+      primaryUsable,
+      backupAvailable: false,
+      backupError,
+      offerRestore: false,
+      reason: backupError ? 'backup_invalid' : 'no_backup'
+    };
+  }
+
+  const freshness = compareBackupFreshness(envelope, primary);
+
+  return {
+    primaryUsable,
+    backupAvailable: true,
+    backupError: null,
+    backupCreatedAt: envelope.backupCreatedAt,
+    backupEntryCount: envelope.entryCount,
+    backupFormatVersion: envelope.vaultFormatVersion,
+    // Une proposition automatique n'a lieu que si le coffre principal est
+    // absent ou inexploitable.
+    offerRestore: !primaryUsable,
+    stale: freshness.stale,
+    freshnessNote: freshness.note,
+    reason: primaryUsable ? 'primary_vault_has_priority' : 'primary_missing_or_invalid'
+  };
+}
+
+async function performRestore(envelope, deps, options) {
+  const {
+    storage,
+    requestPassword,
+    derive,
+    decrypt
+  } = deps;
+
+  // --- 2. l'enveloppe et son record ont deja ete valides a la lecture ---
+  const validated = validateImportedVaultStructure(envelope.record);
+
+  // --- 4. confirmation explicite ---------------------------------------
+  if (typeof options.confirm === 'function') {
+    const accepted = await options.confirm({
+      entryCount: envelope.entryCount,
+      backupCreatedAt: envelope.backupCreatedAt,
+      formatVersion: envelope.vaultFormatVersion,
+      stale: options.stale === true,
+      deliberate: options.deliberate === true,
+      warning: options.deliberate
+        ? 'Cette action remplacera un coffre principal valide par une sauvegarde secondaire.'
+        : 'Le coffre principal est absent ou inexploitable.'
+    });
+    if (!accepted) {
+      throw new BackupRestoreError('cancelled', 'Restauration annulee par l\'utilisateur.');
+    }
+  }
+
+  // --- 5. mot de passe --------------------------------------------------
+  let password = null;
+  try {
+    password = await requestPassword({
+      title: 'Mot de passe du coffre sauvegarde',
+      description: `Sauvegarde du ${envelope.backupCreatedAt}, ${envelope.entryCount} entree(s).`
+    });
+
+    if (!password) {
+      throw new BackupRestoreError('cancelled', 'Restauration annulee : aucun mot de passe fourni.');
+    }
+
+    // --- 6. verification cryptographique complete ----------------------
+    try {
+      await verifyAndDecryptVault(validated.normalized, validated.metadata, password, { derive, decrypt });
+    } catch (error) {
+      throw new BackupRestoreError(
+        error.code === 'crypto_failure' ? 'crypto_failure' : (error.code || 'invalid_plaintext'),
+        error.message
+      );
+    }
+
+    // --- 7 et 8. ecriture atomique puis verification -------------------
+    let currentRecord = null;
+    try {
+      currentRecord = await storage.loadVault();
+    } catch {
+      currentRecord = null;
+    }
+    const snapshot = createEncryptedSnapshot(currentRecord);
+
+    await writeVaultRecordVerified(storage, validated.normalized, snapshot);
+
+    return {
+      restored: true,
+      entryCount: validated.stats.entryCount,
+      formatVersion: validated.stats.formatVersion,
+      backupCreatedAt: envelope.backupCreatedAt
+    };
+  } finally {
+    // Le mot de passe n'est plus reference par ce module. Les chaines
+    // JavaScript ne peuvent pas etre effacees de la memoire de facon fiable.
+    password = null;
+    if (typeof deps.onCleanup === 'function') {
+      try {
+        deps.onCleanup();
+      } catch {
+        /* nettoyage best-effort */
+      }
+    }
+  }
+}
+
+/**
+ * Restauration proposee lorsque le coffre principal est absent ou invalide.
+ * Refuse d'agir si un coffre principal exploitable existe.
+ */
+export async function restoreBackupWhenPrimaryMissing(deps = {}) {
+  const situation = await inspectRestoreSituation(deps);
+
+  if (!situation.backupAvailable) {
+    throw new BackupRestoreError(
+      situation.backupError ? 'backup_invalid' : 'no_backup',
+      situation.backupError
+        ? 'La sauvegarde secondaire est illisible ou corrompue.'
+        : 'Aucune sauvegarde secondaire disponible.'
+    );
+  }
+
+  if (situation.primaryUsable) {
+    // Priorite absolue au coffre principal.
+    throw new BackupRestoreError(
+      'primary_vault_has_priority',
+      'Un coffre principal valide existe deja. Une sauvegarde ne peut pas l\'ecraser automatiquement.'
+    );
+  }
+
+  const envelope = readLocalBackup({ storage: deps.localStorageRef });
+  return performRestore(envelope, deps, {
+    confirm: deps.confirmRestore,
+    stale: situation.stale,
+    deliberate: false
+  });
+}
+
+/**
+ * Restauration VOLONTAIRE d'une sauvegarde, y compris obsolete, alors qu'un
+ * coffre principal valide existe. Action manuelle distincte, confirmation
+ * renforcee, meme verification cryptographique complete qu'un import.
+ */
+export async function restoreBackupDeliberately(deps = {}) {
+  const situation = await inspectRestoreSituation(deps);
+
+  if (!situation.backupAvailable) {
+    throw new BackupRestoreError(
+      situation.backupError ? 'backup_invalid' : 'no_backup',
+      situation.backupError
+        ? 'La sauvegarde secondaire est illisible ou corrompue.'
+        : 'Aucune sauvegarde secondaire disponible.'
+    );
+  }
+
+  if (typeof deps.confirmDeliberate !== 'function') {
+    throw new BackupRestoreError(
+      'no_confirmation',
+      'La restauration volontaire exige une confirmation renforcee.'
+    );
+  }
+
+  const envelope = readLocalBackup({ storage: deps.localStorageRef });
+  return performRestore(envelope, deps, {
+    confirm: deps.confirmDeliberate,
+    stale: situation.stale,
+    deliberate: true
+  });
+}
+
+export default {
+  inspectRestoreSituation,
+  restoreBackupWhenPrimaryMissing,
+  restoreBackupDeliberately,
+  isUsablePrimaryVault,
+  BackupRestoreError
+};
