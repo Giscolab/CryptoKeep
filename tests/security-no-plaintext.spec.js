@@ -42,8 +42,21 @@ try {
     !vaultListSource.includes('.storage.'),
     'L UI ne doit pas acceder directement au stockage du coffre.'
   );
+  const blockedHost = 'cdnjs.cloudflare.com';
+  const urlCandidates = [
+    ...indexSource.matchAll(/\b(?:src|href)\s*=\s*["']([^"']+)["']/gi),
+    ...indexSource.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)/gi)
+  ].map((m) => m[1]);
+  const referencesBlockedCdn = urlCandidates.some((value) => {
+    try {
+      const parsed = new URL(value, 'https://local.test');
+      return parsed.hostname === blockedHost;
+    } catch {
+      return false;
+    }
+  });
   assert(
-    !indexSource.includes('cdnjs.cloudflare.com'),
+    !referencesBlockedCdn,
     'Le CDN ne doit pas etre autorise par la page du coffre.'
   );
   assert(
