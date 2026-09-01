@@ -1,8 +1,16 @@
 @echo off
-REM === VAULT PERSONAL - LOCAL LAUNCHER ===
+REM === CryptoKeep - LOCAL LAUNCHER ===
 REM IMPORTANT : fichier 100%% ASCII (pas d'accents), fins de ligne CRLF.
 REM Les caracteres multi-octets (UTF-8) desynchronisent le parseur cmd.exe
 REM apres chaque goto, d'ou les erreurs type "'cho' n'est pas reconnu".
+REM
+REM === AVERTISSEMENT DE PERSISTANCE (Lot 1) ===
+REM Ce lanceur historique est conserve. Il ouvrait auparavant le coffre
+REM en navigation privee (--incognito), ce qui detruit IndexedDB et
+REM localStorage a la fermeture du navigateur, donc le coffre lui-meme.
+REM Le lancement utilise desormais le meme PROFIL PERSISTANT dedie que
+REM start_vault_secure.bat, qui est le lanceur recommande.
+REM Le serveur local sert le projet en HTTP EN CLAIR : il n y a pas de TLS.
 
 setlocal enabledelayedexpansion
 color 0A
@@ -16,9 +24,15 @@ set "PORT=8000"
 set "PAGE=index.html"
 set "BIND=127.0.0.1"
 set "LOG_DIR=%~dp0logs"
+set "APP_DIR=%LOCALAPPDATA%\CryptoKeep"
+set "PROFILE_DIR=%APP_DIR%\browser-profile"
+set "RUNTIME_DIR=%APP_DIR%\run"
+set "CHROMIUM_FLAGS=--user-data-dir=%APP_DIR%\browser-profile --no-first-run --no-default-browser-check"
 
 REM ======== ENVIRONNEMENT ========
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+if not exist "%APP_DIR%" mkdir "%APP_DIR%"
+if not exist "%PROFILE_DIR%" mkdir "%PROFILE_DIR%"
 
 REM === TIMESTAMP (PowerShell : WMIC est deprecie/absent de Windows 11 recent) ===
 set "TIMESTAMP="
@@ -63,14 +77,17 @@ REM ======== NETTOYAGE SECURISE ========
 :quitter
 cls
 echo Arret du serveur local...
-REM Verifie que le processus sur le PORT est bien Python avant de tuer
-for /f "tokens=2,5" %%a in ('netstat -aon ^| findstr ":%PORT%" ^| findstr "LISTENING"') do (
-    REM %%b contient le PID
-    for /f "tokens=1" %%p in ('tasklist /FI "PID eq %%b" /NH ^| findstr /i "python"') do (
-        taskkill /F /PID %%b >nul 2>&1
-        echo [OK] Processus Python (PID %%b) arrete.
-    )
+REM === Lot 1 : arret cible uniquement ===
+REM L ancienne version tuait TOUT processus python en ecoute sur le port,
+REM y compris un serveur sans rapport avec ce projet. Ce comportement est
+REM supprime. Seul le processus enregistre par le lanceur est arrete.
+if exist "%~dp0scripts\stop_secure_server.ps1" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\stop_secure_server.ps1" -RuntimeDir "%RUNTIME_DIR%"
+) else (
+    echo [INFO] Script d arret cible introuvable.
 )
+echo [INFO] Aucun processus tiers n a ete arrete.
+echo [INFO] Si un serveur lance par ce menu tourne encore, fermez sa fenetre.
 echo Session terminee.
 timeout /t 1 >nul
 exit
@@ -81,8 +98,11 @@ cls
 call :Banner
 
 REM ======== VERIF PORT DISPONIBLE ========
-netstat -an | findstr ":%PORT%" | findstr "LISTENING" >nul
-if not errorlevel 1 (
+REM === Lot 1 : detection exacte du port ===
+REM L ancienne detection "findstr :%PORT%" declenchait aussi sur 18000,
+REM 80001 ou une adresse distante. Correspondance exacte adresse:port.
+powershell -NoProfile -Command "$p=%PORT%; $b='%BIND%'; $u=$false; try { $u = @(Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction Stop | Where-Object { $_.LocalAddress -eq $b -or $_.LocalAddress -eq '0.0.0.0' -or $_.LocalAddress -eq '::' }).Count -gt 0 } catch { $u = @(netstat -ano | Select-String -Pattern ('^\s*TCP\s+\S+:' + $p + '\s+\S+\s+LISTENING\s+\d+\s*$')).Count -gt 0 }; if ($u) { exit 1 } else { exit 0 }"
+if errorlevel 1 (
     echo.
     echo [ERREUR] Le port %PORT% est deja utilise.
     echo          Verifiez si une autre instance tourne ou changez le PORT.
@@ -144,19 +164,19 @@ echo Lancement du navigateur...
 
 REM 1. Edge (Chromium)
 if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
-    start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app="%URL%" --incognito
+    start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app="%URL%" %CHROMIUM_FLAGS%
     goto :browser_launched
 )
 
 REM 2. Chrome (installation utilisateur - tres courant)
 if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" (
-    start "" "%LocalAppData%\Google\Chrome\Application\chrome.exe" --app="%URL%" --incognito
+    start "" "%LocalAppData%\Google\Chrome\Application\chrome.exe" --app="%URL%" %CHROMIUM_FLAGS%
     goto :browser_launched
 )
 
 REM 3. Chrome (installation systeme x86)
 if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" (
-    start "" "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" --app="%URL%" --incognito
+    start "" "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" --app="%URL%" %CHROMIUM_FLAGS%
     goto :browser_launched
 )
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local static server with browser security headers for Vault Personal."""
+"""Local static server with browser security headers for CryptoKeep."""
 
 from __future__ import annotations
 

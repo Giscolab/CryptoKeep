@@ -17,7 +17,7 @@ export function initTogglePassword() {
     btn.addEventListener('click', function () {
       // Recherche l’input précédent dans le flux DOM
       let input = this.previousElementSibling;
-      // Cas rare : si ce n’est pas un input, cherche le parent le plus proche
+      // Cas rare : si ce n’est pas un input, cherche le parent le plus proche
       if (!input || !input.tagName || input.tagName.toLowerCase() !== 'input') {
         input = this.closest('.password-input-wrapper')?.querySelector('input[type="password"], input[type="text"]');
       }

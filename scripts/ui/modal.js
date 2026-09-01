@@ -55,7 +55,10 @@ class ModalManager {
     logInfo(`Modal "${modalId}" closed.`);
   }
 
-  handleDocumentClick(event) {
+  handleDocumentClick() {
+    // Parametre retire : ce gestionnaire est un emplacement reserve et
+    // n'inspecte pas encore l'evenement. La signature reste compatible
+    // avec addEventListener, qui passe l'evenement sans l'exiger.
     // Optional: implement global triggers if needed
     // e.g. data-modal-open attribute on buttons to open modals
   }

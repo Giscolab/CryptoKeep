@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="UTF-8">
-	<title>Vault Personal</title>
+	<title>CryptoKeep</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<!-- CSP fallback for static hosting. Production must also send this as an HTTP header. -->
 	<meta http-equiv="Content-Security-Policy" content="
@@ -54,7 +54,7 @@
 </svg>
 
     </div>
-    <h1 class="auth-title">Vault Personal</h1>
+    <h1 class="auth-title">CryptoKeep</h1>
     <p class="auth-subtitle">Coffre-fort de mots de passe 100% local</p>
 
     <div class="auth-section">
@@ -139,7 +139,7 @@
 								<div class="user-email">john.doe@example.com</div>
 							</div>
 						</div>
-						<div class="logout" aria-label="Déconnexion">
+						<div class="logout" id="logout-button" role="button" tabindex="0" aria-label="Déconnexion">
 							<i class="fas fa-sign-out-alt"></i>
 							<span>Déconnexion</span>
 						</div>
@@ -504,7 +504,7 @@
 										</div>
 										<div class="setting-control">
 											<label class="toggle-switch">
-												<input type="checkbox" checked>
+												<input type="checkbox" id="autolock-enabled" checked>
 												<span class="toggle-slider"></span>
 											</label>
 										</div>
@@ -515,13 +515,25 @@
 											<div class="setting-description">Temps avant verrouillage automatique</div>
 										</div>
 										<div class="setting-control">
-											<select class="dropdown-small">
+											<select class="dropdown-small" id="autolock-delay">
 												<option>1 minute</option>
 												<option>2 minutes</option>
 												<option>5 minutes</option>
 												<option>10 minutes</option>
 												<option>30 minutes</option>
 											</select>
+										</div>
+									</div>
+									<div class="setting-item">
+										<div class="setting-info">
+											<div class="setting-label">Verrouiller en arrière-plan</div>
+											<div class="setting-description">Verrouille dès que l'onglet passe en arrière-plan</div>
+										</div>
+										<div class="setting-control">
+											<label class="toggle-switch">
+												<input type="checkbox" id="autolock-on-hidden">
+												<span class="toggle-slider"></span>
+											</label>
 										</div>
 									</div>
 								</div>
@@ -803,12 +815,11 @@
 				<button class="btn btn-primary">Changer le mot de passe</button>
 			</div>
 		</div>
-		</div>
 		<div class="auto-lock" id="autolock-timer">
 			<i class="fas fa-lock"></i>
 		</div>
 		<!-- ⚙️ Scripts -->
-		<script src="scripts/vendor/chart.min.js"></script>
+		<script src="scripts/vendor/Chart.min.js"></script>
 		<script type="module" src="scripts/app.js?v=20260719-1" crossorigin="anonymous">
 		</script>
 		<script type="module" src="scripts/ui/security-report-init.js"></script>

@@ -99,14 +99,29 @@
   return lines.join('\n');
 }
 
-function waitForAuditButtonAndAttach() {
+// Nombre maximal de trames d attente avant de basculer sur le bouton de
+// secours. L ancienne version relancait requestAnimationFrame sans limite :
+// si #launch-audit-ui etait absent, la boucle tournait indefiniment et
+// createAuditButton() n etait jamais utilisee, rendant l audit inaccessible.
+const MAX_ATTACH_FRAMES = 300;
+
+function waitForAuditButtonAndAttach(attempts = 0) {
   const btn = document.getElementById('launch-audit-ui');
   if (btn) {
     btn.addEventListener('click', openAuditModal);
     console.log('[✓] Audit UI connecté au bouton paramètres.');
-  } else {
-    requestAnimationFrame(waitForAuditButtonAndAttach);
+    return;
   }
+
+  if (attempts >= MAX_ATTACH_FRAMES) {
+    // Repli conserve : le bouton flottant historique reste la voie d acces
+    // a l audit lorsque le bouton des parametres est introuvable.
+    console.warn('[Audit] Bouton #launch-audit-ui introuvable, bouton de secours affiché.');
+    createAuditButton();
+    return;
+  }
+
+  requestAnimationFrame(() => waitForAuditButtonAndAttach(attempts + 1));
 }
 waitForAuditButtonAndAttach();
 })();

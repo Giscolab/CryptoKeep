@@ -1,5 +1,5 @@
 {
-    "name": "Vault Personal",
+    "name": "CryptoKeep",
     "short_name": "Vault",
     "description": "Gestionnaire de mots de passe personnel, local et sécurisé.",
     "start_url": "/index.html",

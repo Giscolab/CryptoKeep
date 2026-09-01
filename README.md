@@ -93,14 +93,21 @@ pie
 git clone https://github.com/Giscolab/CryptoKeep.git
 cd CryptoKeep
 
-# Windows
-./start.bat
+# Windows - lanceur recommande (profil navigateur persistant)
+start_vault_secure.bat
+
+# Windows - lanceur historique, conserve
+start_vault_local.bat
 
 # macOS/Linux
 python3 -m http.server 8000 --bind 127.0.0.1 --directory .
 ```
 
-> **Accès sécurisé** : [https://localhost:8000](https://localhost:8000) (HTTPS recommandé via autosigné)
+> **Accès local** : http://127.0.0.1:8000/index.html
+>
+> Le serveur local sert le projet en **HTTP en clair** sur l'interface de bouclage. Il n'y a **aucun TLS** : ne pas décrire cet accès comme HTTPS. La confidentialité au repos repose sur le chiffrement applicatif AES-GCM, pas sur le transport.
+>
+> **Ne pas lancer le coffre en navigation privée.** L'application dépend d'IndexedDB et de `localStorage` : en mode éphémère, le coffre est détruit à la fermeture du navigateur. `start_vault_secure.bat` ouvre un **profil navigateur dédié et persistant** (`%LOCALAPPDATA%\CryptoKeep\browser-profile`), distinct de votre profil personnel.
 
 ---
 
@@ -140,7 +147,7 @@ sequenceDiagram
 
 ```mermaid
 gantt
-    title Feuille de Route Vault Personal
+    title Feuille de Route CryptoKeep
     dateFormat  YYYY-MM-DD
     section Q3 2025
     Intégration WebAuthn       :active, 2025-07-01, 60d

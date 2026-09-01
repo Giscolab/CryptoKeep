@@ -7,13 +7,24 @@ import {
 	vaultManager
 } from './core/vault/manager.js';
 import { assertSecureWebCrypto } from './core/crypto/runtime.js';
-import {
-	AutoLock,
-	getStoredDelay
-} from './security/autolock.js';
+// L'implementation historique AutoLock reste disponible dans
+// ./security/autolock.js et reste couverte par les tests. Elle n'est
+// plus instanciee ici : voir SessionAutoLock ci-dessous (Lot 1).
 import {
 	lockVaultSession
 } from './security/session-lock.js';
+import { SessionAutoLock } from './security/autolock-controller.js';
+import {
+	consumeMasterPassword,
+	clearMasterPasswordField,
+	getMasterPasswordField,
+	installMasterPasswordHygiene
+} from './security/master-password-field.js';
+import { initLogoutControl } from './security/logout.js';
+import {
+	probeStoragePersistence,
+	describePersistenceIssue
+} from './security/storage-persistence.js';
 import { validateNewMasterPassword } from './security/master-password-policy.js';
 import {
 	auditSecurityDashboard
@@ -144,15 +155,32 @@ if (navSettings) {
 	navSettings.addEventListener('click', () => showView('settings-view'));
 }
 // === UI : Affichage/Masquage du mot de passe maître ===
-document.getElementById('toggle-password-visibility').addEventListener('change', (e) => {
-	const input = document.getElementById('master-password');
-	input.type = e.target.checked ? 'text' : 'password';
-});
+// La reference du champ maitre est resolue UNE SEULE FOIS (Lot 1).
+const masterPasswordField = getMasterPasswordField();
+installMasterPasswordHygiene();
+if (masterPasswordField && masterPasswordField.toggle) {
+	masterPasswordField.toggle.addEventListener('change', (e) => {
+		masterPasswordField.input.type = e.target.checked ? 'text' : 'password';
+	});
+}
 // === Vérifie support IndexedDB ===
 if (!window.indexedDB) {
 	showToast("IndexedDB n’est pas supporté par ce navigateur ou ce mode.");
 	throw new Error("IndexedDB not supported.");
 }
+// === Sonde de persistance (Lot 1) ===
+// Avertit si le navigateur refuse IndexedDB ou si l'ecriture echoue.
+// Aucun resultat positif n'est annonce tant qu'aucun redemarrage n'a
+// ete observe : le statut reste alors explicitement inconnu.
+void probeStoragePersistence().then((report) => {
+	const issue = describePersistenceIssue(report);
+	if (issue) {
+		showToast(issue.text, issue.severity, 15000);
+		console.warn('[Vault] Persistance du stockage :', report.status);
+	}
+}).catch((err) => {
+	console.warn('[Vault] Sonde de persistance indisponible :', err?.message || err);
+});
 // === Ouverture IndexedDB et detection du premier lancement
 let vaultReady = false;
 const unlockButton = document.getElementById('unlock-vault');
@@ -180,13 +208,28 @@ vaultManager.initializeStorage().then(async () => {
 	console.error('[ERREUR] Impossible d’ouvrir la base IndexedDB :', err);
 	showToast('Erreur critique : echec d acces au stockage securise.', 'error');
 });
-// AutoLock actif après authentification
-void new AutoLock(() => {
-	void lockVaultSession(vaultManager, {
-		message: 'Session verrouillee automatiquement.',
+// === Verrouillage automatique (Lot 1) ===
+// L'implementation historique `AutoLock` (scripts/security/autolock.js)
+// est conservee et toujours testee. Le controleur ci-dessous la remplace
+// dans l'application : il respecte le reglage d'activation, ne demarre
+// qu'apres authentification et n'entretient qu'un seul minuteur.
+const autoLock = new SessionAutoLock(async (reason) => {
+	await lockVaultSession(vaultManager, {
+		message: reason === 'hidden'
+			? 'Session verrouillee : onglet passe en arriere-plan.'
+			: 'Session verrouillee automatiquement.',
 		type: 'error'
 	});
-}, getStoredDelay() * 1000);
+	clearMasterPasswordField();
+});
+
+// === Deconnexion manuelle (Lot 1) ===
+// Le bouton existant dans la barre laterale n'etait raccorde a rien.
+document.addEventListener('DOMContentLoaded', () => {
+	initLogoutControl(vaultManager, {
+		onLogout: () => autoLock.disarm()
+	});
+});
 const generateBtn = document.getElementById('generate-password');
 const passwordInput = document.getElementById('password');
 if (generateBtn && passwordInput && typeof PasswordGenerator !== "undefined") {
@@ -203,38 +246,53 @@ document.getElementById('password').addEventListener('input', (e) => {
 // Formulaire d'authentification
 document.getElementById('auth-form').addEventListener('submit', async (e) => {
 	e.preventDefault();
-	const password = document.getElementById('master-password').value;
 	if (!vaultReady) {
 		showToast('Le stockage securise est encore en cours de chargement.', 'warning');
 		return;
 	}
-	if (!password) {
+
+	const field = masterPasswordField || getMasterPasswordField();
+	if (!field || !field.input.value) {
 		showToast('Le mot de passe maitre est requis.', 'error');
 		return;
 	}
 
-	const hasVault = await vaultManager.hasVault();
+	// `consumeMasterPassword` vide le champ, retablit type="password" et
+	// decoche l'affichage dans un `finally` : reussite comme echec.
+	// La valeur n'est jamais journalisee ni retournee a l'appelant.
+	let unlocked = false;
 	try {
-		if (!hasVault) {
-			const policy = validateNewMasterPassword(password);
-			if (!policy.valid) {
-				showToast(policy.message, 'error');
+		await consumeMasterPassword(async (password) => {
+			const hasVault = await vaultManager.hasVault();
+			if (!hasVault) {
+				const policy = validateNewMasterPassword(password);
+				if (!policy.valid) {
+					showToast(policy.message, 'error');
+					return;
+				}
+
+				await vaultManager.createVault(password);
+				vaultManager.isFirstTime = false;
+				showToast('Coffre initialise avec succes.', 'success');
+				unlocked = true;
 				return;
 			}
 
-			await vaultManager.createVault(password);
-			vaultManager.isFirstTime = false;
-			showToast('Coffre initialise avec succes.', 'success');
-		} else {
 			await vaultManager.unlock(password);
 			await renderRecentAccesses();
-		}
+			unlocked = true;
+		}, { field });
 	} catch (err) {
 		vaultManager.clearSession();
-		console.warn('[Vault] Unlock or migration failed:', err);
+		console.warn('[Vault] Unlock or migration failed:', err?.name || 'error');
 		showToast('Impossible de deverrouiller ou migrer le coffre.', 'error');
 		return;
 	}
+
+	if (!unlocked) return;
+
+	// Le verrouillage automatique ne s'arme qu'apres authentification.
+	autoLock.arm();
 	hideAuthScreen();
 	const stats = await vaultManager.getPasswordStats();
 	// === MAJ DU SCORE DE SÉCURITÉ PRINCIPAL (block de la page d'accueil) ===
@@ -314,6 +372,7 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 		const data = await importVault(file);
 		await vaultManager.importVaultRecord(data);
 		await lockVaultSession(vaultManager, { notify: false });
+		autoLock.disarm();
 		showToast('Coffre importe. Deverrouillez-le avec son mot de passe maitre.', 'success');
 	} catch (err) {
 		console.error('[Vault Import] Échec :', err);

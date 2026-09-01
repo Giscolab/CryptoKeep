@@ -2,6 +2,8 @@ import { showAuthScreen } from '../ui/auth-screen/auth-screen.js';
 import { clearVaultListSession } from '../ui/vault-list/vault-list.js';
 import { showToast } from '../utils/toast.js';
 import { clearOwnedClipboard } from '../utils/clipboard.js';
+import { clearMasterPasswordField } from './master-password-field.js';
+import { closeAllModals } from '../ui/modal-cleanup.js';
 
 function clearInputValue(selector) {
   document.querySelectorAll(selector).forEach((input) => {
@@ -44,13 +46,17 @@ function clearRenderedSecrets() {
 }
 
 function clearRenderedVaultDom() {
+  // Lot 1 : toute modale visible est fermee, y compris celles injectees
+  // dynamiquement, avant la purge des vues.
+  closeAllModals();
   clearRenderedSecrets();
   clearVaultListSession();
 }
 
+// Lot 1 : le nettoyage ne se limite plus a vider la valeur. Le champ
+// repasse en type="password" et la case d'affichage est decochee.
 function clearMasterPasswordInput() {
-  const pwInput = document.getElementById('master-password');
-  if (pwInput) pwInput.value = '';
+  return clearMasterPasswordField();
 }
 
 function showLockedAuthScreen() {
@@ -100,6 +106,16 @@ export async function lockVaultSession(
   clearMasterPasswordInput();
 
   const clipboard = await clearOwnedClipboard();
+
+  if (typeof document !== 'undefined'
+    && typeof document.dispatchEvent === 'function'
+    && typeof CustomEvent === 'function') {
+    try {
+      document.dispatchEvent(new CustomEvent('vault:locked'));
+    } catch {
+      /* diffusion best-effort */
+    }
+  }
 
   if (notify) {
     showToast(message, type);

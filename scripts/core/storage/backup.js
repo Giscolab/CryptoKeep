@@ -52,7 +52,9 @@ export function restoreFromLocal() {
   if (!raw) return null;
   try {
     return validateVaultRecord(JSON.parse(raw));
-  } catch (e) {
+  } catch {
+    // Liaison de capture retiree : la valeur n'etait pas utilisee et ne
+    // doit pas etre journalisee (elle peut refleter du contenu de coffre).
     console.warn('[Vault] Backup corrompu.');
     return null;
   }

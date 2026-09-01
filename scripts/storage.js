@@ -1,5 +1,15 @@
 
-class VaultStorage {
+/**
+ * CryptoKeep - Couche de stockage HISTORIQUE.
+ *
+ * STATUT : conserve pour reference et compatibilite. Aucun module ne
+ * l importe et index.html ne le charge pas. L implementation active est
+ * scripts/core/storage/manager.js.
+ *
+ * La classe est desormais EXPORTEE plutot que laissee morte au niveau du
+ * module. Aucun raccordement n est effectue, aucun comportement ne change.
+ */
+export class VaultStorage {
     constructor() {
         this.db = null;
         this.initializeDB();

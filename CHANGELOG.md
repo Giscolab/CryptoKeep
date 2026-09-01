@@ -2,6 +2,112 @@
 
 ---
 
+## 🧹 [Lot 1 — clôture] Qualité et cohérence – *1er septembre 2026*
+
+**Résumé :** aucune suppression de fichier, aucune règle de lint désactivée,
+aucune dépendance applicative ajoutée. Le projet reste 100 % Vanilla.
+
+- `package-lock.json` conservé et indexé (installations reproductibles).
+  Outillage de développement uniquement, aucun impact sur le code navigateur.
+- **13 erreurs ESLint préexistantes corrigées, une par une, selon leur
+  contexte** — 0 erreur restante :
+  - liaisons de capture inutilisées → `catch {}` sans liaison
+    (`backup.js`, `audit-crypto.js` ×2) ;
+  - brouillons historiques non raccordés → classes **exportées** et statut
+    documenté en tête de fichier, aucun raccordement, aucun comportement
+    modifié (`crypto.js`, `storage.js`, `security.js`) ;
+  - `getStrengthLevel()` (`security/audit.js`) → exportée comme utilitaire
+    public ; l'échelle de `updatePasswordEntropyBar()` reste inchangée pour
+    ne pas altérer les classes CSS rendues ;
+  - `audit-runner.js` est un outil Node en ligne de commande → globales Node
+    déclarées pour ce seul fichier (environnement réel, pas de règle levée) ;
+  - `AuditCrypto` et `Chart` sont des globales de scripts classiques →
+    déclarées par fichier dans la configuration ESLint ;
+  - `modal.js` : paramètre inutilisé retiré d'un gestionnaire vide ;
+  - `password-meter.js` : palette conservée, hissée et exportée
+    (`STRENGTH_COLORS`) ; elle ne peut pas être appliquée en style inline,
+    la CSP interdisant `unsafe-inline` ;
+  - `toggle-password.js` : espace insécable étroit (U+202F) remplacé.
+- **Correction de bug** : `audit-panel.js` relançait `requestAnimationFrame`
+  sans limite. Si `#launch-audit-ui` était absent, la boucle tournait
+  indéfiniment et `createAuditButton()` n'était jamais appelée, rendant
+  l’audit inaccessible. Boucle bornée à 300 trames, bouton de secours
+  historique raccordé en repli.
+- `index.html` : la balise `<script src="scripts/vendor/chart.min.js">`
+  pointait sur un nom inexistant. Corrigé en `Chart.min.js` (casse réelle).
+- `index.html` : `</div>` orphelin ligne 818 retiré. Il ne fermait aucun
+  élément (analyse de pile de balises : pile `html > body > main`).
+  Structure désormais parfaitement équilibrée. Aucun composant supprimé.
+
+---
+
+## 🔒 [Lot 1] Sécurisation du cycle de vie – *1er septembre 2026*
+
+**Résumé :** approche additive. Aucun fichier, dossier, test, écran ni
+fonctionnalité n'a été supprimé.
+
+### Lanceur et persistance
+- **Correction critique** : les lanceurs n'ouvrent plus le coffre en
+  navigation privée (`--incognito`). IndexedDB et `localStorage` y étaient
+  détruits à la fermeture du navigateur, donc le coffre avec.
+- Nouveau lanceur `start_vault_secure.bat` : profil navigateur **persistant**
+  et dédié (`%LOCALAPPDATA%\CryptoKeep\browser-profile`), distinct du profil
+  personnel.
+- `start_vault_local.bat` **conservé** et corrigé : profil persistant,
+  détection de port par correspondance exacte, plus aucun arrêt de processus
+  tiers par simple occupation du port.
+- Nouveaux scripts `scripts/start_secure_server.ps1` et
+  `scripts/stop_secure_server.ps1` : le PID du processus enfant est conservé,
+  et l'arrêt exige PID + heure de démarrage + ligne de commande concordants.
+- Nouveau module `scripts/security/storage-persistence.js` : avertissement
+  clair si le navigateur refuse IndexedDB. Aucun résultat positif n'est
+  affiché tant qu'aucun redémarrage n'a été réellement observé.
+- `README.md` : suppression de la mention `https://localhost:8000`. Le serveur
+  local fonctionne en **HTTP en clair**.
+- Nouveau document `docs/launcher.md`.
+
+### Mot de passe maître
+- Nouveau module `scripts/security/master-password-field.js` : référence du
+  champ résolue une seule fois, valeur consommée puis effacée dans un bloc
+  `finally` (réussite **comme** échec), retour à `type="password"`,
+  réinitialisation de la case d'affichage.
+- Nettoyage rejoué au verrouillage, à la déconnexion, au masquage de l'onglet,
+  à la fermeture de page et à la réinitialisation du formulaire.
+
+### Déconnexion
+- Nouveau module `scripts/security/logout.js`. Le bouton « Déconnexion » de la
+  barre latérale, présent dans `index.html` mais raccordé à rien, est
+  désormais fonctionnel : purge de la clé, du sel et des entrées déchiffrées,
+  fermeture des modales, purge des vues, retour à l'écran d'authentification,
+  réinitialisation de la navigation. Le coffre chiffré n'est jamais supprimé.
+- Nouveau module `scripts/ui/modal-cleanup.js`, également branché sur le
+  verrouillage.
+
+### Verrouillage automatique
+- Nouveau module `scripts/security/autolock-controller.js`. Il respecte le
+  réglage d'activation, applique le délai choisi, ne maintient qu'un seul
+  minuteur, écoute souris, clavier, pointeur, tactile, molette et défilement,
+  prend en compte la visibilité de l'onglet, et ne s'arme qu'**après**
+  authentification.
+- Nouvelle option « Verrouiller en arrière-plan » dans les paramètres.
+- `scripts/security/autolock.js` est **conservé**, toujours exporté et
+  toujours couvert par un test de non-régression. Son statut historique est
+  documenté en tête de fichier.
+
+### Tests
+- Ajout de `tests/master-password-field.spec.js`, `tests/logout-session.spec.js`,
+  `tests/autolock-controller.spec.js`, `tests/storage-persistence.spec.js`,
+  `tests/launcher-persistence.spec.js` et du stub `tests/helpers/dom-stub.js`.
+- `tests/password-reuse-groups.spec.js`, jusque-là orphelin, est réintégré à
+  `npm test`.
+
+### Divers
+- `scripts/security.js` : accolade fermante manquante ajoutée. Le fichier était
+  syntaxiquement invalide et bloquait toute analyse portant sur l'ensemble du
+  dépôt. Le fichier reste conservé et non raccordé.
+
+---
+
 ## 📦 [760faa3] Initialisation complète du projet – *18 mai 2025*
 
 **Auteur :** Franck  

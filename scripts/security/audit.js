@@ -79,7 +79,11 @@ export function getPasswordEntropy(pwd) {
  * @param {number} entropy
  * @returns {number}
  */
-function getStrengthLevel(entropy) {
+// Exporte : utilitaire public du module d audit, au meme titre que
+// getPasswordEntropy(). Il etait defini sans jamais etre consomme.
+// L echelle de updatePasswordEntropyBar() est volontairement laissee
+// inchangee : la modifier changerait les classes CSS rendues.
+export function getStrengthLevel(entropy) {
   if (entropy >= 80) return 4;
   if (entropy >= 60) return 3;
   if (entropy >= 40) return 2;

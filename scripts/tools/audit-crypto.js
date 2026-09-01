@@ -309,7 +309,7 @@
             let saltBytes;
             if (typeof salt === "string") {
                 try { saltBytes = base64ToBytes(salt); }
-                catch(e) { saltBytes = new TextEncoder().encode(salt); }
+                catch { saltBytes = new TextEncoder().encode(salt); }
             } else if (salt instanceof Uint8Array) {
                 saltBytes = salt;
             } else if (salt instanceof ArrayBuffer) {
@@ -335,7 +335,7 @@
             let saltBytes;
             if (typeof salt === "string") {
                 try { saltBytes = base64ToBytes(salt); }
-                catch(e) { saltBytes = new TextEncoder().encode(salt); }
+                catch { saltBytes = new TextEncoder().encode(salt); }
             } else if (salt instanceof Uint8Array) {
                 saltBytes = salt;
             } else if (salt instanceof ArrayBuffer) {
@@ -371,7 +371,7 @@
         }
 
         // Log structured report to console
-        console.log("=== Vault Personal Cryptographic Audit Report ===");
+        console.log("=== CryptoKeep Cryptographic Audit Report ===");
         // IV uniqueness results
         if (report.ivDuplicates.length === 0) {
             console.log("1. IV Uniqueness: PASS - All IVs are unique across encrypted entries.");

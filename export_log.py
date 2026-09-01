@@ -23,7 +23,7 @@ header = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Logs • Vault Personal</title>
+  <title>Logs • CryptoKeep</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -154,7 +154,7 @@ header = """<!DOCTYPE html>
 <body>
   <header>
     <div class="logo">
-      <svg viewBox="0 0 24 24"><path d="M12,1L3,5v6c0,5.…"/></svg> Vault Personal
+      <svg viewBox="0 0 24 24"><path d="M12,1L3,5v6c0,5.…"/></svg> CryptoKeep
     </div>
     <h1>Rapport des Logs Système</h1>
     <p class="subtitle">Journal complet des activités et événements du système</p>
@@ -220,7 +220,7 @@ footer = f"""  </div>
   <button class="to-top" id="to-top" title="Remonter en haut">↑</button>
 
   <footer>
-    Rapport généré le {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')} • Vault Personal Log •
+    Rapport généré le {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')} • CryptoKeep Log •
     <span id="render-time"></span>
   </footer>
 </body>

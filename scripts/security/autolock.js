@@ -1,3 +1,16 @@
+/**
+ * CryptoKeep - Verrouillage automatique : IMPLEMENTATION HISTORIQUE.
+ *
+ * STATUT : conservee pour compatibilite. Cette classe reste exportee, reste
+ * utilisable et reste couverte par les tests. Elle ne lit toutefois pas le
+ * reglage d activation du verrouillage, n ecoute ni le pointeur, ni le
+ * tactile, ni la visibilite de l onglet, et son minuteur demarre des le
+ * chargement de la page, avant toute authentification.
+ *
+ * REMPLACANT : scripts/security/autolock-controller.js (Lot 1), branche par
+ * scripts/app.js. Le present fichier n est pas supprime et sert encore de
+ * source unique pour DELAY_OPTIONS, AUTOLOCK_KEY et getStoredDelay().
+ */
 const DELAY_OPTIONS = {
   '1 minute': 60,
   '2 minutes': 120,
@@ -152,4 +165,4 @@ export class AutoLock {
     }
   }
 }
-export { getStoredDelay };
+export { getStoredDelay, DELAY_OPTIONS, AUTOLOCK_KEY };
