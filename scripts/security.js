@@ -1,4 +1,5 @@
-async getPasswordStats() {
+class SecurityManager {
+    async getPasswordStats() {
     const entries = await this.decryptAllEntries();
     const stats = {
         total: entries.length,
