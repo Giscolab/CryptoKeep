@@ -233,8 +233,19 @@
 								<h3>Accès récents</h3>
 								<div class="vault-actions">
 									<button type="button" class="sort-button"><i class="fas fa-sort"></i> Trier</button>
-									<button><i class="fas fa-filter"></i> Filtrer</button>
+									<!-- Lot 3b : ce bouton n'etait raccorde a rien. Il affiche desormais
+									     le groupe de filtres de categorie du tableau de bord. -->
+									<button type="button" class="filter-button" aria-expanded="false" aria-controls="dashboardCategoryFilter"><i class="fas fa-filter"></i> Filtrer</button>
 								</div>
+							</div>
+							<!-- Lot 3b : memes categories, meme etat et meme pipeline que la vue
+							     des mots de passe. Masque tant que « Filtrer » n'est pas actionne. -->
+							<div class="category-filter" id="dashboardCategoryFilter" hidden>
+								<button class="category-btn" type="button" data-category="all" aria-pressed="false">Tous</button>
+								<button class="category-btn" type="button" data-category="bank" aria-pressed="false"><i class="fas fa-university"></i> Banque</button>
+								<button class="category-btn" type="button" data-category="email" aria-pressed="false"><i class="fas fa-envelope"></i> Email</button>
+								<button class="category-btn" type="button" data-category="cloud" aria-pressed="false"><i class="fas fa-cloud"></i> Cloud</button>
+								<button class="category-btn" type="button" data-category="social" aria-pressed="false"><i class="fas fa-share-alt"></i> Réseaux sociaux</button>
 							</div>
 							<section class="vault-list" id="recent-entries">
 								<!-- Éléments injectés dynamiquement -->
@@ -254,7 +265,7 @@
 							</div>
 						</header>
 						<div class="password-tools">
-							<div class="category-filter">
+							<div class="category-filter" id="passwordsCategoryFilter">
 								<button class="category-btn active" type="button" data-category="all" aria-pressed="true">Tous</button>
 								<button class="category-btn" type="button" data-category="bank" aria-pressed="false"><i class="fas fa-university"></i> Banque</button>
 								<button class="category-btn" type="button" data-category="email" aria-pressed="false"><i class="fas fa-envelope"></i> Email</button>
@@ -263,7 +274,9 @@
 							</div>
 							<div class="vault-actions">
 								<button type="button" class="sort-button"><i class="fas fa-sort"></i> Trier</button>
-								<button><i class="fas fa-filter"></i> Filtrer</button>
+								<!-- Lot 3b : ce bouton n'etait raccorde a rien. Il masque et reaffiche
+								     desormais le groupe de filtres de categorie de cette vue. -->
+								<button type="button" class="filter-button" aria-expanded="true" aria-controls="passwordsCategoryFilter"><i class="fas fa-filter"></i> Filtrer</button>
 							</div>
 						</div>
 						<!-- Conteneur principal des mots de passe -->

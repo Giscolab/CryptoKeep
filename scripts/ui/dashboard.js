@@ -1,5 +1,36 @@
+/**
+ * CryptoKeep - Acces recents du tableau de bord.
+ *
+ * LOT 3B - DEUX IMPLEMENTATIONS UNIFIEES.
+ *
+ * Ce module et scripts/ui/vault-list/vault-list.js rendaient tous deux le
+ * conteneur #recent-entries, avec des fiches DIFFERENTES : celle-ci proposait
+ * « Copier » et « Modifier », l'autre seulement « Copier ». scripts/app.js
+ * appelait celle-ci apres le deverrouillage, puis le rafraichissement
+ * centralise appelait l'autre : le bouton « Modifier » disparaissait donc
+ * quelques instants apres son affichage, sans action de l'utilisateur.
+ *
+ * L'implementation retenue est celle de vault-list.js, seule a partager
+ * l'etat de recherche, de filtre et de tri des deux vues. Elle a recu le
+ * bouton « Modifier », qui ouvre desormais la fenetre d'edition complete.
+ *
+ * `renderRecentAccesses` exportee ici DELEGUE a cette implementation unique :
+ * les appelants existants (scripts/app.js) n'ont pas a changer et ne peuvent
+ * plus produire un rendu concurrent.
+ *
+ * L'implementation historique est CONSERVEE sous le nom
+ * `renderRecentAccessesLegacy`. Elle n'est plus raccordee : son bouton
+ * « Modifier » redirigeait vers la vue des mots de passe puis y reactivait
+ * l'edition en ligne (`fa-save`, classe `editing`), chemin de sauvegarde
+ * supprime au Lot 3. Le bouton « Enregistrer » qu'elle affichait n'aurait
+ * donc plus rien enregistre. Elle utilise en outre `confirm()`, boite
+ * bloquante du navigateur, la ou le projet dispose de `confirmDialog`.
+ * Elle reste exportee a titre documentaire et de reference historique.
+ */
+
 // ✅ Import de showView utilisé pour la redirection depuis les accès récents
 import { showView } from './sidebar.js';
+import { renderRecentAccesses as renderUnifiedRecentAccesses } from './vault-list/vault-list.js';
 import { vaultManager } from '../core/vault/manager.js';
 import { copyToClipboard } from '../utils/clipboard.js';
 
@@ -85,7 +116,21 @@ function findVaultItemById(id) {
     .find(item => item.dataset.id === targetId) || null;
 }
 
+/**
+ * Acces recents : implementation UNIQUE, partagee avec la vue des mots de
+ * passe. Applique la meme recherche, le meme filtre de categorie et le meme
+ * mode de tri, et affiche le bouton « Modifier ».
+ */
 export async function renderRecentAccesses(limit = 4) {
+  return renderUnifiedRecentAccesses(limit);
+}
+
+/**
+ * IMPLEMENTATION HISTORIQUE, conservee et non raccordee. Voir l'entete de ce
+ * fichier. Ne pas rebrancher sans retablir d'abord un chemin de sauvegarde
+ * pour l'edition en ligne, supprime au Lot 3.
+ */
+export async function renderRecentAccessesLegacy(limit = 4) {
   const container = document.getElementById('recent-entries');
   if (!container) return;
 
@@ -110,7 +155,7 @@ export async function renderRecentAccesses(limit = 4) {
       const copied = await copyToClipboard(entry.password);
       if (!copied) return;
       await vaultManager.markEntryAccessed(entry.id);
-      renderRecentAccesses(); // ✅ On re-render pour garder l'ordre à jour
+      renderRecentAccessesLegacy(); // ✅ On re-render pour garder l'ordre à jour
     });
 
     // ✅ Bouton MODIFIER : redirige vers passwords-view et scroll vers l'entrée

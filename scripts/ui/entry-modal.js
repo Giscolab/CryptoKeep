@@ -69,7 +69,20 @@ export function resetEntryForm(fields) {
     });
 
   if (fields.password) fields.password.type = 'password';
-  if (fields.category) fields.category.selectedIndex = 0;
+
+  if (fields.category) {
+    // Lot 3b : retire les options ajoutees dynamiquement pour representer la
+    // categorie historique de l'entree PRECEDEMMENT ouverte. Sans ce nettoyage
+    // elles s'accumuleraient d'une ouverture a l'autre. Les options du markup
+    // ne sont jamais touchees.
+    const ajoutees = typeof fields.category.querySelectorAll === 'function'
+      ? Array.from(fields.category.querySelectorAll('option[data-entry-category-added="true"]'))
+      : [];
+    ajoutees.forEach((option) => {
+      if (typeof option.remove === 'function') option.remove();
+    });
+    fields.category.selectedIndex = 0;
+  }
 
   if (fields.toggle) {
     const icon = fields.toggle.querySelector('i');
@@ -129,7 +142,23 @@ export function openEditModal(fields, entry) {
     const cible = entry.category === 'bank' ? 'banking' : entry.category;
     const option = Array.from(fields.category.options || [])
       .find((opt) => opt.value === cible || opt.value === entry.category);
-    if (option) fields.category.value = option.value;
+
+    if (option) {
+      fields.category.value = option.value;
+    } else if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+      // LOT 3B : categorie persistee inconnue du markup. Sans option
+      // correspondante, le `<select>` afficherait « Aucune catégorie » et la
+      // validation du formulaire effacerait silencieusement une valeur que
+      // l'utilisateur n'a pas touchee. L'option est donc ajoutee pour que le
+      // formulaire represente fidelement l'entree ouverte.
+      const ajoutee = document.createElement('option');
+      if (ajoutee.dataset) ajoutee.dataset.entryCategoryAdded = 'true';
+      ajoutee.value = entry.category;
+      // textContent : aucune donnee d'entree ne passe par innerHTML.
+      ajoutee.textContent = entry.category;
+      fields.category.appendChild(ajoutee);
+      fields.category.value = entry.category;
+    }
   }
 
   if (fields.heading) fields.heading.textContent = 'Modifier ce mot de passe';
@@ -153,11 +182,22 @@ function readForm(fields) {
     tags: value(fields.tags)
   };
 
-  // La categorie n'est transmise que si l'utilisateur en a reellement une :
-  // un `<select>` non touche ne doit pas ecraser silencieusement la categorie
-  // d'une ancienne entree.
-  const categorie = value(fields.category);
-  if (categorie) input.category = categorie;
+  // LOT 3B - DEFAUT CORRIGE. La categorie n'etait transmise que lorsqu'elle
+  // etait NON VIDE : selectionner « Aucune catégorie » ne transmettait donc
+  // rien, la fusion partielle conservait l'ancienne valeur et la categorie
+  // d'une entree etait impossible a effacer depuis l'interface.
+  //
+  // Elle est desormais TOUJOURS transmise des que le `<select>` existe : la
+  // chaine vide vaut « aucune categorie », et `normalizeCategory('')` la
+  // renvoie telle quelle. L'entree perd alors sa categorie persistee et
+  // l'affichage repasse au repli par inference, sans jamais reecrire cette
+  // inference dans l'entree.
+  //
+  // Le risque d'ecrasement silencieux qui motivait l'ancien comportement est
+  // traite en amont, dans `openEditModal()` : une entree portant une
+  // categorie absente de la liste des options se voit ajouter son option, de
+  // sorte que le `<select>` represente fidelement l'entree ouverte.
+  if (fields.category) input.category = value(fields.category);
 
   return input;
 }

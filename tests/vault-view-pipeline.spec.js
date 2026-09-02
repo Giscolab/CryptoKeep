@@ -234,13 +234,47 @@ try {
     assert.equal(buildVisibleEntries(entrees, { query: '', category: 'bank' }).length, 3);
     assert.equal(buildVisibleEntries(entrees, {}).length, 5);
 
-    // 43. les deux vues utilisent la MEME fonction : memes entrees, meme etat,
-    // donc resultat strictement identique.
+    // 43. LOT 3B - TEST CORRIGE. La version precedente comparait
+    // `buildVisibleEntries(entrees, vue)` avec LUI-MEME : elle etait
+    // tautologique et serait restee verte quelle que soit l'implementation.
+    //
+    // Ce qui doit reellement etre prouve, c'est que le pipeline est
+    // INDEPENDANT de l'ordre d'arrivee des entrees : deux vues qui recoivent
+    // la meme liste dans un ordre different doivent afficher exactement la
+    // meme chose. C'est la condition pour que le tableau de bord et la vue
+    // des mots de passe ne divergent jamais.
+    //
+    // La coherence des deux vues REELLES — memes conteneurs, memes boutons —
+    // est verifiee au niveau application dans tests/lot3b-integration.spec.js
+    // (scenarios E1 a E5).
     const vue = { query: 'cafe', category: 'bank', sortMode: 'title-asc' };
+    const ordreInverse = [...entrees].reverse();
+    const melange = [entrees[2], entrees[0], entrees[4], entrees[3], entrees[1]];
+
+    const reference = buildVisibleEntries(entrees, vue).map((e) => e.id);
+    assert.deepEqual(reference, ['4', '1'], 'Resultat attendu du pipeline');
     assert.deepEqual(
-      buildVisibleEntries(entrees, vue).map((e) => e.id),
-      buildVisibleEntries(entrees, vue).map((e) => e.id),
-      'Le pipeline doit etre deterministe entre deux vues'
+      buildVisibleEntries(ordreInverse, vue).map((e) => e.id),
+      reference,
+      'Inverser l ordre source ne doit pas changer le rendu'
+    );
+    assert.deepEqual(
+      buildVisibleEntries(melange, vue).map((e) => e.id),
+      reference,
+      'Melanger l ordre source ne doit pas changer le rendu'
+    );
+
+    // Et le pipeline doit rester sensible a ses parametres : un test qui ne
+    // distingue pas deux etats differents ne prouve rien.
+    assert.notDeepEqual(
+      buildVisibleEntries(entrees, { ...vue, category: 'all' }).map((e) => e.id),
+      reference,
+      'Changer de categorie doit changer le resultat'
+    );
+    assert.notDeepEqual(
+      buildVisibleEntries(entrees, { ...vue, query: '' }).map((e) => e.id),
+      reference,
+      'Changer la recherche doit changer le resultat'
     );
   }
 

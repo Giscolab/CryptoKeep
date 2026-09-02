@@ -391,6 +391,9 @@ function initializeVaultControls() {
     });
   });
 
+  // Le bouton « Actualiser » de la vue des mots de passe. Il est resolu APRES
+  // les boutons de tri et de filtre pour ne jamais capter l'un d'eux.
+  const refreshButton = document.querySelector('#vault-list .vault-actions button');
   if (refreshButton && !sortButtons.includes(refreshButton) && !filterToggles.includes(refreshButton)) {
     refreshButton.addEventListener('click', async () => {
       try {
@@ -679,5 +682,7 @@ export {
   getPasswordsViewControls,
   renderVaultEntries,
   renderRecentAccesses,
+  renderAllVaultViews,
+  buildVisibleRecentEntries,
   clearVaultListSession
 };

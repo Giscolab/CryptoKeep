@@ -42,6 +42,39 @@ try {
     !vaultListSource.includes('.storage.'),
     'L UI ne doit pas acceder directement au stockage du coffre.'
   );
+
+  // --- LOT 3B : un seul raccordement du generateur de mot de passe --------
+  // Un SECOND ecouteur `click` etait installe sur #generate-password par
+  // scripts/app.js, en plus de celui de scripts/ui/entry-modal.js : un clic
+  // unique generait deux mots de passe, dont un jete sans usage. Cette garde
+  // est statique et couvre TOUS les fichiers de scripts/, y compris ceux que
+  // les tests d'integration ne chargent pas.
+  const codeUtile = (source) => source
+    .split(/\r?\n/)
+    .filter((ligne) => !ligne.trim().startsWith('//'))
+    .join('\n');
+
+  const raccordementsGenerateur = sources.filter(({ source }) => {
+    const utile = codeUtile(source);
+    return /generate-password/.test(utile) && /addEventListener\s*\(\s*['"]click['"]/.test(utile);
+  });
+  assert(
+    raccordementsGenerateur.length === 1,
+    'Le generateur de mot de passe doit etre raccorde par UN SEUL module, '
+    + `trouve dans : ${raccordementsGenerateur.map((f) => f.file).join(', ') || 'aucun'}`
+  );
+  assert(
+    raccordementsGenerateur[0].file.replace(/\\/g, '/').endsWith('scripts/ui/entry-modal.js'),
+    'Le seul raccordement du generateur doit etre celui de entry-modal.js.'
+  );
+
+  const appSource = sources.find(({ file }) => file.replace(/\\/g, '/').endsWith('scripts/app.js'));
+  assert(Boolean(appSource), 'scripts/app.js doit etre analyse par cette garde.');
+  assert(
+    !/PasswordGenerator/.test(codeUtile(appSource.source)),
+    'scripts/app.js ne doit plus utiliser PasswordGenerator : le generateur '
+    + 'appartient desormais au seul entry-modal.js.'
+  );
   const blockedHost = 'cdnjs.cloudflare.com';
   const urlCandidates = [
     ...indexSource.matchAll(/\b(?:src|href)\s*=\s*["']([^"']+)["']/gi),
