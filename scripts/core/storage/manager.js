@@ -2,6 +2,12 @@ import {
 	openDB
 } from './indexeddb.js';
 import { validateVaultRecord } from './vault-format.js';
+// `readLocalBackup` n'est plus importe ici : la lecture de la sauvegarde
+// secondaire appartient desormais au seul service securise, qui la valide
+// et la dechiffre avant tout usage.
+import { writeLocalBackup } from './local-backup.js';
+import { canonicalize } from './vault-transaction.js';
+import { restoreBackupWhenPrimaryMissing } from './backup-restore-service.js';
 
 function waitForTransaction(transaction) {
 	return new Promise((resolve, reject) => {
@@ -49,11 +55,29 @@ export class StorageManager {
 			entries,
 			meta
 		});
+
+		// 1. transaction IndexedDB unique.
 		const tx = this.db.transaction('vault', 'readwrite');
 		const store = tx.objectStore('vault');
 		store.put(vaultRecord);
+
+		// 2. attente de la VALIDATION de la transaction. Si elle est annulee,
+		//    la promesse est rejetee ici et aucune sauvegarde secondaire n'est
+		//    ecrite : l'ancien record reste intact.
 		await waitForTransaction(tx);
-		this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
+
+		// 3. relecture puis 4. comparaison canonique du record ecrit.
+		//    Lot 2 partie 2 : la sauvegarde secondaire ne doit jamais etre
+		//    consideree comme reussie avant validation de l'ecriture
+		//    principale. Une comparaison de taille ne suffirait pas.
+		const reread = await this.loadVault();
+		if (canonicalize(reread) !== canonicalize(vaultRecord)) {
+			throw new Error('Vault write verification failed: re-read record differs.');
+		}
+
+		// 5. seulement ensuite : sauvegarde secondaire VERSIONNEE.
+		this.lastBackupResult = this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
+		return this.lastBackupResult;
 	}
 	/**
 	 * Lot 2 : ecrit un record de coffre deja normalise dans UNE transaction
@@ -99,43 +123,88 @@ export class StorageManager {
 		const store = tx.objectStore('vault');
 		store.put(vaultRecord);
 		await waitForTransaction(tx);
-		this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
+
+		// Meme discipline que saveVault : relecture et comparaison canonique
+		// AVANT toute mise a jour de la sauvegarde secondaire.
+		const reread = await this.loadVault();
+		if (canonicalize(reread) !== canonicalize(vaultRecord)) {
+			throw new Error('Vault import verification failed: re-read record differs.');
+		}
+
+		this.lastBackupResult = this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
+		return this.lastBackupResult;
 	}
 	/**
 	 * Restaure le vault à partir du backup local dans localStorage (si présent).
 	 * @returns {boolean} true si restauration réussie, false sinon
 	 */
-	async restoreFromLocalBackup() {
-		const encoded = localStorage.getItem('vaultBackup');
-		if (!encoded) return false;
-		try {
-			const json = atob(encoded);
-			const vaultData = JSON.parse(json);
-			await this.importFullVault(vaultData);
-			return true;
-		} catch (err) {
-			console.warn('[Vault Backup] Local backup restoration failed:', err);
-			return false;
+	async restoreFromLocalBackup(options = {}) {
+		// === Lot 2 partie 2b : porte arriere fermee ======================
+		//
+		// METHODE CONSERVEE. Elle restaurait encore le coffre principal en
+		// appelant directement importFullVault(), donc SANS mot de passe,
+		// SANS confirmation, SANS verification du bloc cryptographique et
+		// SANS authentification des entrees. Une sauvegarde structurellement
+		// valide mais au ciphertext altere etait ecrite telle quelle.
+		// Reproduction : restoreResult true, writes 1, restoredTampered true.
+		//
+		// Elle ne restaure plus rien par elle-meme. Deux comportements :
+		//
+		//  1. si les rappels obligatoires sont fournis, elle DELEGUE au
+		//     service securise backup-restore-service.js, qui applique le
+		//     contrat complet du Lot 2 : information, confirmation explicite,
+		//     mot de passe, derivation, bloc de validation, dechiffrement
+		//     authentifie de TOUTES les entrees, validation du plaintext,
+		//     garde anti-course, transaction unique, relecture verifiee ;
+		//
+		//  2. sinon, elle refuse explicitement avec `secure_restore_required`
+		//     et n'ecrit STRICTEMENT rien.
+		//
+		// CHANGEMENT DE CONTRAT ASSUME : la valeur de retour n'est plus un
+		// booleen mais un objet portant `restored`. Aucun appelant du depot
+		// n'utilisait la valeur booleenne (verifie par recherche).
+		//
+		// @param {{requestPassword?: Function, confirmRestore?: Function,
+		//          localStorageRef?: object}} options
+		// @returns {Promise<{restored: boolean, reason?: string}>}
+		const { requestPassword, confirmRestore, localStorageRef } = options;
+
+		if (typeof requestPassword !== 'function' || typeof confirmRestore !== 'function') {
+			return Object.freeze({
+				restored: false,
+				reason: 'secure_restore_required',
+				message: 'Restauration refusee : elle exige une confirmation explicite, le mot de passe du coffre et une verification cryptographique complete. Utilisez backup-restore-service.js.'
+			});
 		}
+
+		return restoreBackupWhenPrimaryMissing({
+			storage: this,
+			localStorageRef: localStorageRef
+				?? (typeof localStorage !== 'undefined' ? localStorage : null),
+			requestPassword,
+			confirmRestore
+		});
 	}
 	/**
 	 * Sauvegarde automatique locale chiffrée (backup redondant).
 	 * @param {Array} entries - Données chiffrées.
 	 * @param {Object} meta - Métadonnées avec salt.
 	 */
-	async saveToLocalBackup(entries, meta) {
-		try {
-			const backupData = {
-				id: 'current',
-				entries,
-				meta
-			};
-			const json = JSON.stringify(backupData);
-			const encoded = btoa(json); // Simple backup encodé base64
-			localStorage.setItem('vaultBackup', encoded);
-		} catch (err) {
-			console.warn('[Vault Backup] Local backup save failed:', err);
-		}
+	saveToLocalBackup(entries, meta) {
+		// === Lot 2 partie 2 : delegation a la couche versionnee ===
+		// METHODE CONSERVEE, signature inchangee. Elle ecrivait directement
+		// localStorage['vaultBackup'] en base64, ce qui maintenait un second
+		// mecanisme de sauvegarde concurrent a chaque ecriture ordinaire du
+		// coffre. Elle alimente desormais la SEULE destination normale :
+		// l'enveloppe versionnee cryptokeep.backup.v1.
+		//
+		// `vaultBackup` n'est plus jamais une destination d'ecriture. Il ne
+		// subsiste que comme format historique detectable et migrable.
+		//
+		// Un echec de sauvegarde secondaire (quota par exemple) n'invalide pas
+		// le coffre principal deja ecrit et verifie : le rapport est retourne
+		// a l'appelant, qui decide d'en avertir l'utilisateur.
+		return writeLocalBackup({ id: 'current', entries, meta });
 	}
 	/**
 	 * Charge manuellement les données brutes du vault.

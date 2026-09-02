@@ -221,7 +221,17 @@ export async function importVaultFile(file, deps = {}) {
       allEntriesDecrypted: true
     };
 
-    if (typeof confirmImport === 'function') {
+    // Lot 2 partie 2 : l'absence de callback ne vaut jamais consentement
+    // implicite. Sans confirmation possible, aucune persistance.
+    if (typeof confirmImport !== 'function') {
+      throw new VaultImportError(
+        'confirmation_required',
+        'Une confirmation explicite est requise avant de remplacer le coffre.',
+        { summary }
+      );
+    }
+
+    {
       const confirmed = await confirmImport(summary);
       if (!confirmed) {
         // Annulation : le coffre courant est strictement inchange, aucune

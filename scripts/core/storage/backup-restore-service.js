@@ -30,7 +30,11 @@
 import { readLocalBackup, compareBackupFreshness } from './local-backup.js';
 import { validateImportedVaultStructure } from './vault-import-validator.js';
 import { verifyAndDecryptVault } from './vault-crypto-verify.js';
-import { createEncryptedSnapshot, writeVaultRecordVerified } from './vault-transaction.js';
+import {
+  canonicalize,
+  createEncryptedSnapshot,
+  writeVaultRecordVerified
+} from './vault-transaction.js';
 
 export class BackupRestoreError extends Error {
   constructor(code, message, details = {}) {
@@ -120,8 +124,30 @@ async function performRestore(envelope, deps, options) {
   // --- 2. l'enveloppe et son record ont deja ete valides a la lecture ---
   const validated = validateImportedVaultStructure(envelope.record);
 
-  // --- 4. confirmation explicite ---------------------------------------
-  if (typeof options.confirm === 'function') {
+  // === Lot 2 partie 2 : empreinte de l'etat AVANT le dialogue ===========
+  // Le dialogue utilisateur peut durer plusieurs secondes. Pendant ce temps,
+  // un coffre principal peut apparaitre (creation dans un autre onglet,
+  // import termine, restauration concurrente). L'etat observe maintenant
+  // sera compare a l'etat reel juste avant l'ecriture.
+  let primaryBefore = null;
+  try {
+    primaryBefore = await storage.loadVault();
+  } catch {
+    primaryBefore = null;
+  }
+  const primaryBeforeCanonical = canonicalize(primaryBefore ?? null);
+  const primaryWasUsable = isUsablePrimaryVault(primaryBefore);
+
+  // --- 4. confirmation explicite OBLIGATOIRE ---------------------------
+  // L'absence de callback ne vaut jamais consentement implicite.
+  if (typeof options.confirm !== 'function') {
+    throw new BackupRestoreError(
+      'confirmation_required',
+      'Une confirmation explicite est requise pour restaurer une sauvegarde.'
+    );
+  }
+
+  {
     const accepted = await options.confirm({
       entryCount: envelope.entryCount,
       backupCreatedAt: envelope.backupCreatedAt,
@@ -159,13 +185,42 @@ async function performRestore(envelope, deps, options) {
       );
     }
 
-    // --- 7 et 8. ecriture atomique puis verification -------------------
+    // === Lot 2 partie 2 : GARDE ANTI-COURSE, juste avant l'ecriture ======
+    // La decision ne repose jamais sur l'etat observe au debut du dialogue.
+    // IndexedDB est relu MAINTENANT, immediatement avant d'ecrire.
+    //
+    // Cette defense vit dans le service metier, pas dans l'interface : meme
+    // si app.js comporte une erreur de synchronisation, l'ecrasement est
+    // impossible.
     let currentRecord = null;
     try {
       currentRecord = await storage.loadVault();
     } catch {
       currentRecord = null;
     }
+
+    if (!primaryWasUsable && isUsablePrimaryVault(currentRecord)) {
+      // Un coffre principal valide est apparu pendant l'attente utilisateur.
+      // Il est prioritaire : la restauration est abandonnee sans ecriture.
+      throw new BackupRestoreError(
+        'primary_vault_has_priority',
+        'Un coffre principal valide est apparu pendant la confirmation. Restauration abandonnee, le coffre est conserve.',
+        { appearedDuringDialog: true, wrote: false }
+      );
+    }
+
+    if (canonicalize(currentRecord ?? null) !== primaryBeforeCanonical) {
+      // L'etat du stockage principal a change depuis le debut du dialogue,
+      // sans etre passe de « inexploitable » a « valide ». On refuse quand
+      // meme : la decision de l'utilisateur portait sur un autre etat.
+      throw new BackupRestoreError(
+        'primary_vault_changed',
+        'Le stockage principal a change pendant la confirmation. Restauration abandonnee.',
+        { changedDuringDialog: true, wrote: false }
+      );
+    }
+
+    // --- 7 et 8. ecriture atomique puis verification -------------------
     const snapshot = createEncryptedSnapshot(currentRecord);
 
     await writeVaultRecordVerified(storage, validated.normalized, snapshot);

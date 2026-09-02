@@ -1,7 +1,10 @@
-import { validateVaultRecord } from './vault-format.js';
+// `validateVaultRecord` (vault-format.js) reste la validation historique et
+// demeure utilisee par StorageManager. Ce fichier s'appuie desormais sur le
+// validateur strict du Lot 2, plus exigeant, via les modules ci-dessous.
 import { MAX_VAULT_FILE_BYTES } from './import-limits.js';
 import { validateImportedVaultStructure } from './vault-import-validator.js';
 import { assertImportableFile, readVaultFile } from './vault-import-service.js';
+import { writeLocalBackup, readLocalBackup, clearLocalBackup } from './local-backup.js';
 
 /**
  * Limite de taille du fichier importe.
@@ -53,8 +56,17 @@ export async function importVault(file) {
  * @param {Object} meta - Métadonnées (inclut salt, date, etc.)
  */
 export function backupToLocal(entries, meta) {
-  const backup = JSON.stringify({ entries, meta });
-  localStorage.setItem('vaultBackup', backup);
+  // === Lot 2 partie 2 : delegation a la couche versionnee ===
+  // FONCTION CONSERVEE, signature inchangee. Elle ecrivait un objet JSON
+  // direct sous la cle `vaultBackup`, format incompatible avec celui de
+  // StorageManager.saveToLocalBackup() qui utilisait la MEME cle en base64.
+  // Ces deux formats historiques sont desormais uniquement lus et migres.
+  //
+  // La seule destination d'ecriture est l'enveloppe versionnee
+  // `cryptokeep.backup.v1`. Ni le JSON ni le base64 ne chiffraient quoi que
+  // ce soit : la confidentialite venait uniquement du fait que le contenu
+  // etait deja chiffre par AES-GCM. C'est desormais verifie a l'ecriture.
+  return writeLocalBackup({ id: 'current', entries, meta });
 }
 
 /**
@@ -62,13 +74,15 @@ export function backupToLocal(entries, meta) {
  * @returns {Object|null} - Objet {entries, meta} ou null si absent
  */
 export function restoreFromLocal() {
-  const raw = localStorage.getItem('vaultBackup');
-  if (!raw) return null;
+  // FONCTION CONSERVEE. Elle lit desormais la sauvegarde VERSIONNEE, dont
+  // le record est revalide integralement a la lecture. Elle ne restaure
+  // rien par elle-meme : elle retourne l'enregistrement chiffre ou null.
   try {
-    return validateVaultRecord(JSON.parse(raw));
+    const envelope = readLocalBackup();
+    return envelope ? envelope.record : null;
   } catch {
-    // Liaison de capture retiree : la valeur n'etait pas utilisee et ne
-    // doit pas etre journalisee (elle peut refleter du contenu de coffre).
+    // Aucune valeur n'est journalisee : elle pourrait refleter du contenu
+    // de coffre.
     console.warn('[Vault] Backup corrompu.');
     return null;
   }
@@ -78,5 +92,9 @@ export function restoreFromLocal() {
  * Efface le backup local si nécessaire
  */
 export function clearBackup() {
-  localStorage.removeItem('vaultBackup');
+  // FONCTION CONSERVEE. Efface la sauvegarde versionnee ET la cle
+  // historique. Comme clearLocalBackup(), elle reste volontairement NON
+  // raccordee au bouton de suppression du coffre : ce flux appartient au
+  // Lot 8.
+  return clearLocalBackup({ includeLegacy: true });
 }

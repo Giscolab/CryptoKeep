@@ -274,7 +274,16 @@ export async function importCsvFile(file, deps = {}) {
     }
 
     // --- apercu et confirmation explicite -------------------------------
-    if (typeof confirmImport === 'function') {
+    // Lot 2 partie 2 : l'absence de callback ne vaut jamais consentement
+    // implicite. Sans confirmation possible, aucune persistance.
+    if (typeof confirmImport !== 'function') {
+      throw new CsvImportError(
+        'confirmation_required',
+        'Une confirmation explicite est requise avant d\'ajouter des entrees.'
+      );
+    }
+
+    {
       const accepted = await confirmImport({
         mapping: analysis.mapping,
         headers: analysis.headers,

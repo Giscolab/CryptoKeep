@@ -112,7 +112,19 @@ try {
     const lu = readLegacyBackup({ storage: store });
     assert.equal(lu.format, 'json', 'Le format JSON direct doit etre reconnu');
 
-    const rapport = await migrateLegacyBackup({ storage: store, now: '2026-04-01T00:00:00.000Z' });
+    // Lot 2 partie 2 : la verification cryptographique est desormais
+    // OBLIGATOIRE. Sans elle, la migration est refusee (couvert par
+    // tests/legacy-backup-migration.spec.js).
+    const refus = await migrateLegacyBackup({ storage: store });
+    assert.equal(refus.migrated, false, 'Sans verificateur, la migration doit etre refusee');
+    assert.equal(refus.reason, 'verification_required');
+    assert.ok(store.getItem(LEGACY_BACKUP_KEY), 'L\'ancienne cle doit survivre au refus');
+
+    const rapport = await migrateLegacyBackup({
+      storage: store,
+      now: '2026-04-01T00:00:00.000Z',
+      verifyRecord: async () => { /* verification fournie par l'appelant */ }
+    });
     assert.equal(rapport.migrated, true, 'Migration JSON echouee');
     assert.equal(rapport.sourceFormat, 'json');
     assert.equal(rapport.legacyPreserved, false, 'L\'ancienne cle doit etre supprimee apres succes');
@@ -128,7 +140,10 @@ try {
     const lu = readLegacyBackup({ storage: store });
     assert.equal(lu.format, 'base64', 'Le format base64 doit etre reconnu');
 
-    const rapport = await migrateLegacyBackup({ storage: store });
+    const rapport = await migrateLegacyBackup({
+      storage: store,
+      verifyRecord: async () => { /* verification fournie par l'appelant */ }
+    });
     assert.equal(rapport.migrated, true, 'Migration base64 echouee');
     assert.equal(rapport.sourceFormat, 'base64');
     assert.equal(store.getItem(LEGACY_BACKUP_KEY), null);

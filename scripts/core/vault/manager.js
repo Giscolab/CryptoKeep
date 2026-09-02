@@ -53,9 +53,21 @@ export class VaultManager {
     return Boolean(await this.storage.loadVault());
   }
 
-  async restoreFromLocalBackup() {
+  /**
+   * Facade publique de la couche de compatibilite.
+   *
+   * Lot 2 partie 2b : ne restaure plus rien par elle-meme. Sans les rappels
+   * `requestPassword` et `confirmRestore`, elle renvoie le refus explicite
+   * `secure_restore_required` et n'ecrit rien. Avec eux, elle delegue au
+   * service securise, qui exige confirmation, mot de passe et verification
+   * cryptographique complete.
+   *
+   * @param {{requestPassword?: Function, confirmRestore?: Function}} [options]
+   * @returns {Promise<{restored: boolean, reason?: string}>}
+   */
+  async restoreFromLocalBackup(options = {}) {
     await this.initializeStorage();
-    return this.storage.restoreFromLocalBackup();
+    return this.storage.restoreFromLocalBackup(options);
   }
 
   async initialize(password) {

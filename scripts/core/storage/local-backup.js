@@ -267,7 +267,13 @@ export function readLegacyBackup(options = {}) {
  * de toutes les entrees sont delegues a `verifyRecord`, fourni par
  * l'appelant : ce module ne connait ni le mot de passe ni les cles.
  *
- * @param {{storage?: object, verifyRecord?: (record: object) => Promise<void>, now?: string}} options
+ * `verifyRecord` est OBLIGATOIRE (Lot 2 partie 2). Une sauvegarde
+ * structurellement valide mais cryptographiquement invalide n'est PAS
+ * migrable : sans verification, la migration est refusee et `vaultBackup`
+ * est integralement conserve. Le service complet, qui fournit cette
+ * verification, est scripts/core/storage/legacy-backup-migration.js.
+ *
+ * @param {{storage?: object, verifyRecord: (record: object) => Promise<void>, now?: string}} options
  */
 export async function migrateLegacyBackup(options = {}) {
   const storage = resolveStorage(options.storage);
@@ -285,19 +291,31 @@ export async function migrateLegacyBackup(options = {}) {
 
   if (!legacy) return { migrated: false, reason: 'no_legacy_backup' };
 
-  if (typeof options.verifyRecord === 'function') {
-    try {
-      await options.verifyRecord(legacy.record);
-    } catch (error) {
-      // Verification cryptographique impossible : on ne migre pas, et
-      // surtout on ne supprime pas l'ancienne valeur.
-      return {
-        migrated: false,
-        reason: 'verification_failed',
-        code: error && error.code ? error.code : 'unknown',
-        legacyPreserved: true
-      };
-    }
+  // === Lot 2 partie 2 : verification cryptographique OBLIGATOIRE ===
+  // Sans elle, une sauvegarde simplement bien formee pouvait etre promue en
+  // enveloppe "validee" puis l'originale supprimee, alors que son contenu
+  // etait indechiffrable. L'absence de verificateur vaut refus, jamais
+  // consentement implicite.
+  if (typeof options.verifyRecord !== 'function') {
+    return {
+      migrated: false,
+      reason: 'verification_required',
+      legacyPreserved: true
+    };
+  }
+
+  try {
+    await options.verifyRecord(legacy.record);
+  } catch (error) {
+    // Mauvais mot de passe, bloc de validation altere, AAD incorrecte ou
+    // entree alteree : on ne migre pas, on n'ecrit rien, et surtout on ne
+    // supprime pas l'ancienne valeur.
+    return {
+      migrated: false,
+      reason: 'verification_failed',
+      code: error && error.code ? error.code : 'unknown',
+      legacyPreserved: true
+    };
   }
 
   const envelope = buildBackupEnvelope(legacy.record, { now: options.now });

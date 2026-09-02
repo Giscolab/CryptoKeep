@@ -28,7 +28,10 @@ import {
 	inspectRestoreSituation,
 	restoreBackupWhenPrimaryMissing
 } from './core/storage/backup-restore-service.js';
-import { migrateLegacyBackup } from './core/storage/local-backup.js';
+import {
+	migrateLegacyBackupVerified,
+	inspectLegacyBackup
+} from './core/storage/legacy-backup-migration.js';
 import { requestPasswordDialog, confirmDialog } from './ui/secure-dialogs.js';
 import {
 	probeStoragePersistence,
@@ -190,6 +193,55 @@ void probeStoragePersistence().then((report) => {
 }).catch((err) => {
 	console.warn('[Vault] Sonde de persistance indisponible :', err?.message || err);
 });
+// === Migration VERIFIEE de la sauvegarde historique (Lot 2, partie 2) ===
+// N'est proposee que si une ancienne cle `vaultBackup` existe reellement.
+// Aucune suppression n'a lieu avant verification cryptographique complete.
+async function runVerifiedLegacyMigration() {
+	try {
+		const inspection = inspectLegacyBackup({ storage: localStorage });
+		if (!inspection.present) return false;
+
+		if (!inspection.structurallyValid) {
+			console.warn('[Vault Backup] Sauvegarde historique illisible : conservee telle quelle.');
+			return false;
+		}
+
+		const proceed = await confirmDialog({
+			title: 'Migrer votre ancienne sauvegarde locale ?',
+			message: 'Une sauvegarde au format historique a ete detectee. Sa migration exige son mot de passe afin de verifier qu\'elle est reellement dechiffrable.',
+			lines: [
+				['Format detecte', String(inspection.format)],
+				['Entrees', String(inspection.entryCount)],
+				['Format du coffre', `v${inspection.formatVersion}`]
+			],
+			warning: 'Tant que la verification n\'a pas reussi, l\'ancienne sauvegarde est conservee intacte.',
+			confirmLabel: 'Verifier et migrer'
+		});
+		if (!proceed) return false;
+
+		const report = await migrateLegacyBackupVerified({
+			storage: localStorage,
+			requestPassword: requestPasswordDialog
+		});
+
+		if (report.migrated) {
+			showToast(`Sauvegarde historique (${report.sourceFormat}) migree et verifiee.`, 'success');
+			return true;
+		}
+
+		if (report.reason === 'verification_failed') {
+			showToast(
+				'Verification impossible : l\'ancienne sauvegarde est conservee, rien n\'a ete supprime.',
+				'error', 10000
+			);
+		}
+		return false;
+	} catch (err) {
+		console.warn('[Vault Backup] Migration historique refusee :', err?.code || 'inconnu');
+		return false;
+	}
+}
+
 // === Restauration CONTROLEE de la sauvegarde secondaire (Lot 2) ===
 // Cette fonction PROPOSE. Elle n'ecrit rien sans confirmation explicite,
 // mot de passe et verification cryptographique complete.
@@ -248,13 +300,15 @@ vaultManager.initializeStorage().then(async () => {
 	// sans confirmation ni verification cryptographique. La methode est
 	// conservee dans StorageManager mais n'est plus declenchee seule.
 	//
-	// A la place : migration silencieuse de l'ancienne cle vers l'enveloppe
+	// A la place : migration VERIFIEE de l'ancienne cle vers l'enveloppe
 	// versionnee, puis simple PROPOSITION si le coffre principal manque.
-	void migrateLegacyBackup({ storage: localStorage }).then((migration) => {
-		if (migration.migrated) {
-			console.info('[Vault Backup] Sauvegarde historique migree :', migration.sourceFormat);
-		}
-	}).catch(() => { /* migration best-effort */ });
+	//
+	// Lot 2 partie 2 : la migration exigeait auparavant la seule validite
+	// structurelle. Une sauvegarde bien formee mais indechiffrable pouvait
+	// donc etre promue en enveloppe « validee » et l'originale supprimee.
+	// Elle exige desormais le mot de passe et une verification
+	// cryptographique complete. En cas d'echec, `vaultBackup` est conserve.
+	void runVerifiedLegacyMigration();
 
 	if (!hasVault) {
 		void proposeBackupRestoreIfNeeded();
