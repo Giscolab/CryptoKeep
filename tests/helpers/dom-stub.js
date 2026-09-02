@@ -15,6 +15,12 @@ export class StubClassList {
   add(...names) { names.forEach((n) => this._set.add(n)); }
   remove(...names) { names.forEach((n) => this._set.delete(n)); }
   contains(name) { return this._set.has(name); }
+  /** Ajoute ou retire selon `force`, comme DOMTokenList.toggle. */
+  toggle(name, force) {
+    const shouldAdd = force === undefined ? !this._set.has(name) : Boolean(force);
+    if (shouldAdd) this._set.add(name); else this._set.delete(name);
+    return shouldAdd;
+  }
   toString() { return Array.from(this._set).join(' '); }
 }
 

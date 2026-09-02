@@ -6,7 +6,11 @@ import { validateVaultRecord } from './vault-format.js';
 // secondaire appartient desormais au seul service securise, qui la valide
 // et la dechiffre avant tout usage.
 import { writeLocalBackup } from './local-backup.js';
-import { canonicalize } from './vault-transaction.js';
+import {
+	canonicalize,
+	createEncryptedSnapshot,
+	writeVaultRecordVerified
+} from './vault-transaction.js';
 import { restoreBackupWhenPrimaryMissing } from './backup-restore-service.js';
 
 function waitForTransaction(transaction) {
@@ -56,24 +60,41 @@ export class StorageManager {
 			meta
 		});
 
-		// 1. transaction IndexedDB unique.
-		const tx = this.db.transaction('vault', 'readwrite');
-		const store = tx.objectStore('vault');
-		store.put(vaultRecord);
-
-		// 2. attente de la VALIDATION de la transaction. Si elle est annulee,
-		//    la promesse est rejetee ici et aucune sauvegarde secondaire n'est
-		//    ecrite : l'ancien record reste intact.
-		await waitForTransaction(tx);
-
-		// 3. relecture puis 4. comparaison canonique du record ecrit.
-		//    Lot 2 partie 2 : la sauvegarde secondaire ne doit jamais etre
-		//    consideree comme reussie avant validation de l'ecriture
-		//    principale. Une comparaison de taille ne suffirait pas.
-		const reread = await this.loadVault();
-		if (canonicalize(reread) !== canonicalize(vaultRecord)) {
-			throw new Error('Vault write verification failed: re-read record differs.');
+		// 0. INSTANTANE CHIFFRE du coffre courant, pris AVANT toute ecriture.
+		//
+		//    LOT 3B - DEFAUT CORRIGE. Cette methode validait la transaction,
+		//    relisait, comparait, puis se contentait de LEVER une erreur en
+		//    cas de divergence. Le stockage persistant restait alors sur le
+		//    nouveau ciphertext alors que l'appelant recevait un echec et que
+		//    l'etat en memoire conservait l'ancienne entree : un ajout, une
+		//    modification ou une suppression signale comme echoue pouvait
+		//    donc etre reellement persiste. La couche d'ecriture verifiee du
+		//    Lot 2 (vault-transaction.js) existait deja mais n'etait pas
+		//    utilisee par ce chemin.
+		//
+		//    L'instantane ne contient que { id, iv, ciphertext } et des
+		//    metadonnees non secretes : aucune donnee dechiffree n'y figure.
+		//    Son absence n'empeche jamais l'ecriture — un coffre inexistant,
+		//    a la premiere creation, n'a simplement rien a restaurer — et
+		//    l'echec de sa construction ne doit pas faire echouer une
+		//    sauvegarde par ailleurs legitime.
+		let snapshot = null;
+		try {
+			const current = await this.loadVault();
+			if (current) snapshot = validateVaultRecord(createEncryptedSnapshot(current));
+		} catch {
+			snapshot = null;
 		}
+
+		// 1 a 4. ecriture dans UNE transaction, attente de la VALIDATION,
+		//    relecture, comparaison canonique (cles triees ; une comparaison
+		//    de taille ne suffirait pas). Si, et seulement si, la transaction
+		//    a ete validee mais que la relecture diverge, l'instantane est
+		//    reecrit puis cette restauration est elle-meme relue et verifiee.
+		//    Apres une transaction ANNULEE, aucune restauration n'est tentee :
+		//    l'ancien record est intact par construction et une ecriture
+		//    supplementaire pourrait au contraire ecraser des donnees saines.
+		await writeVaultRecordVerified(this, vaultRecord, snapshot);
 
 		// 5. seulement ensuite : sauvegarde secondaire VERSIONNEE.
 		this.lastBackupResult = this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);

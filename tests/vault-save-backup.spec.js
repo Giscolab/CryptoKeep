@@ -112,10 +112,14 @@ try {
 
     const rapport = await sm.saveVault(coffre.record.entries, coffre.record.meta);
 
+    // LOT 3B : une lecture PREALABLE s'ajoute en tete. Elle construit
+    // l'instantane chiffre du coffre courant, sans lequel une ecriture
+    // validee mais divergente ne pourrait pas etre annulee. Elle ne modifie
+    // rien et l'ordre des etapes suivantes est inchange.
     assert.deepEqual(
       journal,
-      ['idb:put', 'idb:commit', 'idb:read', `ls:write:${BACKUP_KEY_V1}`],
-      'Ordre attendu : ecriture IndexedDB, validation, relecture, puis sauvegarde secondaire'
+      ['idb:read', 'idb:put', 'idb:commit', 'idb:read', `ls:write:${BACKUP_KEY_V1}`],
+      'Ordre attendu : instantane, ecriture IndexedDB, validation, relecture, puis sauvegarde secondaire'
     );
     assert.equal(rapport.written, true, 'La sauvegarde secondaire doit reussir');
 
@@ -165,9 +169,19 @@ try {
     const sm = new StorageManager();
     sm.db = makeFakeDb(journal, { corruptRead: true }).db;
 
+    // Ici le coffre de depart est vide : aucun instantane exploitable n'est
+    // disponible, la restauration est donc IMPOSSIBLE et doit etre annoncee
+    // comme telle plutot que presentee comme reussie.
     await assert.rejects(
       sm.saveVault(coffre.record.entries, coffre.record.meta),
-      /verification failed/,
+      (error) => {
+        assert.equal(error.name, 'VaultWriteError');
+        assert.equal(error.code, 'verification_failed');
+        assert.equal(error.details.restored, false,
+          'Sans instantane, aucune restauration ne doit etre annoncee');
+        assert.equal(error.details.restoreNeeded, true);
+        return true;
+      },
       'Une relecture divergente doit rejeter'
     );
 

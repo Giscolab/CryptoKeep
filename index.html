@@ -154,7 +154,7 @@
 							<div class="header-controls">
 								<div class="search-bar">
 									<i class="fas fa-search"></i>
-									<input type="text" placeholder="Rechercher un mot de passe...">
+									<input type="text" placeholder="Rechercher un mot de passe..." id="dashboardSearchInput" aria-label="Rechercher un mot de passe">
 								</div>
 								<button class="add-button">
 									<i class="fas fa-plus"></i> Ajouter un mot de passe </button>
@@ -232,7 +232,7 @@
 							<div class="vault-header">
 								<h3>Accès récents</h3>
 								<div class="vault-actions">
-									<button><i class="fas fa-sort"></i> Trier</button>
+									<button type="button" class="sort-button"><i class="fas fa-sort"></i> Trier</button>
 									<button><i class="fas fa-filter"></i> Filtrer</button>
 								</div>
 							</div>
@@ -255,14 +255,14 @@
 						</header>
 						<div class="password-tools">
 							<div class="category-filter">
-								<button class="category-btn active">Tous</button>
-								<button class="category-btn"><i class="fas fa-university"></i> Banque</button>
-								<button class="category-btn"><i class="fas fa-envelope"></i> Email</button>
-								<button class="category-btn"><i class="fas fa-cloud"></i> Cloud</button>
-								<button class="category-btn"><i class="fas fa-share-alt"></i> Réseaux sociaux</button>
+								<button class="category-btn active" type="button" data-category="all" aria-pressed="true">Tous</button>
+								<button class="category-btn" type="button" data-category="bank" aria-pressed="false"><i class="fas fa-university"></i> Banque</button>
+								<button class="category-btn" type="button" data-category="email" aria-pressed="false"><i class="fas fa-envelope"></i> Email</button>
+								<button class="category-btn" type="button" data-category="cloud" aria-pressed="false"><i class="fas fa-cloud"></i> Cloud</button>
+								<button class="category-btn" type="button" data-category="social" aria-pressed="false"><i class="fas fa-share-alt"></i> Réseaux sociaux</button>
 							</div>
 							<div class="vault-actions">
-								<button><i class="fas fa-sort"></i> Trier</button>
+								<button type="button" class="sort-button"><i class="fas fa-sort"></i> Trier</button>
 								<button><i class="fas fa-filter"></i> Filtrer</button>
 							</div>
 						</div>
@@ -704,7 +704,7 @@
 						</div>
 					</section>
 					<!-- Modal d'ajout de mot de passe -->
-					<div class="modal-overlay" id="passwordModal">
+					<div class="modal-overlay" id="passwordModal" role="dialog" aria-modal="true" aria-hidden="true">
 						<div class="password-modal">
 							<div class="modal-header">
 								<h3>Ajouter un nouveau mot de passe</h3>
@@ -724,7 +724,8 @@
 										<label for="password">Mot de passe</label>
 										<div class="password-input-wrapper">
 											<input type="password" id="password" placeholder="Créez un mot de passe fort">
-											<button type="button" class="toggle-password"><i class="fas fa-eye"></i></button>
+											<button type="button" class="toggle-password" title="Afficher ou masquer le mot de passe" aria-label="Afficher ou masquer le mot de passe"><i class="fas fa-eye"></i></button>
+											<button type="button" id="generate-password" class="btn btn-secondary" title="Generer un mot de passe" aria-label="Generer un mot de passe fort"><i class="fas fa-dice"></i> Générer</button>
 											<div class="password-strength-bar">
 												<div class="entropy-bar">
 													<div class="fill"></div>
@@ -739,6 +740,7 @@
 									<div class="form-group">
 										<label for="category">Catégorie</label>
 										<select id="category">
+											<option value="">Aucune catégorie</option>
 											<option value="banking">Banque</option>
 											<option value="email">Email</option>
 											<option value="cloud">Stockage cloud</option>
@@ -752,6 +754,15 @@
 										<label for="website">URL du site web (facultatif)</label>
 										<input type="url" id="website" placeholder="https://">
 									</div>
+								<div class="form-group">
+									<label for="entry-tags">Étiquettes (facultatif)</label>
+									<input type="text" id="entry-tags" placeholder="perso, travail" aria-describedby="entry-tags-help">
+									<small id="entry-tags-help">Séparez les étiquettes par des virgules.</small>
+								</div>
+								<div class="form-group">
+									<label for="entry-notes">Notes (facultatif)</label>
+									<textarea id="entry-notes" rows="3" placeholder="Question secrète, code de secours..."></textarea>
+								</div>
 								</div>
 								<div class="form-footer">
 									<button class="btn btn-secondary" id="cancelAddModalBtn" type="button">Annuler</button>

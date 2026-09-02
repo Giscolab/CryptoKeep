@@ -1,14 +1,27 @@
 import { showToast } from '../../utils/toast.js';
-import { filterEntries, inferCategory, sortEntries } from '../../utils/vault-filters.js';
+import {
+  buildVisibleEntries,
+  filterEntries,
+  sortEntries,
+  resolveCategory
+} from '../../utils/vault-filters.js';
+import { deleteEntry, describeEntryForConfirmation } from '../../core/vault/entry-operations.js';
+import { confirmDialog } from '../secure-dialogs.js';
+import { readViewPreferences, writeViewPreferences } from '../../utils/view-preferences.js';
 import { vaultManager } from '../../core/vault/manager.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
+
+// Preferences NON SENSIBLES restaurees au chargement : categorie et mode de
+// tri, tous deux issus de listes fermees. Le terme de recherche n'est jamais
+// persiste : saisie libre pouvant contenir du plaintext de coffre.
+const storedPreferences = readViewPreferences();
 
 const vaultUIState = {
   initialized: false,
   rawEntries: [],
   query: '',
-  category: 'all',
-  sortMode: 'title-asc'
+  category: storedPreferences.category,
+  sortMode: storedPreferences.sortMode
 };
 
 function getIconClass(title) {
@@ -66,9 +79,12 @@ function createEmptyMessage(text) {
 
 function resetVaultUIState() {
   vaultUIState.rawEntries = [];
+  // Le terme de recherche est TOUJOURS purge : saisie libre pouvant
+  // contenir un fragment de donnee de coffre.
   vaultUIState.query = '';
-  vaultUIState.category = 'all';
-  vaultUIState.sortMode = 'title-asc';
+  const preferences = readViewPreferences();
+  vaultUIState.category = preferences.category;
+  vaultUIState.sortMode = preferences.sortMode;
 }
 
 function setSortButtonContent(button) {
@@ -95,7 +111,9 @@ function createVaultEntryElement(entry) {
   const wrapper = document.createElement('div');
   wrapper.className = 'vault-item';
   wrapper.dataset.id = toText(entry.id);
-  wrapper.dataset.category = inferCategory(entry);
+  // Categorie EFFECTIVE : valeur persistee si elle existe, sinon inference
+  // historique. L'entree elle-meme n'est jamais modifiee par l'affichage.
+  wrapper.dataset.category = resolveCategory(entry);
 
   const accountInfo = document.createElement('div');
   accountInfo.className = 'account-info';
@@ -199,21 +217,36 @@ function createRecentEntryElement(entry) {
 
   const actions = document.createElement('div');
   actions.className = 'actions';
-  actions.appendChild(createIconButton('copy', 'Copier', 'fa-copy'));
+  // LOT 3B : le bouton « Modifier » est retabli ici. Deux implementations
+  // concurrentes de la liste des acces recents coexistaient : celle de
+  // scripts/ui/dashboard.js offrait « Copier » et « Modifier », celle-ci
+  // seulement « Copier ». Comme le rafraichissement centralise passait par
+  // celle-ci, le bouton « Modifier » disparaissait des que la vue etait
+  // reactualisee. Les deux fiches sont desormais identiques.
+  actions.append(
+    createIconButton('copy', 'Copier', 'fa-copy'),
+    createIconButton('edit', 'Modifier', 'fa-edit')
+  );
 
   wrapper.append(accountInfo, actions);
   return wrapper;
 }
 
+/**
+ * Pipeline unique, partage avec toutes les vues :
+ * entrees de session -> recherche -> filtre categorie -> tri -> rendu.
+ */
 function getVisibleEntries() {
-  const filtered = filterEntries(vaultUIState.rawEntries, {
+  return buildVisibleEntries(vaultUIState.rawEntries, {
     query: vaultUIState.query,
-    category: vaultUIState.category
+    category: vaultUIState.category,
+    sortMode: vaultUIState.sortMode
   });
-
-  return sortEntries(filtered, vaultUIState.sortMode);
 }
 
+// HELPER HISTORIQUE conserve. Il ne resolvait que les controles de la vue
+// des mots de passe ; initializeVaultControls() raccorde desormais les DEUX
+// vues. Exporte pour rester utilisable, mais plus appele en interne.
 function getPasswordsViewControls() {
   const passwordsView = document.getElementById('passwords-view');
   if (!passwordsView) return {};
@@ -226,54 +259,146 @@ function getPasswordsViewControls() {
   };
 }
 
+/** Applique un etat accessible au groupe de boutons de categorie. */
+function markActiveCategory(buttons, category) {
+  buttons.forEach((button) => {
+    const isActive = (button.dataset.category || 'all') === category;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+/** Persiste les seules preferences non sensibles : categorie et tri. */
+function persistViewPreferences() {
+  writeViewPreferences({
+    category: vaultUIState.category,
+    sortMode: vaultUIState.sortMode
+  });
+}
+
+/**
+ * Raccorde les controles des DEUX vues.
+ *
+ * Le champ de recherche du tableau de bord n'avait ni identifiant ni
+ * gestionnaire : il ne faisait rien. Il partage desormais exactement le meme
+ * etat et le meme pipeline que celui de la vue des mots de passe.
+ */
 function initializeVaultControls() {
   if (vaultUIState.initialized) return;
 
-  const { searchInput, categoryButtons, sortButton, refreshButton } = getPasswordsViewControls();
+  const searchInputs = Array.from(
+    document.querySelectorAll('#searchInput, #dashboardSearchInput')
+  );
 
-  if (searchInput) {
-    searchInput.addEventListener('input', (event) => {
-      vaultUIState.query = event.target.value || '';
-      renderVaultEntries(vaultUIState.rawEntries);
+  const applySearch = (value) => {
+    vaultUIState.query = value || '';
+    // Les deux champs restent synchronises : une meme recherche, un meme
+    // resultat, quelle que soit la vue.
+    searchInputs.forEach((input) => {
+      if (input.value !== vaultUIState.query) input.value = vaultUIState.query;
     });
-  }
+    // LOT 3B : les DEUX vues sont rendues. Auparavant seule `#entries` etait
+    // reconstruite, si bien qu'une recherche saisie sur le tableau de bord
+    // ne modifiait rien de ce que le tableau de bord affichait.
+    renderAllVaultViews();
+  };
 
-  categoryButtons?.forEach((button) => {
-    const label = button.textContent?.toLowerCase() || '';
-    const category = label.includes('banque') ? 'bank'
-      : label.includes('email') ? 'email'
-        : label.includes('cloud') ? 'cloud'
-          : label.includes('réseaux') ? 'social'
-            : 'all';
+  searchInputs.forEach((input) => {
+    input.addEventListener('input', (event) => applySearch(event.target.value));
+  });
 
-    button.dataset.category = category;
+  const categoryButtons = Array.from(
+    document.querySelectorAll('.category-filter .category-btn')
+  );
 
-    button.addEventListener('click', () => {
+  categoryButtons.forEach((button) => {
+    // La categorie provient de l'attribut `data-category` du markup ; le
+    // libelle ne sert que de repli pour les boutons historiques.
+    if (!button.dataset.category) {
+      const label = button.textContent?.toLowerCase() || '';
+      button.dataset.category = label.includes('banque') ? 'bank'
+        : label.includes('email') ? 'email'
+          : label.includes('cloud') ? 'cloud'
+            : label.includes('seaux') ? 'social'
+              : 'all';
+    }
+
+    button.setAttribute('aria-pressed', 'false');
+
+    const activate = () => {
       vaultUIState.category = button.dataset.category || 'all';
+      markActiveCategory(categoryButtons, vaultUIState.category);
+      persistViewPreferences();
+      renderAllVaultViews();
+    };
 
-      categoryButtons.forEach(btn => btn.classList.remove('active'));
-      button.classList.add('active');
-      renderVaultEntries(vaultUIState.rawEntries);
+    button.addEventListener('click', activate);
+    button.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        activate();
+      }
     });
   });
 
-  if (sortButton) {
-    sortButton.addEventListener('click', () => {
+  markActiveCategory(categoryButtons, vaultUIState.category);
+
+  const sortButtons = Array.from(document.querySelectorAll('.vault-actions button.sort-button'));
+  const legacySort = document.querySelector('#passwords-view .password-tools .vault-actions button:first-child');
+  if (legacySort && !sortButtons.includes(legacySort)) sortButtons.push(legacySort);
+
+  sortButtons.forEach((button) => {
+    setSortButtonContent(button);
+    button.addEventListener('click', () => {
       vaultUIState.sortMode = vaultUIState.sortMode === 'title-asc' ? 'recent' : 'title-asc';
-      setSortButtonContent(sortButton);
-
-      renderVaultEntries(vaultUIState.rawEntries);
+      sortButtons.forEach(setSortButtonContent);
+      persistViewPreferences();
+      renderAllVaultViews();
     });
-  }
+  });
 
-  if (refreshButton) {
+  // --- boutons « Filtrer » ------------------------------------------------
+  // LOT 3B : ces deux boutons existaient dans index.html sans aucun
+  // gestionnaire. Ils ne sont plus decoratifs : chacun affiche ou masque le
+  // groupe de filtres de categorie de sa propre vue, designe par
+  // `aria-controls`. Si ce groupe est introuvable, le bouton est
+  // explicitement desactive plutot que de rester inerte en silence.
+  const filterToggles = Array.from(
+    document.querySelectorAll('.vault-actions button.filter-button')
+  );
+
+  filterToggles.forEach((button) => {
+    const groupId = button.getAttribute('aria-controls');
+    const group = groupId ? document.getElementById(groupId) : null;
+
+    if (!group) {
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.title = 'Aucun groupe de filtres associé à ce bouton.';
+      return;
+    }
+
+    const syncState = () => {
+      const visible = !group.hidden;
+      button.setAttribute('aria-expanded', visible ? 'true' : 'false');
+      button.classList.toggle('active', visible);
+    };
+
+    syncState();
+    button.addEventListener('click', () => {
+      group.hidden = !group.hidden;
+      syncState();
+    });
+  });
+
+  if (refreshButton && !sortButtons.includes(refreshButton) && !filterToggles.includes(refreshButton)) {
     refreshButton.addEventListener('click', async () => {
       try {
         const decrypted = await vaultManager.decryptAllEntries();
         renderVaultEntries(decrypted);
         showToast('Liste des mots de passe actualisée.', 'success');
       } catch (error) {
-        console.error(error);
+        console.warn('[Vault] Actualisation impossible :', error?.name || 'erreur');
         showToast('Impossible d’actualiser les entrées.', 'error');
       }
     });
@@ -311,6 +436,28 @@ function renderVaultEntries(entries) {
   document.dispatchEvent(new CustomEvent('vault-entries-rendered'));
 }
 
+/**
+ * Raccorde les actions d'une entree rendue.
+ *
+ * DEFAUT CORRIGE (Lot 3) : la sauvegarde d'une edition en ligne etait
+ * branchee sur DEUX evenements a la fois :
+ *
+ *     input.addEventListener('blur', saveEdit);
+ *     btn.addEventListener('click', saveEdit);
+ *
+ * Cliquer sur le bouton retirait le focus du champ : `blur` declenchait
+ * `saveEdit`, puis `click` le declenchait une seconde fois. Les
+ * `removeEventListener` etaient places APRES plusieurs `await`, donc trop
+ * tard. Chaque sauvegarde appelait en plus `markEntryAccessed`, ce qui
+ * pouvait porter une seule action utilisateur a quatre ecritures, deux IV et
+ * deux ciphertexts pour la meme modification.
+ *
+ * L'edition en ligne est desormais remplacee par l'ouverture de la fenetre
+ * d'edition complete : un seul evenement, un seul chemin de sauvegarde, et
+ * tous les champs modifiables. Le verrou d'entry-operations.js garantit
+ * qu'une action utilisateur ne produit qu'une operation, meme si plusieurs
+ * evenements la demandent.
+ */
 function bindEntryActions(container) {
   container.querySelectorAll('.action-btn.copy').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -345,68 +492,118 @@ function bindEntryActions(container) {
       const id = btn.closest('.vault-item')?.dataset.id;
       if (!id) return;
 
-      if (!confirm('Supprimer cette entrée ?')) return;
+      // Verrou local : un second clic pendant la confirmation ou l'ecriture
+      // est ignore. Le verrou d'entry-operations.js constitue la seconde
+      // barriere, cote metier.
+      if (btn.dataset.deleting === 'true') return;
+      btn.dataset.deleting = 'true';
+      btn.disabled = true;
 
       try {
-        await vaultManager.deleteEntry(id);
-        renderVaultEntries(vaultManager.getEntries());
-        await renderRecentAccesses();
+        const entry = vaultManager.getEntries().find((item) => item.id === id);
+        const identite = describeEntryForConfirmation(entry);
+
+        // Confirmation identifiant l'entree par une donnee NON SECRETE.
+        // Construction par textContent uniquement : aucune donnee de coffre
+        // ne passe par innerHTML.
+        const lignes = [['Entrée', identite.title]];
+        if (identite.host) lignes.push(['Site', identite.host]);
+        if (identite.username) lignes.push(['Identifiant', identite.username]);
+
+        const confirme = await confirmDialog({
+          title: 'Supprimer cette entrée ?',
+          message: 'Cette action est définitive pour cette entrée.',
+          lines: lignes,
+          warning: 'Le mot de passe et les notes ne sont pas affichés ici.',
+          confirmLabel: 'Supprimer'
+        });
+        if (!confirme) return;
+
+        await deleteEntry(vaultManager, id);
         showToast('Entrée supprimée.', 'success');
+        // Les vues sont rafraichies par l'abonnement centralise a
+        // `vault:entries-changed`.
       } catch (error) {
-        console.error(error);
-        showToast('Erreur lors de la suppression.', 'error');
+        console.warn('[Vault] Suppression refusee :', error?.code || 'erreur');
+        showToast(error?.message || 'Erreur lors de la suppression.', 'error');
+      } finally {
+        btn.dataset.deleting = 'false';
+        btn.disabled = false;
       }
     });
   });
 
   container.querySelectorAll('.action-btn.edit').forEach(btn => {
     btn.addEventListener('click', () => {
-      const item = btn.closest('.vault-item');
-      const input = item?.querySelector('.password-input');
-      const urlInput = item?.querySelector('.url-input');
-      if (!item || !input) return;
+      const id = btn.closest('.vault-item')?.dataset.id;
+      if (!id) return;
 
-      input.removeAttribute('readonly');
-      input.type = 'text';
-      input.focus();
-      urlInput?.removeAttribute('readonly');
-
-      setButtonIcon(btn, 'fa-save');
-      btn.title = 'Enregistrer';
-      btn.classList.add('editing');
-
-      async function saveEdit() {
-        input.setAttribute('readonly', true);
-        input.type = 'password';
-        urlInput?.setAttribute('readonly', true);
-        setButtonIcon(btn, 'fa-edit');
-        btn.title = 'Modifier';
-        btn.classList.remove('editing');
-
-        const id = item.dataset.id;
-
-        try {
-          await vaultManager.updateEntry(id, {
-            password: input.value,
-            url: urlInput?.value || ''
-          });
-          await vaultManager.markEntryAccessed(id);
-          renderVaultEntries(vaultManager.getEntries());
-          await renderRecentAccesses();
-          showToast('Mot de passe mis à jour.', 'success');
-        } catch (error) {
-          console.error(error);
-          showToast('Erreur lors de la mise à jour.', 'error');
-        }
-
-        input.removeEventListener('blur', saveEdit);
-        btn.removeEventListener('click', saveEdit);
+      // UN SEUL evenement, un seul chemin. La fenetre d'edition prend le
+      // relais et permet de modifier tous les champs persistes.
+      if (typeof CustomEvent === 'function') {
+        document.dispatchEvent(new CustomEvent('vault:edit-entry', { detail: { entryId: id } }));
       }
-
-      input.addEventListener('blur', saveEdit);
-      btn.addEventListener('click', saveEdit);
     });
   });
+}
+
+/**
+ * Entrees dechiffrees de la SESSION servant de source aux deux vues.
+ *
+ * `vaultUIState.rawEntries` est alimente par `renderVaultEntries()`. Avant le
+ * premier rendu de la liste complete - juste apres le deverrouillage, par
+ * exemple - il est vide : la source de reference reste alors le gestionnaire
+ * de coffre. Aucune lecture de stockage n'est faite ici.
+ */
+function sessionEntries() {
+  return vaultUIState.rawEntries.length > 0
+    ? vaultUIState.rawEntries
+    : vaultManager.getEntries();
+}
+
+/** Ordre des acces recents, deterministe jusqu'aux egalites. */
+function byMostRecentAccess(a, b) {
+  const diff = (b.lastAccessed || 0) - (a.lastAccessed || 0);
+  if (diff !== 0) return diff;
+  const titleA = typeof a.title === 'string' ? a.title : '';
+  const titleB = typeof b.title === 'string' ? b.title : '';
+  if (titleA !== titleB) return titleA < titleB ? -1 : 1;
+  const idA = typeof a.id === 'string' ? a.id : '';
+  const idB = typeof b.id === 'string' ? b.id : '';
+  return idA < idB ? -1 : (idA > idB ? 1 : 0);
+}
+
+/**
+ * Acces recents VISIBLES : meme recherche, meme filtre de categorie et meme
+ * mode de tri que la vue des mots de passe.
+ *
+ * LOT 3B - DEFAUT CORRIGE. Le champ de recherche du tableau de bord etait
+ * bien ecoute, mais son gestionnaire ne rendait que `#entries`, conteneur de
+ * la vue des mots de passe. Sur le tableau de bord, `#recent-entries` restait
+ * strictement inchange : la recherche, le filtre et le tri ne produisaient
+ * aucun effet visible la ou l'utilisateur les actionnait.
+ *
+ * @returns {{visible: Array, accessed: number}} `accessed` compte les entrees
+ *          reellement consultees, AVANT recherche et filtre. Il permet de
+ *          distinguer « aucun acces recent » de « aucun resultat pour cette
+ *          recherche » sans jamais afficher un message faussement rassurant.
+ */
+function buildVisibleRecentEntries(limit) {
+  const accessed = sessionEntries().filter((entry) => entry.lastAccessed);
+
+  const filtered = filterEntries(accessed, {
+    query: vaultUIState.query,
+    category: vaultUIState.category
+  });
+
+  // Le mode de tri est celui, unique, partage par les deux vues. En mode
+  // « récents » l'ordre est celui des acces ; en mode « A-Z » c'est le
+  // comparateur Unicode commun qui s'applique.
+  const ordered = vaultUIState.sortMode === 'title-asc'
+    ? sortEntries(filtered, 'title-asc')
+    : [...filtered].sort(byMostRecentAccess);
+
+  return { visible: ordered.slice(0, limit), accessed: accessed.length };
 }
 
 async function renderRecentAccesses(limit = 4) {
@@ -415,28 +612,54 @@ async function renderRecentAccesses(limit = 4) {
 
   container.replaceChildren();
 
-  const entries = vaultManager.getEntries()
-    .filter(entry => entry.lastAccessed)
-    .sort((a, b) => b.lastAccessed - a.lastAccessed)
-    .slice(0, limit);
+  const { visible, accessed } = buildVisibleRecentEntries(limit);
 
-  if (!entries.length) {
-    container.replaceChildren(createEmptyMessage('Aucun accès récent.'));
+  if (!visible.length) {
+    // Message HONNETE : il distingue l'absence d'acces recent de l'absence
+    // de resultat pour la recherche en cours.
+    container.replaceChildren(createEmptyMessage(
+      accessed === 0
+        ? 'Aucun accès récent.'
+        : 'Aucun accès récent ne correspond à la recherche actuelle.'
+    ));
     return;
   }
 
-  for (const entry of entries) {
+  for (const entry of visible) {
     const wrapper = createRecentEntryElement(entry);
 
     wrapper.querySelector('.copy')?.addEventListener('click', async () => {
       const copied = await copyToClipboard(entry.password);
       if (!copied) return;
       await vaultManager.markEntryAccessed(entry.id);
-      renderRecentAccesses();
+      void renderRecentAccesses(limit);
+    });
+
+    // LOT 3B : « Modifier » ouvre la fenetre d'edition complete, exactement
+    // comme depuis la vue des mots de passe. L'implementation historique de
+    // dashboard.js redirigeait vers l'autre vue puis y reactivait l'edition
+    // en ligne, chemin de sauvegarde supprime au Lot 3 : le bouton
+    // « Enregistrer » qu'elle affichait n'enregistrait donc plus rien.
+    wrapper.querySelector('.edit')?.addEventListener('click', () => {
+      if (typeof CustomEvent !== 'function') return;
+      document.dispatchEvent(new CustomEvent('vault:edit-entry', {
+        detail: { entryId: entry.id }
+      }));
     });
 
     container.appendChild(wrapper);
   }
+}
+
+/**
+ * Rendu des DEUX vues a partir du meme etat.
+ *
+ * Chaque controle de recherche, de categorie ou de tri passe par ici : une
+ * seule action utilisateur met a jour la liste complete ET les acces recents.
+ */
+function renderAllVaultViews() {
+  renderVaultEntries(vaultUIState.rawEntries);
+  void renderRecentAccesses().catch(() => { /* rendu best-effort */ });
 }
 
 function clearVaultListSession() {
@@ -453,6 +676,7 @@ function clearVaultListSession() {
 }
 
 export {
+  getPasswordsViewControls,
   renderVaultEntries,
   renderRecentAccesses,
   clearVaultListSession

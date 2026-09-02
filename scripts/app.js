@@ -33,6 +33,8 @@ import {
 	inspectLegacyBackup
 } from './core/storage/legacy-backup-migration.js';
 import { requestPasswordDialog, confirmDialog } from './ui/secure-dialogs.js';
+import { initEntryModal } from './ui/entry-modal.js';
+import { installVaultViewRefresh, refreshVaultViews } from './ui/vault-view-refresh.js';
 import {
 	probeStoragePersistence,
 	describePersistenceIssue
@@ -80,9 +82,10 @@ import {
 	updateSidebarProfile
 } from './ui/sidebar-profile.js';
 // === Utilitaires
-import {
-	PasswordGenerator
-} from './utils/password-generator.js';
+// `PasswordGenerator` n'est plus importe ici : depuis le Lot 3b, le seul
+// consommateur applicatif du generateur est scripts/ui/entry-modal.js.
+// Le module scripts/utils/password-generator.js est inchange, toujours
+// exporte et toujours teste.
 import {
 	showToast
 } from './utils/toast.js';
@@ -352,14 +355,19 @@ document.addEventListener('DOMContentLoaded', () => {
 		onLogout: () => autoLock.disarm()
 	});
 });
-const generateBtn = document.getElementById('generate-password');
-const passwordInput = document.getElementById('password');
-if (generateBtn && passwordInput && typeof PasswordGenerator !== "undefined") {
-	generateBtn.addEventListener('click', () => {
-		const password = PasswordGenerator.generate();
-		passwordInput.value = password;
-	});
-}
+// === Generateur de mot de passe (Lot 3b) ===
+// DEFAUT CORRIGE : un SECOND ecouteur `click` etait installe ici sur le meme
+// bouton #generate-password que scripts/ui/entry-modal.js. Un clic unique
+// generait donc deux mots de passe, dont un jete immediatement, et la valeur
+// finalement affichee dependait de l'ordre d'installation des ecouteurs.
+//
+// L'ecouteur UNIQUE vit desormais dans scripts/ui/entry-modal.js, section
+// « --- generateur --- ». Il utilise le meme PasswordGenerator, donc la meme
+// source exclusive crypto.getRandomValues, et diffuse en plus un evenement
+// `input` pour que l'indicateur de solidite ci-dessous soit reactualise.
+//
+// Le code retire est conserve a l'identique dans
+// logs/app-generator-listener.avant-lot3b.txt (dossier ignore par git).
 // Force du mot de passe en live
 document.getElementById('password').addEventListener('input', (e) => {
 	const strength = evaluatePasswordStrength(e.target.value);
@@ -416,6 +424,10 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 	// Le verrouillage automatique ne s'arme qu'apres authentification.
 	autoLock.arm();
 	hideAuthScreen();
+
+	// Rafraichissement centralise juste apres le deverrouillage : liste,
+	// acces recents, compteurs et statistiques repartent du meme etat.
+	void refreshVaultViews().catch(() => { /* rafraichissement best-effort */ });
 	const stats = await vaultManager.getPasswordStats();
 	// === MAJ DU SCORE DE SÉCURITÉ PRINCIPAL (block de la page d'accueil) ===
 	if (document.getElementById('stats-score')) {
@@ -537,34 +549,23 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 	}
 });
 // Formulaire d'ajout d'entrée
-const entryForm = document.getElementById('entry-form');
-if (entryForm) {
-	entryForm.addEventListener('submit', async (e) => {
-		e.preventDefault();
-		const title = document.getElementById('entry-title').value.trim();
-		const username = document.getElementById('entry-username').value.trim();
-		const password = document.getElementById('password').value;
-		if (!title || !username || !password) {
-			showToast("Tous les champs sont requis.", "error");
-			return;
-		}
-		try {
-		await vaultManager.addEntry({
-				title,
-				username,
-				password
-			});
-			document.getElementById('entry-title').value = '';
-			document.getElementById('entry-username').value = '';
-		document.getElementById('password').value = '';
-		renderVaultEntries(vaultManager.getEntries());
-		await renderRecentAccesses();
-			const stats = await vaultManager.getPasswordStats();
-			document.getElementById('stats-section').innerText = `Total: ${stats.total} | Réutilisés: ${stats.reused} | Faibles: ${stats.weak}`;
-			showToast("Entrée enregistrée avec succès.", "success");
-		} catch (err) {
-			console.error("Erreur lors de l'enregistrement :", err);
-			showToast("Échec lors de l'enregistrement.", "error");
-		}
-	});
-}
+// === Formulaire d'entree (Lot 3) =========================================
+// GESTIONNAIRE REMPLACE. L'ancien lisait uniquement le titre, le nom
+// d'utilisateur et le mot de passe : #website et #category etaient presents
+// dans le markup mais JAMAIS persistes. Il n'etait de toute facon jamais
+// atteignable, la fenetre #passwordModal n'ayant aucun gestionnaire
+// d'ouverture. Son code est conserve pour reference dans
+// logs/app-entry-form.avant-lot3.txt (dossier ignore par git).
+//
+// Le flux complet — ouverture, validation, generateur, categorie, notes,
+// etiquettes, ecriture atomique verifiee — vit desormais dans
+// scripts/ui/entry-modal.js, qui delegue a entry-operations.js.
+document.addEventListener('DOMContentLoaded', () => {
+	const modal = initEntryModal();
+	if (!modal.bound && modal.reason === 'modal_absent') {
+		console.warn('[Vault] Fenetre d\'entree introuvable dans le document.');
+	}
+
+	// Abonnement UNIQUE : toute mutation d'entree rafraichit les memes vues.
+	installVaultViewRefresh();
+});
