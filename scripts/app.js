@@ -41,6 +41,11 @@ import {
 	getLastAuditReport
 } from './ui/audit-report-view.js';
 import { initSettingsControls } from './ui/settings-controls.js';
+// Lot 8 : suppression volontaire. Le module n'agit que sur clic explicite du
+// bouton de la « Zone critique », puis apres saisie de la phrase exacte.
+import { initVaultDestructionControl } from './ui/vault-destruction-modal.js';
+import { clearOwnedClipboard } from './utils/clipboard.js';
+import { showAuthScreen } from './ui/auth-screen/auth-screen.js';
 import { installVaultViewRefresh, refreshVaultViews } from './ui/vault-view-refresh.js';
 import {
 	probeStoragePersistence,
@@ -315,6 +320,44 @@ async function proposeBackupRestoreIfNeeded() {
 }
 
 // === Ouverture IndexedDB et detection du premier lancement
+/**
+ * Lot 8 - Retour a l'etat de PREMIERE UTILISATION.
+ *
+ * Apres une suppression verifiee du coffre, l'ecran d'authentification doit
+ * redevenir un ecran de CREATION. Sans cela, l'utilisateur reste devant
+ * « Deverrouiller » alors qu'il n'y a plus rien a deverrouiller.
+ *
+ * Cette fonction reproduit exactement ce que fait le demarrage lorsqu'aucun
+ * coffre n'existe. Elle ne PRESUME rien : elle interroge le stockage, et ne
+ * bascule que si le coffre a reellement disparu.
+ *
+ * @returns {Promise<boolean>} true si l'ecran de creation est bien affiche
+ */
+async function restoreFirstUseScreen() {
+	let coffrePresent = true;
+	try {
+		coffrePresent = await vaultManager.hasVault();
+	} catch {
+		// Une lecture en echec n'est pas un coffre absent (regle du Lot 3c).
+		return false;
+	}
+	if (coffrePresent) return false;
+
+	vaultManager.isFirstTime = true;
+
+	const titleElement = document.getElementById('auth-title');
+	if (titleElement) titleElement.textContent = 'Creer un mot de passe maitre';
+	const bouton = document.getElementById('unlock-vault');
+	if (bouton) {
+		bouton.textContent = 'Creer';
+		bouton.disabled = false;
+	}
+
+	showAuthScreen();
+	await updateSidebarProfile();
+	return true;
+}
+
 let vaultReady = false;
 const unlockButton = document.getElementById('unlock-vault');
 if (unlockButton) unlockButton.disabled = true;
@@ -610,6 +653,22 @@ document.addEventListener('DOMContentLoaded', () => {
 	const reglages = initSettingsControls();
 	if (!reglages.bound && reglages.reason === 'view_absent') {
 		console.warn('[Vault] Panneau des reglages introuvable.');
+	}
+
+	// Lot 8 : le bouton « Zone critique » n'avait ni identifiant ni
+	// gestionnaire. Il est raccorde ici, et SEULEMENT raccorde : cet appel
+	// installe un ecouteur de clic, il ne supprime rien.
+	//
+	// Les surfaces reelles sont fournies par le module lui-meme ; ce qui est
+	// injecte ici, c'est ce qui depend de l'application : la purge memoire,
+	// le presse-papiers, et le retour a l'ecran de creation.
+	const suppression = initVaultDestructionControl({
+		clearSession: () => lockVaultSession(vaultManager, { notify: false }),
+		clearClipboard: () => clearOwnedClipboard(),
+		restoreFirstUse: () => restoreFirstUseScreen()
+	});
+	if (!suppression.bound && suppression.reason === 'button_absent') {
+		console.warn('[Vault] Bouton de suppression introuvable.');
 	}
 });
 

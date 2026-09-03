@@ -794,13 +794,19 @@
 									</div>
 									<h3 class="settings-title settings-title--danger">Zone critique</h3>
 								</div>
+								<!-- LOT 8 : ce bouton n'avait ni identifiant ni gestionnaire ; il ne
+								     supprimait rien. Son libellé parlait d'un « compte » qui n'existe
+								     pas : CryptoKeep est local, et stocke le coffre et le profil dans
+								     DEUX bases distinctes. Le libellé dit désormais ce que l'action
+								     fait réellement, et la portée est choisie dans la fenêtre de
+								     confirmation. -->
 								<div class="setting-item">
 									<div class="setting-info">
-										<div class="setting-label">Supprimer le compte</div>
-										<div class="setting-description">Supprime définitivement votre compte Vault et toutes les données</div>
+										<div class="setting-label">Supprimer des données locales</div>
+										<div class="setting-description">Supprime le coffre chiffré, le profil local, ou les deux. La portée est choisie à l'étape suivante et une phrase de confirmation est exigée.</div>
 									</div>
 									<div class="setting-control">
-										<button class="btn btn-danger">Supprimer le compte</button>
+										<button type="button" class="btn btn-danger" id="delete-vault-data">Supprimer des données…</button>
 									</div>
 								</div>
 							</div>

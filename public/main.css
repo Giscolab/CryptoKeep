@@ -24,6 +24,7 @@
 @import url('components/vault.css');
 @import url('components/vulnerabilities.css');
 @import url('components/entropy.css');
+@import url('components/destruction.css');
 
 /* ======== LAYOUT ======== */
 @import url('layout/app.css');
