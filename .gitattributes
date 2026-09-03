@@ -1,0 +1,52 @@
+# .gitattributes - standard definitif des fins de ligne (decide au Lot 5).
+#
+# POURQUOI CE FICHIER
+# Sans lui, le comportement dependait du client : Git pour Windows applique
+# core.autocrlf=true par defaut, l environnement Linux ne convertissait rien.
+# Le meme dossier etait donc lu avec deux regles opposees, 44 fichiers JS et
+# 48 CSS avaient des fins de ligne MIXTES a l interieur d un meme fichier, et
+# 114 fichiers apparaissaient modifies en permanence sans changement reel.
+#
+# Les regles ci-dessous s appliquent a TOUS les clients et rendent
+# core.autocrlf sans effet : plus aucun reglage local n est necessaire.
+
+# --- Defaut : LF dans le depot ET dans l arbre de travail -----------------
+# HEAD stockait deja du LF pour 197 fichiers sur 198 : c est le moindre
+# changement, et c est ce qu attend toute la chaine (Node, ESLint, les specs).
+* text=auto eol=lf
+
+# --- Lanceurs Windows : CRLF exige ---------------------------------------
+# Un .bat en LF peut se comporter de facon imprevisible sur une etiquette en
+# fin de fichier. Ces quatre fichiers restent donc en CRLF, partout.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# --- Binaires : aucune conversion, jamais --------------------------------
+# Sans ces lignes, une renormalisation corromprait les 7 icones suivies.
+*.png   binary
+*.ico   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.otf   binary
+
+# --- Tiers et minifies : octets preserves tels quels ----------------------
+# Regle du projet : ne pas modifier les bundles tiers minifies. `-text`
+# desactive toute conversion, dans les deux sens.
+scripts/vendor/**       -text
+public/vendor/**        -text
+documentation-locale/** -text
+*.min.js                -text
+*.min.css               -text
+
+# --- Fichier genere, conserve tel quel ------------------------------------
+# docs/index.html melange CRLF, CR et LF. Il est produit par un outil de
+# construction : le normaliser creerait du bruit sans benefice.
+docs/index.html -text
