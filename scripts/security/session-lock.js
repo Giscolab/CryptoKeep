@@ -4,6 +4,8 @@ import { showToast } from '../utils/toast.js';
 import { clearOwnedClipboard } from '../utils/clipboard.js';
 import { clearMasterPasswordField } from './master-password-field.js';
 import { closeAllModals } from '../ui/modal-cleanup.js';
+import { clearReuseAnalysis } from './password-reuse.js';
+import { clearHibpCache } from './hibp-service.js';
 
 function clearInputValue(selector) {
   document.querySelectorAll(selector).forEach((input) => {
@@ -105,6 +107,21 @@ export async function lockVaultSession(
   showLockedAuthScreen();
   clearMasterPasswordInput();
 
+  // LOT 5 : les analyses derivees des entrees dechiffrees n'ont plus aucune
+  // raison d'exister une fois le coffre verrouille.
+  //   - les groupes de reutilisation retiennent des titres, URL et noms
+  //     d'utilisateur, qui sont des donnees de coffre ;
+  //   - le cache HIBP retient des condensats derives des mots de passe.
+  // Les deux sont en memoire uniquement, et sont vides ici.
+  const reuse = clearReuseAnalysis();
+  let hibpCacheCleared = false;
+  try {
+    clearHibpCache();
+    hibpCacheCleared = true;
+  } catch {
+    /* nettoyage best-effort */
+  }
+
   const clipboard = await clearOwnedClipboard();
 
   if (typeof document !== 'undefined'
@@ -125,6 +142,8 @@ export async function lockVaultSession(
     masterKeyNull: vaultManager?.masterKey === null,
     entryCount: typeof vaultManager?.getEntries === 'function' ? vaultManager.getEntries().length : 0,
     clipboardCleanupAttempted: clipboard.attempted,
-    clipboardCleanupSucceeded: clipboard.succeeded
+    clipboardCleanupSucceeded: clipboard.succeeded,
+    reuseGroupsCleared: reuse.cleared,
+    hibpCacheCleared
   };
 }

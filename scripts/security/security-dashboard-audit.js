@@ -6,7 +6,10 @@ import { isPasswordPwned } from './hibp-service.js';
 import { classifyFinding, getEntrySeverity, sortBySeverity, SEVERITY } from './severity.js';
 import { categorizePasswordAge } from '../utils/password-age.js';
 import { getPasswordEntropy } from './audit.js?v=20260719-1';
-import { groupPasswordReuse } from './password-reuse-groups.js';
+// LOT 5 : la decision de reutilisation passe par la comparaison EXACTE des
+// chaines. `password-reuse-groups.js` reste present, mais son condensat
+// maison de 32 bits confondait des mots de passe differents ('Aa' et 'BB').
+import { analyzeReuse } from './password-reuse.js';
 
 function analyzeLocal(entries = []) {
   const counts = new Map();
@@ -44,6 +47,10 @@ async function analyzeHibpBatched(analysis, concurrency = 5) {
 
 export async function auditSecurityDashboard(entries = [], options = {}) {
   const { checkHibp = false, hibpConcurrency = 5 } = options;
+  // LOT 5 : l'etat de la verification de compromission est REMONTE au
+  // rapport. Sans lui, l'interface ne pourrait pas distinguer « aucune fuite
+  // trouvee » de « aucune fuite recherchee », et afficherait un resultat
+  // rassurant sans avoir rien analyse.
 
   const report = {
     summary: {
@@ -67,17 +74,35 @@ export async function auditSecurityDashboard(entries = [], options = {}) {
   if (!entries.length) return report;
 
   const analysis = analyzeLocal(entries);
-  report.reuseGroups = groupPasswordReuse(entries);
+  report.reuseGroups = await analyzeReuse(entries);
   report.summary.reused = report.reuseGroups.reduce((total, group) => total + group.entries.length, 0);
 
   if (checkHibp) {
     await analyzeHibpBatched(analysis, hibpConcurrency);
   }
 
+  const verifies = analysis.filter((item) => item.hibp?.checked === true).length;
+  report.breachCheck = {
+    requested: checkHibp === true,
+    checkedCount: verifies,
+    totalCount: analysis.length,
+    // `complete` n'est vrai que si CHAQUE entree a reellement recu une
+    // reponse. Un audit partiel ne doit jamais se presenter comme complet.
+    complete: checkHibp === true && analysis.length > 0 && verifies === analysis.length,
+    reasons: Array.from(new Set(
+      analysis
+        .filter((item) => item.hibp && item.hibp.checked !== true)
+        .map((item) => item.hibp.reason)
+    ))
+  };
+
   for (const item of analysis) {
     const findings = [];
 
-    if (item.hibp?.pwned) {
+    // LOT 5 : une fuite n'est declaree que si une verification a REELLEMENT
+    // eu lieu. `pwned` vaut `null` quand rien n'a pu etre verifie ; ce n'est
+    // ni une fuite, ni une absence de fuite.
+    if (item.hibp?.checked === true && item.hibp.pwned === true) {
       findings.push(classifyFinding('pwned', { count: item.hibp.count }));
       report.summary.pwned++;
     }

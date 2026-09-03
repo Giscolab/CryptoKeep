@@ -181,7 +181,9 @@ function createReuseGroupItem(group) {
 
   const button = document.createElement('button');
   button.className = 'vuln-action-btn resolve-reuse-btn';
-  button.dataset.groupId = toText(group.hashId);
+  // Lot 5 : `groupId` est l'identifiant canonique ; `hashId` n'est conserve
+  // que comme repli pour l'implementation historique.
+  button.dataset.groupId = toText(group.groupId ?? group.hashId);
   button.textContent = 'Corriger';
 
   actions.appendChild(button);
@@ -223,7 +225,7 @@ function renderReuseGroups(groups = []) {
   section.querySelectorAll('.resolve-reuse-btn').forEach((button) => {
     button.addEventListener('click', () => {
       const groupId = button.dataset.groupId;
-      const groupData = groups.find((group) => toText(group.hashId) === groupId);
+      const groupData = groups.find((group) => toText(group.groupId ?? group.hashId) === groupId);
       if (!groupData) return;
 
       document.dispatchEvent(new CustomEvent('vault:open-reuse-resolver', {

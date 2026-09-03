@@ -1,5 +1,23 @@
 /**
- * Détection et groupement des mots de passe réutilisés.
+ * MODULE HISTORIQUE - conserve pour compatibilite, NON DECISIONNEL.
+ *
+ * DEFAUT AUDITE (Lot 5). Le regroupement s'appuie sur un condensat maison de
+ * 32 bits, `hash = (hash << 5) - hash + code`, puis sur `Math.abs`. Deux mots
+ * de passe DIFFERENTS peuvent donc atterrir dans le meme groupe et etre
+ * declares reutilises a tort. Collisions reproductibles :
+ *
+ *   'Aa'   et 'BB'   -> local_0000000000000840
+ *   'AaAa' et 'BBBB' -> local_00000000001f0080
+ *   'Ca'   et 'DB'   -> local_000000000000087e
+ *
+ * L'implementation qui DECIDE est desormais scripts/security/password-reuse.js :
+ * elle compare les chaines exactement, n'utilise un condensat que comme cle
+ * de regroupement — et confirme ensuite l'egalite exacte —, ne persiste rien,
+ * ne journalise rien, et s'efface au verrouillage.
+ *
+ * Ce fichier reste en place, exporte et teste, pour ne casser aucun appelant
+ * externe et pour documenter le defaut. Il ne doit plus etre branche sur une
+ * decision de securite.
  */
 
 /**
