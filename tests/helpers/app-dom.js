@@ -527,6 +527,10 @@ export class AppDocument {
 
   get documentElement() { return this.root; }
   get body() { return this.root.querySelector('body') || this.root; }
+  // LOT 7C : `document.head` est utilise par le selecteur de theme pour
+  // injecter la feuille de style. Sans lui, un module parfaitement correct
+  // echouait dans les tests pour une raison etrangere a ce qu'il verifie.
+  get head() { return this.root.querySelector('head') || this.body; }
 
   createElement(tagName) { return new DomNode(tagName, this); }
   createTextNode(text) { return { nodeType: 3, textContent: String(text) }; }

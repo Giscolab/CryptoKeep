@@ -31,6 +31,52 @@ import { runAndRenderAudit } from './audit-report-view.js';
 
 function byId(doc, id) { return doc.getElementById(id); }
 
+/**
+ * Applique un reglage, PUIS remet le controle sur l'etat reellement persiste.
+ *
+ * LOT 7C - DEFAUT CORRIGE. Les gestionnaires appelaient `writeSettings()` et
+ * ignoraient son resultat. Quand le stockage refusait l'ecriture — quota
+ * depasse, mode restreint, stockage desactive — la case restait sur la valeur
+ * demandee alors que le reglage enregistre n'avait pas bouge :
+ *
+ *   demande UI                    : false
+ *   case affichee apres           : false
+ *   reglage reellement persiste   : true
+ *
+ * L'utilisateur decochait « Effacer le presse-papiers », voyait la case
+ * decochee, et l'effacement restait actif. C'est exactement la divergence
+ * entre interface affichee et comportement reel que ce lot devait supprimer.
+ *
+ * Le contrat est desormais : l'interface montre TOUJOURS ce qui s'appliquera
+ * reellement. En cas de succes, la valeur retenue par le schema ; en cas
+ * d'echec, la valeur qui reste en vigueur — et l'utilisateur en est averti.
+ *
+ * `setHibpConsent` suivait deja cette discipline ; elle est generalisee.
+ *
+ * @param {object} patch reglages demandes
+ * @param {object} options options de stockage
+ * @param {Function} resynchroniser recoit l'etat REEL a reafficher
+ * @returns {{written: boolean, settings: object}}
+ */
+function appliquerReglage(patch, options, resynchroniser) {
+  const rapport = writeSettings(patch, options);
+
+  // En cas d'echec, l'etat de reference est relu du stockage : c'est lui qui
+  // gouverne le comportement, pas ce que l'appelant a demande.
+  const reel = rapport.written ? rapport.settings : readSettings(options);
+
+  if (typeof resynchroniser === 'function') resynchroniser(reel);
+
+  if (!rapport.written) {
+    showToast(
+      'Ce réglage n\'a pas pu être enregistré. Le réglage précédent reste actif.',
+      'error', 8000
+    );
+  }
+
+  return { written: rapport.written, settings: reel };
+}
+
 /** Applique une valeur a une case a cocher, sans declencher d'evenement. */
 function setChecked(node, valeur) {
   if (node && 'checked' in node) node.checked = Boolean(valeur);
@@ -120,10 +166,17 @@ export function initSettingsControls(options = {}) {
 
   if (clipEnabled) {
     clipEnabled.addEventListener('change', () => {
-      const actif = Boolean(clipEnabled.checked);
-      writeSettings({ clipboardClearEnabled: actif }, options);
-      if (clipSeconds) clipSeconds.disabled = !actif;
-      showToast(actif
+      const rapport = appliquerReglage(
+        { clipboardClearEnabled: Boolean(clipEnabled.checked) },
+        options,
+        (reel) => {
+          setChecked(clipEnabled, reel.clipboardClearEnabled);
+          if (clipSeconds) clipSeconds.disabled = !reel.clipboardClearEnabled;
+        }
+      );
+
+      if (!rapport.written) return;
+      showToast(rapport.settings.clipboardClearEnabled
         ? 'CryptoKeep tentera de vider le presse-papiers après chaque copie.'
         : 'Aucune tentative d\'effacement du presse-papiers ne sera faite.',
       'info');
@@ -134,11 +187,11 @@ export function initSettingsControls(options = {}) {
 
   if (clipSeconds) {
     clipSeconds.addEventListener('change', () => {
-      const secondes = Number.parseInt(clipSeconds.value, 10);
-      const rapport = writeSettings({ clipboardClearSeconds: secondes }, options);
-      // La valeur RETENUE est reaffichee : si elle a ete refusee par le
-      // schema, l'utilisateur voit ce qui s'appliquera reellement.
-      setSelect(clipSeconds, rapport.settings.clipboardClearSeconds);
+      appliquerReglage(
+        { clipboardClearSeconds: Number.parseInt(clipSeconds.value, 10) },
+        options,
+        (reel) => setSelect(clipSeconds, reel.clipboardClearSeconds)
+      );
     });
     raccordes += 1;
   }
@@ -154,22 +207,31 @@ export function initSettingsControls(options = {}) {
 
   if (genLength) {
     genLength.addEventListener('change', () => {
-      const rapport = writeSettings(
-        { generatorLength: Number.parseInt(genLength.value, 10) }, options
+      appliquerReglage(
+        { generatorLength: Number.parseInt(genLength.value, 10) },
+        options,
+        (reel) => setSelect(genLength, reel.generatorLength)
       );
-      setSelect(genLength, rapport.settings.generatorLength);
     });
     raccordes += 1;
   }
   if (genDigits) {
     genDigits.addEventListener('change', () => {
-      writeSettings({ generatorDigits: Boolean(genDigits.checked) }, options);
+      appliquerReglage(
+        { generatorDigits: Boolean(genDigits.checked) },
+        options,
+        (reel) => setChecked(genDigits, reel.generatorDigits)
+      );
     });
     raccordes += 1;
   }
   if (genSymbols) {
     genSymbols.addEventListener('change', () => {
-      writeSettings({ generatorSymbols: Boolean(genSymbols.checked) }, options);
+      appliquerReglage(
+        { generatorSymbols: Boolean(genSymbols.checked) },
+        options,
+        (reel) => setChecked(genSymbols, reel.generatorSymbols)
+      );
     });
     raccordes += 1;
   }
@@ -179,7 +241,11 @@ export function initSettingsControls(options = {}) {
   setChecked(alertes, reglages.securityAlerts);
   if (alertes) {
     alertes.addEventListener('change', () => {
-      writeSettings({ securityAlerts: Boolean(alertes.checked) }, options);
+      appliquerReglage(
+        { securityAlerts: Boolean(alertes.checked) },
+        options,
+        (reel) => setChecked(alertes, reel.securityAlerts)
+      );
     });
     raccordes += 1;
   }

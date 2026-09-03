@@ -1,3 +1,27 @@
+/**
+ * CryptoKeep - Selecteur de theme.
+ *
+ * LOT 7C - DEFAUT CORRIGE (meme classe que celui des reglages : ce qui est
+ * AFFICHE devait diverger de ce qui est APPLIQUE).
+ *
+ * `initThemeSelector` lisait `selectedTheme` dans le stockage, le passait a
+ * `applyTheme` — qui le ramenait silencieusement a « default » s il n etait
+ * pas dans la liste blanche — puis reaffectait au menu deroulant la valeur
+ * BRUTE, c est-a-dire la valeur refusee :
+ *
+ *   valeur en stockage : "sith-maison"   (non autorisee)
+ *   theme applique     : "default"
+ *   menu affiche       : "sith-maison"
+ *
+ * L utilisateur voyait donc un theme selectionne qui n etait pas celui en
+ * vigueur, et le fait de rouvrir le panneau ne corrigeait rien.
+ *
+ * `applyTheme` renvoie desormais le theme REELLEMENT applique, et c est cette
+ * valeur — et elle seule — qui est affichee. L acces au stockage est de plus
+ * protege : un stockage indisponible ne doit pas empecher l application d un
+ * theme, ni faire croire qu il a ete memorise.
+ */
+
 const allowedThemes = [
   "default",
   "deathstar",
@@ -43,19 +67,42 @@ const applyTheme = (theme) => {
     link.disabled = false;
   }
 
-  // Sauvegarde le thème
-  localStorage.setItem("selectedTheme", theme);
+  // Sauvegarde le thème. Un refus d'écriture (quota, mode restreint,
+  // stockage désactivé) ne doit pas empêcher l'application du thème : le
+  // thème reste actif pour la session, il n'est simplement pas mémorisé.
+  try {
+    localStorage.setItem("selectedTheme", theme);
+  } catch {
+    // Volontairement silencieux : rien de sensible, rien à journaliser.
+  }
+
+  // Le theme REELLEMENT applique est renvoye a l'appelant, qui est le seul
+  // a pouvoir remettre l'interface d'accord avec lui.
+  return theme;
 };
 
 export function initThemeSelector() {
-  const savedTheme = localStorage.getItem("selectedTheme") || "default";
-  applyTheme(savedTheme);
+  let savedTheme = "default";
+  try {
+    savedTheme = localStorage.getItem("selectedTheme") || "default";
+  } catch {
+    savedTheme = "default";
+  }
+
+  // On affiche le theme APPLIQUE, jamais celui demande.
+  const themeApplique = applyTheme(savedTheme);
 
   const themeSelect = document.getElementById("theme-select");
   if (themeSelect) {
-    themeSelect.value = savedTheme;
+    themeSelect.value = themeApplique;
     themeSelect.addEventListener("change", (e) => {
-      applyTheme(e.target.value);
+      const demande = e && e.target ? e.target.value : themeSelect.value;
+      const reel = applyTheme(demande);
+      // Si le theme demande a ete refuse par la liste blanche, le menu revient
+      // sur le theme en vigueur au lieu de conserver un choix sans effet.
+      if (String(reel) !== String(demande)) themeSelect.value = reel;
     });
   }
+
+  return themeApplique;
 }
