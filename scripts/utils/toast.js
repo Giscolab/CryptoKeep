@@ -35,12 +35,31 @@ export function showToast(message, type = 'success', duration = 3000) {
   closeButton.textContent = '×';
   toast.appendChild(closeButton);
 
-  // Supprimer au clic sur la croix
-  const dismiss = () => toast.remove();
-  closeButton.onclick = dismiss;
+  // LOT 7B : la minuterie d'auto-suppression est CONSERVEE sur le noeud, et
+  // annulee si la notification est retiree avant son echeance. Sans cela, un
+  // toast de longue duree — le compte a rebours du presse-papiers dure autant
+  // que le delai regle — maintenait une minuterie vivante meme apres son
+  // retrait. En navigateur c'est sans consequence ; dans tout contexte sans
+  // interface, la boucle d'evenements restait bloquee jusqu'a l'echeance.
+  const dismiss = () => {
+    if (toast.autoDismissTimer) {
+      clearTimeout(toast.autoDismissTimer);
+      toast.autoDismissTimer = null;
+    }
+    toast.remove();
+  };
 
-  // Timer auto-suppression
-  setTimeout(dismiss, duration);
+  closeButton.onclick = dismiss;
+  toast.dismiss = dismiss;
+  toast.autoDismissTimer = setTimeout(dismiss, duration);
+
+  // Une notification ne doit jamais retarder la fin d'un processus. En
+  // navigateur, `setTimeout` renvoie un nombre et cette ligne est sans effet ;
+  // hors navigateur, elle empeche une minuterie d'affichage de maintenir la
+  // boucle d'evenements vivante pour rien.
+  if (toast.autoDismissTimer && typeof toast.autoDismissTimer.unref === 'function') {
+    toast.autoDismissTimer.unref();
+  }
 
   container.appendChild(toast);
   return toast;

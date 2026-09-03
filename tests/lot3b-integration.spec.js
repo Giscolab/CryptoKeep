@@ -1610,6 +1610,158 @@ check('M11 - la description du presse-papiers ne promet plus rien', async () => 
 });
 
 // ===========================================================================
+// N. LOT 7B : corrections issues de l'audit independant
+// ===========================================================================
+
+check('N1 - l ancien moteur ne peut plus ecrire dans le rapport du Lot 6', async () => {
+  // COLLISION AUDITEE : `renderSecurityDashboardSections` selectionnait les
+  // DEUX PREMIERES `.vulnerability-section` de la vue. Depuis le Lot 6 ce sont
+  // `#auditFindings` et `#auditReuseGroups`. L'ancien moteur remplissait donc
+  // l'ecran du nouveau, avant meme que « Lancer l'audit » soit actionne.
+  const dashboard = await import('../scripts/ui/security-dashboard.js');
+
+  await installVault([
+    { id: 'n1', title: 'Entree', username: 'u@example.test', password: 'MotDePasse-N1-1!' }
+  ]);
+  auditReport.clearAuditReport({ doc: document });
+
+  const avantConstats = document.getElementById('auditFindings').textContent;
+  const avantGroupes = document.getElementById('auditReuseGroups').textContent;
+
+  // L'ancien moteur est appele DIRECTEMENT, comme s'il avait ete rebranche.
+  dashboard.renderSecurityDashboardSections({
+    vulnerabilities: [{ entry: { title: 'Injectee par l ancien moteur' }, severity: {}, findings: [] }],
+    weakPasswords: [{ entry: { title: 'Faible ancienne' }, entropy: 12 }],
+    reuseGroups: [],
+    recommendations: [],
+    summary: { weak: 99, reused: 99, old: 99 }
+  }, document);
+
+  assert.equal(document.getElementById('auditFindings').textContent, avantConstats,
+    'DEFAUT CORRIGE : #auditFindings appartient au moteur du Lot 6');
+  assert.equal(document.getElementById('auditReuseGroups').textContent, avantGroupes,
+    'DEFAUT CORRIGE : #auditReuseGroups appartient au moteur du Lot 6');
+  assert.ok(!document.getElementById('auditFindings').textContent.includes('ancien moteur'));
+});
+
+check('N2 - aucun declencheur automatique de l ancien moteur ne subsiste', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../scripts/app.js', import.meta.url), 'utf8');
+  const codeUtile = source.split(/\r?\n/)
+    .filter((ligne) => !ligne.trim().startsWith('//'))
+    .join('\n');
+
+  assert.ok(!/auditSecurityDashboard\s*\(/.test(codeUtile),
+    'scripts/app.js ne doit plus declencher l ancien moteur');
+  assert.ok(!/renderSecurityDashboardSections\s*\(/.test(codeUtile),
+    'scripts/app.js ne doit plus rendre les sections de l ancien moteur');
+
+  // Mais les modules restent CONSERVES dans le depot.
+  const { existsSync } = await import('node:fs');
+  for (const conserve of ['../scripts/ui/security-dashboard.js',
+    '../scripts/security/security-dashboard-audit.js']) {
+    assert.ok(existsSync(new URL(conserve, import.meta.url)), `${conserve} doit rester present`);
+  }
+});
+
+check('N3 - une entree SANS mot de passe n est jamais comptee « sans problème »', async () => {
+  // DEFAUT AUDITE : le graphique calculait `total - faibles - reutilises`.
+  // Une entree sans mot de passe n'etant ni faible ni reutilisee, elle etait
+  // representee comme solide.
+  const moteur = await import('../scripts/security/audit-engine.js');
+  const rapport = await moteur.runSecurityAudit(
+    [{ id: 'vide', title: 'Sans rien' }],
+    { now: Date.parse('2026-09-04T00:00:00.000Z') }
+  );
+
+  assert.equal(rapport.counts.withoutPassword, 1);
+  assert.equal(rapport.counts.clean, 0,
+    'Une entree sans mot de passe, sans URL et sans categorie n est pas saine');
+  assert.notEqual(rapport.counts.clean,
+    rapport.counts.total - rapport.counts.weak - rapport.counts.reused,
+    'Le comptage doit etre explicite, pas une soustraction');
+});
+
+check('N4 - le libelle du graphique dit que les categories se recoupent', async () => {
+  await installVault([
+    { id: 'n4', title: 'Faible', username: 'u@example.test', password: 'azerty2024' }
+  ]);
+  await auditReport.runAndRenderAudit({ doc: document });
+
+  const note = document.getElementById('chartNote').textContent;
+  assert.match(note, /historique/i, 'La limite d absence d historique doit rester dite');
+  assert.match(note, /plusieurs/i,
+    'Le chevauchement des categories doit etre annonce : une entree peut etre '
+    + 'a la fois faible, reutilisee et ancienne');
+});
+
+check('N5 - les groupes de reutilisation portent une action REELLE', async () => {
+  await installVault([
+    { id: 'n5a', title: 'Alpha', username: 'a@example.test', password: 'MemeMotDePasse-N5!' },
+    { id: 'n5b', title: 'Beta', username: 'b@example.test', password: 'MemeMotDePasse-N5!' }
+  ]);
+  auditReport.initAuditReport({ doc: document });
+  await auditReport.runAndRenderAudit({ doc: document });
+
+  const conteneur = document.getElementById('auditReuseGroups');
+  const bouton = conteneur.querySelector('[data-audit-action="resolve-reuse"]');
+  assert.ok(bouton, 'L action de resolution ne doit pas avoir disparu avec l ancien moteur');
+  assert.match(bouton.title, /reste manuelle/i,
+    'L infobulle doit dire ce qui reste a la charge de l utilisateur');
+
+  let recu = null;
+  const ecouteur = (event) => { recu = event.detail; };
+  document.addEventListener('vault:open-reuse-resolver', ecouteur);
+  bouton.click();
+  document.removeEventListener('vault:open-reuse-resolver', ecouteur);
+
+  assert.ok(recu, 'Le clic doit ouvrir l assistant de resolution');
+  assert.equal(recu.groupData.count, 2);
+
+  // Et les entrees du groupe sont retrouvables : le moteur RETIENT les groupes.
+  const reuse = await import('../scripts/security/password-reuse.js');
+  const entrees = reuse.getReuseGroupEntries(recu.groupId, vaultManager.getEntries());
+  assert.equal(entrees.length, 2, 'Les entrees du groupe doivent etre retrouvables');
+});
+
+check('N6 - aucune recommandation ne contient de decompte invente', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const visible = source.replace(/<!--[\s\S]*?-->/g, '');
+
+  const recommandations = visible.match(/<p>[^<]*<\/p>/g) || [];
+  for (const texte of recommandations) {
+    assert.ok(!/\b\d+\s+mots? de passe/.test(texte),
+      `Recommandation avec un decompte code en dur : ${texte}`);
+  }
+});
+
+check('N7 - les compteurs du tableau de bord viennent du moteur du Lot 6', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../scripts/ui/vault-view-refresh.js', import.meta.url), 'utf8');
+  const codeUtile = source.split(/\r?\n/)
+    .filter((ligne) => !ligne.trim().startsWith('//'))
+    .join('\n');
+
+  assert.ok(/runSecurityAudit/.test(codeUtile),
+    'Les compteurs doivent provenir du moteur d audit');
+  assert.ok(!/getPasswordStats/.test(codeUtile),
+    'La regle de faiblesse naive ne doit plus alimenter le tableau de bord');
+});
+
+check('N8 - une notification ne bloque jamais la fin d un processus', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../scripts/utils/toast.js', import.meta.url), 'utf8');
+
+  assert.ok(/autoDismissTimer/.test(source),
+    'La minuterie d auto-suppression doit etre conservee pour pouvoir etre annulee');
+  assert.ok(/clearTimeout/.test(source),
+    'Retirer une notification doit annuler sa minuterie');
+  assert.ok(/unref/.test(source),
+    'Une minuterie d affichage ne doit pas maintenir la boucle d evenements vivante');
+});
+
+// ===========================================================================
 // J. Hygiene : aucun secret dans les preferences persistees
 // ===========================================================================
 

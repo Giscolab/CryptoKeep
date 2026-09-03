@@ -439,24 +439,45 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
     if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
     session = { renewed: false, locked: true };
   } else {
-    // La session continue avec la NOUVELLE cle et le NOUVEAU sel : l'ancienne
-    // cle n'est plus referencee nulle part.
-    const decrypted = await Promise.all(rebuilt.record.entries.map(async (stored) => {
-      const data = await decryptData(
-        stored,
-        rebuilt.key,
-        entryOptions(stored.id, CURRENT_VAULT_FORMAT_VERSION)
-      );
-      return { ...data, id: stored.id };
-    }));
+    // LOT 7B - RESERVE LEVEE. Cette etape n'etait pas protegee. A ce point, le
+    // coffre a DEJA ete ecrit, verifie par dechiffrement reel, et la sauvegarde
+    // secondaire mise a jour : le mot de passe A CHANGE. Une exception lors du
+    // seul renouvellement de session aurait donc fait remonter « changement
+    // echoue » a propos d'un changement reussi — le pire message possible,
+    // puisque l'utilisateur aurait alors essaye l'ancien mot de passe.
+    //
+    // En cas d'echec ici, le changement reste donc un SUCCES, et la session est
+    // verrouillee : l'utilisateur se reconnecte avec son NOUVEAU mot de passe.
+    try {
+      const decrypted = await Promise.all(rebuilt.record.entries.map(async (stored) => {
+        const data = await decryptData(
+          stored,
+          rebuilt.key,
+          entryOptions(stored.id, CURRENT_VAULT_FORMAT_VERSION)
+        );
+        return { ...data, id: stored.id };
+      }));
 
-    vaultManager._setSession(
-      rebuilt.key,
-      rebuilt.salt,
-      decrypted,
-      CURRENT_VAULT_FORMAT_VERSION
-    );
-    session = { renewed: true, locked: false };
+      vaultManager._setSession(
+        rebuilt.key,
+        rebuilt.salt,
+        decrypted,
+        CURRENT_VAULT_FORMAT_VERSION
+      );
+      session = { renewed: true, locked: false };
+    } catch {
+      if (typeof vaultManager.clearSession === 'function') vaultManager.clearSession();
+      if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
+      session = {
+        renewed: false,
+        locked: true,
+        reason: 'session_renewal_failed',
+        // Message destine a l'interface. Il affirme le fait essentiel : le
+        // mot de passe a bien change.
+        message: 'Le mot de passe a bien ete change. La session n\'a pas pu etre '
+          + 'renouvelee : reconnectez-vous avec votre NOUVEAU mot de passe.'
+      };
+    }
   }
 
   return {

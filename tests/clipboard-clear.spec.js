@@ -129,7 +129,7 @@ test('7.7 - une copie ulterieure de l utilisateur n est JAMAIS ecrasee', async (
       'Le contenu de l utilisateur doit etre PRESERVE');
     assert.equal(presse.ecritures.filter((v) => v === '').length, 0,
       'Aucune chaine vide ne doit avoir ete ecrite');
-  } finally { nettoyer(); }
+  } finally { module.cancelClipboardClear(); nettoyer(); }
 });
 
 test('7.8 - lecture refusee : rien n est ecrase, et c est dit', async () => {
@@ -148,7 +148,7 @@ test('7.8 - lecture refusee : rien n est ecrase, et c est dit', async () => {
       'Un refus de permission doit etre nomme, pas confondu avec un succes');
     assert.equal(presse.contenu, SECRET,
       'Sans relecture possible, on n ecrase pas a l aveugle');
-  } finally { nettoyer(); }
+  } finally { module.cancelClipboardClear(); nettoyer(); }
 });
 
 test('7.9 - lecture indisponible : aucune ecriture aveugle', async () => {
@@ -165,6 +165,7 @@ test('7.9 - lecture indisponible : aucune ecriture aveugle', async () => {
     assert.equal(rapport.attempted, false);
     assert.equal(rapport.reason, 'read_unavailable');
     assert.equal(presse.contenu, SECRET);
+    module.cancelClipboardClear();
   } finally { nettoyer(); }
 });
 
@@ -179,7 +180,7 @@ test('7.10 - effacement effectif quand le contenu est bien le notre', async () =
     assert.equal(rapport.succeeded, true);
     assert.equal(rapport.reason, 'cleared');
     assert.equal(presse.contenu, '');
-  } finally { nettoyer(); }
+  } finally { module.cancelClipboardClear(); nettoyer(); }
 });
 
 test('7.11 - le reglage DESACTIVE arme aucune minuterie', async () => {
@@ -197,7 +198,7 @@ test('7.11 - le reglage DESACTIVE arme aucune minuterie', async () => {
     // Aucune copie active n'est enregistree : rien a effacer.
     const rapport = await module.clearOwnedClipboard();
     assert.equal(rapport.reason, 'nothing_to_clear');
-  } finally { nettoyer(); }
+  } finally { module.cancelClipboardClear(); nettoyer(); }
 });
 
 test('7.12 - le delai regle est REELLEMENT celui applique', async () => {
@@ -210,7 +211,7 @@ test('7.12 - le delai regle est REELLEMENT celui applique', async () => {
     assert.equal(module.resolveClipboardTtl(), 120000);
     // Un delai explicite reste prioritaire, pour les appelants qui en passent un.
     assert.equal(module.resolveClipboardTtl({ ttlMs: 5000 }), 5000);
-  } finally { nettoyer(); }
+  } finally { module.cancelClipboardClear(); nettoyer(); }
 });
 
 test('7.13 - aucun effacement n est annonce comme garanti', async () => {

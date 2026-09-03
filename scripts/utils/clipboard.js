@@ -52,7 +52,12 @@ function clearTimers() {
 }
 
 function clearCountdownToast() {
-  countdownToast?.remove();
+  // `dismiss()` annule aussi la minuterie d'auto-suppression du toast ;
+  // `remove()` seul laissait cette minuterie vivante jusqu'a son echeance.
+  if (countdownToast) {
+    if (typeof countdownToast.dismiss === 'function') countdownToast.dismiss();
+    else countdownToast.remove();
+  }
   countdownToast = null;
 }
 
@@ -118,6 +123,29 @@ export async function copyToClipboard(text, options = {}) {
   }
 }
 
+/**
+ * Annule la tentative programmee, SANS toucher au presse-papiers.
+ *
+ * LOT 7B : les minuteries armees par `scheduleClipboardClear` — un delai
+ * pouvant aller jusqu'a cinq minutes, et un intervalle d'une seconde pour le
+ * compte a rebours — maintenaient la boucle d'evenements vivante. En
+ * navigateur c'est sans consequence, mais tout contexte sans interface
+ * restait bloque jusqu'a leur echeance : la suite de tests ne rendait la main
+ * qu'au bout de trente secondes.
+ *
+ * A appeler quand la tentative n'a plus lieu d'etre : verrouillage, fermeture
+ * de session, ou fin d'un scenario de test.
+ *
+ * @returns {{cancelled: boolean}} vrai si une tentative etait programmee
+ */
+export function cancelClipboardClear() {
+  const programmee = Boolean(activeCopy || clearTimer || countdownTimer);
+  clearTimers();
+  clearCountdownToast();
+  activeCopy = null;
+  return { cancelled: programmee };
+}
+
 export async function clearOwnedClipboard() {
   const copy = activeCopy;
   if (!copy) {
@@ -180,4 +208,9 @@ export async function clearOwnedClipboard() {
   }
 }
 
-export default { copyToClipboard, clearOwnedClipboard };
+export default {
+  copyToClipboard,
+  clearOwnedClipboard,
+  cancelClipboardClear,
+  resolveClipboardTtl
+};

@@ -34,13 +34,56 @@ function createMutedMessage(text) {
   return message;
 }
 
+/**
+ * Conteneurs appartenant au moteur d'audit du Lot 6. Ce module historique ne
+ * doit JAMAIS ecrire dedans, meme s'il etait rebranche par erreur.
+ */
+const CONTENEURS_RESERVES = Object.freeze([
+  'auditFindings', 'auditReuseGroups', 'auditScope'
+]);
+
+/**
+ * Un noeud appartient-il au nouveau moteur ?
+ *
+ * La verification porte sur le noeud, ses ANCETRES et ses DESCENDANTS : une
+ * `.vulnerability-section` qui contient `#auditScope` est aussi une section
+ * du nouveau rapport, meme si elle ne porte pas l'identifiant elle-meme.
+ */
+function estReserve(noeud) {
+  if (!noeud) return false;
+
+  let courant = noeud;
+  while (courant) {
+    if (courant.id && CONTENEURS_RESERVES.includes(courant.id)) return true;
+    courant = courant.parentNode || null;
+  }
+
+  if (typeof noeud.querySelector === 'function') {
+    const selecteur = CONTENEURS_RESERVES.map((id) => `#${id}`).join(', ');
+    if (noeud.querySelector(selecteur)) return true;
+  }
+  return false;
+}
+
 function getTargets(root) {
-  const sections = root.querySelectorAll('#security-report-view .vulnerability-section');
+  // LOT 7B - GARDE STRUCTURELLE. Ce module selectionnait les DEUX PREMIERES
+  // `.vulnerability-section` par position. Depuis le Lot 6, ce sont les
+  // conteneurs du nouveau rapport : l'ancien moteur les ecrasait donc.
+  // La selection par position est conservee — d'autres vues en dependent —
+  // mais tout conteneur appartenant au nouveau moteur est ecarte.
+  const sections = Array.from(
+    root.querySelectorAll('#security-report-view .vulnerability-section')
+  ).filter((section) => !estReserve(section));
+
   const vulnerabilities = sections[0]?.querySelector('.vulnerability-list') || null;
   const weakPasswords = sections[1]?.querySelector('.vulnerability-list') || null;
   const recommendations = root.querySelector('#security-report-view .recommendations .recommendation-list');
 
-  return { vulnerabilities, weakPasswords, recommendations };
+  return {
+    vulnerabilities: estReserve(vulnerabilities) ? null : vulnerabilities,
+    weakPasswords: estReserve(weakPasswords) ? null : weakPasswords,
+    recommendations
+  };
 }
 
 function createVulnerabilityItem({

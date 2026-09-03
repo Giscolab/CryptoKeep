@@ -33,7 +33,7 @@
  */
 
 import { analyzePassword } from './password-policy.js';
-import { findReuseGroups } from './password-reuse.js';
+import { analyzeReuse } from './password-reuse.js';
 import { isPasswordPwned, isHibpEnabled } from './hibp-service.js';
 import { hasPersistedCategory } from '../utils/vault-filters.js';
 
@@ -173,7 +173,10 @@ export async function runSecurityAudit(entries, options = {}) {
   const generatedAt = new Date(reference).toISOString();
 
   // --- reutilisations REELLES, par comparaison exacte des chaines --------
-  const groupes = await findReuseGroups(entries);
+  // `analyzeReuse` RETIENT les groupes : sans cela, l'action « Résoudre »
+  // du rapport ne pourrait pas retrouver les entrees d'un groupe. Les groupes
+  // retenus sont effaces au verrouillage (session-lock.js).
+  const groupes = await analyzeReuse(entries);
   const reusedIds = new Set();
   for (const groupe of groupes) {
     for (const membre of groupe.entries) reusedIds.add(membre.id);
@@ -224,6 +227,12 @@ export async function runSecurityAudit(entries, options = {}) {
     withoutUrl: compte('no_url'),
     withoutCategory: compte('no_category'),
     withoutPassword: compte('no_password'),
+    // LOT 7B : comptage EXPLICITE des entrees sans aucun probleme, au lieu
+    // d'une soustraction. `total - faibles - reutilises` classait « solide »
+    // une entree sans mot de passe, et comptait deux fois une entree a la
+    // fois faible et reutilisee — les categories se chevauchent.
+    clean: items.filter((item) => item.problems.length === 0
+      && !(item.breach && item.breach.checked === true && item.breach.pwned === true)).length,
     // `null` — et non 0 — quand rien n'a ete verifie : une absence de
     // verification n'est pas une absence de compromission.
     breached: breachEnabled

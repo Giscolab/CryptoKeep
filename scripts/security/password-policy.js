@@ -111,6 +111,114 @@ function longestRepeatedUnit(value) {
   return null;
 }
 
+/** Decoupe une chaine en suites de caracteres identiques. */
+function runLengths(value) {
+  const suites = [];
+  let courante = null;
+
+  for (const caractere of value) {
+    if (courante && courante.character === caractere) courante.length += 1;
+    else {
+      courante = { character: caractere, length: 1 };
+      suites.push(courante);
+    }
+  }
+  return suites;
+}
+
+/**
+ * Plus longue suite d'un MEME caractere, ou qu'elle se trouve dans la chaine.
+ *
+ * LOT 7B - DEFAUT CORRIGE. `detectRepetition` ne reconnaissait que les
+ * repetitions couvrant la chaine ENTIERE. Une longue suite noyee dans une
+ * chaine passait donc intacte, et l'estimateur naif s'appliquait sans
+ * penalite :
+ *
+ *   'aaaaaaaaaaaaZ9!'  -> 98 bits annonces, ACCEPTE
+ *   '111111111111Aa!'  -> 98 bits annonces, ACCEPTE
+ *   'Xaaaaaaaaaaaaaaaa' -> 96 bits annonces, ACCEPTE
+ *
+ * Une suite de n caracteres identiques ne vaut qu'un caractere, plus la
+ * connaissance de sa longueur. La longueur EFFECTIVE de la chaine est donc
+ * reduite de (n - 1).
+ */
+function detectCharacterRun(normalized) {
+  const suites = runLengths(normalized);
+  const plusLongue = suites.reduce(
+    (max, suite) => (suite.length > max.length ? suite : max),
+    { character: '', length: 0 }
+  );
+
+  if (plusLongue.length < 4) return null;
+
+  // TOUTES les suites d'au moins 3 caracteres sont deduites, pas seulement la
+  // plus longue : « aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd » en contient
+  // quatre, et n'en retenir qu'une laissait la chaine paraitre longue.
+  const economie = suites
+    .filter((suite) => suite.length >= 3)
+    .reduce((total, suite) => total + (suite.length - 1), 0);
+
+  const longueurEffective = Math.max(1, normalized.length - economie);
+  const total = suites.filter((suite) => suite.length >= 3).length;
+
+  return {
+    code: 'character_run',
+    label: total > 1
+      ? `${total} suites d'un meme caractere, la plus longue « ${plusLongue.character} » x${plusLongue.length}`
+      : `« ${plusLongue.character} » repete ${plusLongue.length} fois de suite`,
+    factor: longueurEffective / normalized.length
+  };
+}
+
+/**
+ * Plus long fragment REPETE, meme s'il ne couvre pas toute la chaine.
+ *
+ * Complete `detectRepetition` : `abcabcabcXYZ` n'est pas une repetition
+ * complete, mais les deux tiers de la chaine sont deja connus des le premier
+ * `abc`. L'analyse est bornee : longueur de motif limitee a la moitie de la
+ * chaine, et chaine elle-meme bornee, donc aucun risque de cout quadratique
+ * incontrole.
+ */
+function detectRepeatedBlock(normalized) {
+  const longueur = normalized.length;
+  if (longueur < 8 || longueur > 512) return null;
+
+  let meilleur = '';
+  const maxMotif = Math.floor(longueur / 2);
+
+  for (let taille = maxMotif; taille >= 3; taille -= 1) {
+    for (let depart = 0; depart + taille * 2 <= longueur; depart += 1) {
+      const motif = normalized.slice(depart, depart + taille);
+      if (normalized.indexOf(motif, depart + taille) !== -1) {
+        meilleur = motif;
+        break;
+      }
+    }
+    if (meilleur) break;
+  }
+
+  if (!meilleur) return null;
+
+  // Couverture totale du motif dans la chaine.
+  let occurrences = 0;
+  let position = normalized.indexOf(meilleur);
+  while (position !== -1) {
+    occurrences += 1;
+    position = normalized.indexOf(meilleur, position + meilleur.length);
+  }
+
+  const couverture = (occurrences * meilleur.length) / longueur;
+  if (couverture < 0.4) return null;
+
+  // Les occurrences apres la premiere n'apportent rien.
+  const longueurEffective = longueur - (occurrences - 1) * meilleur.length;
+  return {
+    code: 'repeated_block',
+    label: `Fragment « ${meilleur} » repete ${occurrences} fois`,
+    factor: Math.max(0.05, longueurEffective / longueur)
+  };
+}
+
 /** Repetition d'un motif : `aaaa`, `abababab`, `passwordpassword`. */
 function detectRepetition(normalized) {
   const repeated = longestRepeatedUnit(normalized);
@@ -259,6 +367,8 @@ const DETECTORS = Object.freeze([
   detectCommonWord,
   detectTrivialVariant,
   detectRepetition,
+  detectCharacterRun,
+  detectRepeatedBlock,
   detectRepeatedWords,
   detectSequence,
   detectKeyboardPattern
@@ -327,13 +437,23 @@ export function analyzePassword(password) {
   }
 
   const distinctWords = countDistinctWords(value);
+  // LOT 7B : une phrase dont un motif previsible a ete detecte n'est pas une
+  // phrase de passe. « aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd » comptait
+  // quatre « mots » distincts et recevait le bonus.
   const isPassphrase = distinctWords >= POLICY.passphraseMinWords
-    && value.length >= POLICY.passphraseMinLength;
+    && value.length >= POLICY.passphraseMinLength
+    && penalties.length === 0;
 
   // Bonus de phrase de passe : une phrase longue et variee resiste bien, sans
   // qu'aucune classe de caracteres ne soit imposee.
   const bonus = isPassphrase ? POLICY.passphraseBonusBits : 0;
-  const effectiveBits = Math.max(0, Math.floor(naiveBits * factor) + bonus);
+
+  // Le plafond par alphabet observe s'applique AVANT les penalites : il
+  // corrige l'estimation de depart, il ne la sanctionne pas.
+  const plafond = observedAlphabetCeiling(value);
+  const bitsDeDepart = plafond === null ? naiveBits : Math.min(naiveBits, plafond);
+
+  const effectiveBits = Math.max(0, Math.floor(bitsDeDepart * factor) + bonus);
 
   return {
     naiveBits,
@@ -344,6 +464,48 @@ export function analyzePassword(password) {
     length: value.length,
     score: bitsToScore(effectiveBits)
   };
+}
+
+/**
+ * Plafond fonde sur l'alphabet REELLEMENT observe.
+ *
+ * LOT 7B - CAUSE RACINE. L'estimateur naif multiplie la longueur par le
+ * logarithme de l'alphabet THEORIQUE : des qu'une majuscule, un chiffre et
+ * un symbole apparaissent, il suppose 95 caracteres possibles a chaque
+ * position. Une chaine faite de quatre caracteres distincts repetes quinze
+ * fois obtient ainsi 98 bits.
+ *
+ * Quand une chaine est LONGUE par rapport au nombre de caracteres distincts
+ * qu'elle contient, cette repetition est une donnee observable : l'alphabet
+ * reellement employe est petit. Un plafond est alors calcule sur cet
+ * alphabet observe.
+ *
+ * LA GARDE EST ESSENTIELLE. Un mot de passe aleatoire COURT ne montre que
+ * peu de caracteres distincts sans que cela signifie quoi que ce soit :
+ * 13 caracteres tires au hasard en affichent 13. Le plafond ne s'applique
+ * donc QUE si la longueur atteint le double du nombre de caracteres
+ * distincts — c'est-a-dire si les caracteres se repetent vraiment.
+ *
+ * @returns {number|null} plafond en bits, ou `null` si la garde ne passe pas
+ */
+export function observedAlphabetCeiling(value) {
+  const distincts = new Set(Array.from(value)).size;
+  if (distincts === 0) return 0;
+  if (value.length < distincts * 2) return null;
+
+  // La longueur retenue est la longueur COMPRESSEE, et non la longueur brute :
+  // une suite de dix caracteres identiques ne represente pas dix choix, mais
+  // un choix et une longueur. Sans cela, une chaine faite de quatre longues
+  // suites paraissait encore riche.
+  const suites = runLengths(value);
+  const longueurCompressee = suites.reduce(
+    (total, suite) => total + 1 + (suite.length > 1 ? Math.ceil(Math.log2(suite.length)) : 0),
+    0
+  );
+
+  // `Math.max(distincts, 2)` : un alphabet d'un seul caractere donnerait
+  // log2(1) = 0 et effacerait toute nuance.
+  return Math.floor(longueurCompressee * Math.log2(Math.max(distincts, 2)));
 }
 
 /** Score 0 a 4, sur les bits EFFECTIFS. Memes paliers que l'affichage. */

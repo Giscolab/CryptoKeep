@@ -10,6 +10,7 @@ import {
   evaluateMasterPasswordPolicy,
   countDistinctWords,
   bitsToScore,
+  observedAlphabetCeiling,
   POLICY
 } from '../scripts/security/password-policy.js';
 import { estimatePasswordEntropyBits } from '../scripts/ui/password-meter/password-meter.js';
@@ -102,6 +103,87 @@ test('1.6 - variantes simples : substitutions leet et suffixes', () => {
     assert.ok(a.effectiveBits < 45,
       `« ${chaine} » : ${a.effectiveBits} bits effectifs, une variante triviale doit rester faible`);
   }
+});
+
+test('1.6b - REPETITIONS INTERNES : le defaut audite est corrige', () => {
+  // Defaut reel signale a l'audit : `detectRepetition` ne reconnaissait que
+  // les repetitions couvrant la chaine ENTIERE. Une longue suite noyee dans
+  // une chaine echappait a toute penalite, et l'estimateur naif s'appliquait
+  // intact. Sorties mesurees avant correction :
+  //   'aaaaaaaaaaaaZ9!'  -> 98 bits, ACCEPTE, aucune penalite
+  //   '111111111111Aa!'  -> 98 bits, ACCEPTE, aucune penalite
+  //   'aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd' -> 260 bits, ACCEPTE
+  const audites = [
+    'aaaaaaaaaaaaZ9!',
+    '111111111111Aa!',
+    'aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd',
+    'Xaaaaaaaaaaaaaaaa',
+    'motdepasseaaaaaaaaaa1!'
+  ];
+
+  for (const chaine of audites) {
+    const a = analyzePassword(chaine);
+    assert.ok(a.penalties.length > 0,
+      `« ${chaine} » doit etre penalise : aucune penalite detectee`);
+    assert.ok(a.effectiveBits < 50,
+      `« ${chaine} » : ${a.effectiveBits} bits effectifs, doit rester sous le seuil`);
+    assert.equal(evaluateMasterPasswordPolicy(chaine).valid, false,
+      `« ${chaine} » doit etre refuse comme mot de passe maitre`);
+  }
+});
+
+test('1.6c - fragments repetes et suites multiples', () => {
+  const cas = [
+    ['abcabcabcabcXYZ9!', 'repeated_block'],
+    ['aaaa1111bbbb2222cccc3333', 'character_run'],
+    ['Zz9!Zz9!Zz9!Zz9!', 'repeated_block']
+  ];
+
+  for (const [chaine, codeAttendu] of cas) {
+    const a = analyzePassword(chaine);
+    assert.ok(a.penalties.map((p) => p.code).includes(codeAttendu),
+      `« ${chaine} » : ${codeAttendu} attendu, obtenu [${a.penalties.map((p) => p.code).join(', ')}]`);
+    assert.equal(evaluateMasterPasswordPolicy(chaine).valid, false);
+  }
+});
+
+test('1.6d - le plafond par alphabet observe ne penalise pas les chaines courtes', () => {
+  // La garde est essentielle : un mot de passe aleatoire COURT n'affiche que
+  // peu de caracteres distincts sans que cela signifie quoi que ce soit.
+  assert.equal(observedAlphabetCeiling('x7$Qm2!vLp9Zk'), null,
+    '13 caracteres tous distincts : la garde doit empecher tout plafonnement');
+
+  const plafond = observedAlphabetCeiling('aaaaaaaaaaaaZ9!');
+  assert.ok(typeof plafond === 'number' && plafond < 30,
+    `Une chaine longue a 4 caracteres distincts doit etre plafonnee bas, obtenu ${plafond}`);
+
+  // La propriete qui compte : le plafond peut s'appliquer a une bonne phrase
+  // — elle contient forcement des lettres repetees — mais il ne doit JAMAIS
+  // la faire passer sous le seuil. C'est un correctif d'estimation, pas une
+  // sanction.
+  const bonnes = [
+    'correcte agrafe batterie cheval',
+    'le vieux phare eclaire la baie tranquille',
+    'quatre mots distincts suffisent largement',
+    'jonquille-vitrail-8-Kayak'
+  ];
+  for (const phrase of bonnes) {
+    const limite = observedAlphabetCeiling(phrase);
+    if (limite !== null) {
+      assert.ok(limite >= POLICY.minEffectiveBits,
+        `« ${phrase} » plafonnee a ${limite} bits : le plafond ne doit pas `
+        + 'faire chuter une bonne phrase sous le seuil');
+    }
+    assert.equal(evaluateMasterPasswordPolicy(phrase).valid, true,
+      `« ${phrase} » doit rester acceptee`);
+  }
+});
+
+test('1.6e - une chaine de suites n est PAS une phrase de passe', () => {
+  const a = analyzePassword('aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd');
+  assert.equal(a.isPassphrase, false,
+    'Quatre « mots » faits chacun d un seul caractere repete ne forment pas une phrase');
+  assert.ok(a.effectiveBits < a.naiveBits / 4);
 });
 
 test('1.7 - les mots de passe reellement solides ne sont pas penalises a tort', () => {

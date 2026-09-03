@@ -145,10 +145,17 @@ function createFindingElement(item) {
   return wrapper;
 }
 
-/** Fiche d'un groupe de reutilisation. Ne contient aucun mot de passe. */
+/**
+ * Fiche d'un groupe de reutilisation. Ne contient aucun mot de passe.
+ *
+ * LOT 7B : l'action « Résoudre » est reprise ici. Elle existait dans l'ancien
+ * `security-dashboard.js`, qui n'est plus declenche : sans ce report, la
+ * fonctionnalite aurait purement disparu de l'interface.
+ */
 function createReuseGroupElement(groupe) {
   const wrapper = document.createElement('div');
   wrapper.className = 'vulnerability-item vuln-high';
+  wrapper.dataset.groupId = groupe.groupId;
 
   const info = document.createElement('div');
   info.className = 'vuln-info';
@@ -166,7 +173,23 @@ function createReuseGroupElement(groupe) {
 
   details.append(titre, liste);
   info.appendChild(details);
-  wrapper.appendChild(info);
+
+  const actions = document.createElement('div');
+  actions.className = 'vuln-actions';
+
+  const bouton = document.createElement('button');
+  bouton.type = 'button';
+  bouton.className = 'vuln-action-btn resolve-reuse-btn';
+  bouton.dataset.auditAction = 'resolve-reuse';
+  bouton.dataset.groupId = groupe.groupId;
+  const icone = document.createElement('i');
+  icone.className = 'fas fa-random';
+  bouton.append(icone, document.createTextNode(' Résoudre ce groupe'));
+  bouton.title = 'Ouvre l\'assistant de résolution. Le mot de passe devra aussi '
+    + 'être changé sur chaque site concerné : cette étape reste manuelle.';
+
+  actions.appendChild(bouton);
+  wrapper.append(info, actions);
   return wrapper;
 }
 
@@ -204,6 +227,23 @@ function renderScope(doc, rapport) {
   }
 }
 
+/**
+ * Note du graphique.
+ *
+ * Elle est posee independamment de la disponibilite de la bibliotheque : le
+ * texte decrit ce que MONTRENT les chiffres, et reste vrai meme si aucun
+ * graphique n'est dessine.
+ */
+function renderChartNote(doc) {
+  const note = byId(doc, 'chartNote');
+  if (!note) return false;
+  note.textContent = 'État à la date du dernier audit. Le coffre ne conserve pas '
+    + 'd\'historique : aucune évolution dans le temps ne peut être affichée. '
+    + 'Seule la première barre est exclusive ; une même entrée peut apparaître '
+    + 'dans plusieurs des suivantes.';
+  return true;
+}
+
 /** Graphique : etat ACTUEL, jamais une evolution fabriquee. */
 function renderChart(doc, rapport) {
   const secours = byId(doc, 'chartFallback');
@@ -233,14 +273,27 @@ function renderChart(doc, rapport) {
   if (rapport.status !== 'completed') return false;
 
   const c = rapport.counts;
+
+  // LOT 7B - DEFAUT CORRIGE. « Solides » valait `total - faibles - reutilises`.
+  // Une entree SANS MOT DE PASSE n'etant ni faible ni reutilisee, elle etait
+  // comptee comme solide. Les categories se chevauchant par ailleurs — une
+  // entree peut etre faible, reutilisee ET ancienne —, la soustraction
+  // pouvait aussi passer sous zero.
+  //
+  // « Sans problème » est desormais un comptage EXPLICITE du moteur, et le
+  // libelle dit que les autres barres se recoupent.
   renderSecurityChart('securityChart', {
-    labels: ['Solides', 'Faibles', 'Réutilisés', 'Anciens', 'Sans URL', 'Sans catégorie'],
+    labels: [
+      'Sans problème', 'Faibles', 'Réutilisés', 'Anciens',
+      'Sans mot de passe', 'Sans URL', 'Sans catégorie'
+    ],
     scores: [
-      Math.max(0, c.total - c.weak - c.reused),
-      c.weak, c.reused, c.olderThan1Year, c.withoutUrl, c.withoutCategory
+      c.clean, c.weak, c.reused, c.olderThan1Year,
+      c.withoutPassword, c.withoutUrl, c.withoutCategory
     ],
     weak: []
   });
+
   return true;
 }
 
@@ -314,6 +367,7 @@ export function renderAuditReport(rapport, options = {}) {
   setText(doc, 'reuseGroupsCount', complet ? String(rapport.reuseGroups.length) : '');
 
   renderScope(doc, rapport);
+  if (complet) renderChartNote(doc);
   const graphique = renderChart(doc, rapport);
 
   return { rendered: true, completed: complet, chartRendered: graphique };
@@ -441,6 +495,27 @@ export function initAuditReport(options = {}) {
       if (!entryId || typeof CustomEvent !== 'function') return;
       doc.dispatchEvent(new CustomEvent('vault:edit-entry', { detail: { entryId } }));
       showToast('N\'oubliez pas de changer aussi le mot de passe sur le site concerné.', 'info', 6000);
+    });
+  }
+
+  // Action d'un groupe de reutilisation : ouvre l'assistant de resolution,
+  // deja ecoute par scripts/app.js.
+  const groupesConteneur = doc.getElementById('auditReuseGroups');
+  if (groupesConteneur) {
+    groupesConteneur.addEventListener('click', (event) => {
+      const cible = event && event.target;
+      const bouton = cible && typeof cible.closest === 'function'
+        ? cible.closest('[data-audit-action="resolve-reuse"]')
+        : null;
+      if (!bouton) return;
+
+      const groupId = bouton.dataset.groupId;
+      const groupe = (lastReport.reuseGroups || []).find((item) => item.groupId === groupId);
+      if (!groupe || typeof CustomEvent !== 'function') return;
+
+      doc.dispatchEvent(new CustomEvent('vault:open-reuse-resolver', {
+        detail: { groupId, groupData: groupe }
+      }));
     });
   }
 

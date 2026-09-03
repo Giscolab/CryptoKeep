@@ -18,14 +18,27 @@
 import { vaultManager } from '../core/vault/manager.js';
 import { ENTRIES_CHANGED_EVENT } from '../core/vault/entry-operations.js';
 import { renderVaultEntries, renderRecentAccesses } from './vault-list/vault-list.js';
+import { runSecurityAudit } from '../security/audit-engine.js';
 
 let installed = false;
 
 /** Met a jour les compteurs et le score deja presents dans le tableau de bord. */
 async function refreshDashboardStats() {
+  // LOT 7B : les compteurs proviennent du moteur d'audit du Lot 6, et non
+  // plus de `getPasswordStats()`, dont la regle de faiblesse est celle par
+  // classes de caracteres remplacee au Lot 5. Deux mesures differentes
+  // s'affichaient pour la meme notion selon l'ecran consulte.
   let stats;
   try {
-    stats = await vaultManager.getPasswordStats();
+    const rapport = await runSecurityAudit(vaultManager.getEntries());
+    if (rapport.status !== 'completed') return false;
+    stats = {
+      total: rapport.counts.total,
+      weak: rapport.counts.weak,
+      reused: rapport.counts.reused,
+      old: rapport.counts.olderThan1Year,
+      score: rapport.score.value === null ? 0 : rapport.score.value
+    };
   } catch {
     return false;
   }

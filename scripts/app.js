@@ -47,9 +47,10 @@ import {
 	describePersistenceIssue
 } from './security/storage-persistence.js';
 import { validateNewMasterPassword } from './security/master-password-policy.js';
-import {
-	auditSecurityDashboard
-} from './security/security-dashboard-audit.js?v=20260719-1';
+// Lot 7b : `auditSecurityDashboard` n'est plus importe ici. Ce moteur
+// s'appuie sur l'estimateur naif `getPasswordEntropy` et ecrivait dans les
+// conteneurs du rapport du Lot 6. Le module reste dans le depot, documente
+// comme historique, mais n'a plus aucun declencheur.
 import {
 	getReuseGroupEntries
 } from './security/password-reuse.js';
@@ -70,9 +71,10 @@ import {
 // Lot 6 : `renderSecurityReport` n'est plus importe ici. Le module
 // scripts/ui/security-report.js est CONSERVE et documente comme historique ;
 // il n'est simplement plus branche sur l'affichage.
-import {
-	renderSecurityDashboardSections
-} from './ui/security-dashboard.js';
+// Lot 7b : `renderSecurityDashboardSections` n'est plus importe ici, pour la
+// meme raison. Le module scripts/ui/security-dashboard.js est CONSERVE et
+// porte desormais une garde qui l'empeche d'ecrire dans les conteneurs du
+// nouveau moteur, meme s'il etait rebranche par erreur.
 import {
 	openReuseResolver
 } from './ui/reuse-resolver-modal.js';
@@ -126,16 +128,17 @@ document.addEventListener('vault:open-reuse-resolver', async (event) => {
 	openReuseResolver(groupData, allEntries, saveEntry);
 });
 
-document.addEventListener('vault:security-updated', () => {
-	const entries = vaultManager.getEntries();
-	auditSecurityDashboard(entries).then((report) => {
-		renderSecurityDashboardSections(report);
-		// Lot 6 : `renderSecurityReport()` retire d'ici pour la meme raison.
-		// Le rapport de securite ne se rafraichit que sur demande explicite.
-	}).catch((err) => {
-		console.warn('[Security Dashboard] Rafraîchissement indisponible :', err?.message || err);
-	});
-});
+// LOT 7B : l'ancien moteur n'a plus AUCUN declencheur automatique.
+//
+// Il etait encore lance a chaque mutation d'entree. `renderSecurityDashboardSections`
+// ecrivait alors dans les conteneurs du nouveau rapport et reecrivait les
+// compteurs du tableau de bord avec l'estimateur naif `getPasswordEntropy`.
+// Deux moteurs se disputaient donc le meme ecran, et le plus ancien gagnait
+// parce qu'il partait tout seul.
+//
+// Le rapport ne se calcule desormais que sur demande explicite, par le bouton
+// « Lancer l'audit ». Les compteurs du tableau de bord sont mis a jour par
+// `refreshVaultViews()`, qui utilise le moteur du Lot 6.
 
 // === NAVIGATION PRINCIPALE (template tabs/views) ===
 const navDashboard = document.getElementById('nav-dashboard');
@@ -173,13 +176,18 @@ if (navSecurity) {
 		// vue ne declenche donc plus aucun calcul automatique : l'utilisateur
 		// voit l'etat honnete du dernier audit, ou « non encore execute ».
 		// Le dernier etat connu est re-affiche, sans relancer de calcul.
+		//
+		// LOT 7B - COLLISION D'ARCHITECTURE CORRIGEE. `auditSecurityDashboard`
+		// etait encore lance ici, et `renderSecurityDashboardSections` ecrivait
+		// dans les DEUX PREMIERES `.vulnerability-section` de la vue — qui sont
+		// desormais `#auditFindings` et `#auditReuseGroups`, les conteneurs du
+		// nouveau rapport. L'ancien moteur, qui s'appuie sur l'estimateur naif
+		// `getPasswordEntropy`, remplissait donc l'ecran du nouveau moteur avant
+		// meme que « Lancer l'audit » ait ete actionne.
+		//
+		// L'ancien moteur n'a plus aucun declencheur automatique. Il reste dans
+		// le depot, documente comme historique.
 		renderAuditReport(getLastAuditReport());
-		const entries = vaultManager.getEntries();
-		auditSecurityDashboard(entries).then((report) => {
-			renderSecurityDashboardSections(report);
-		}).catch((err) => {
-			console.warn('[Security Dashboard] Audit indisponible :', err?.message || err);
-		});
 	});
 }
 // Paramètres

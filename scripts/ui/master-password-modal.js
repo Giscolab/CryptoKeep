@@ -202,10 +202,21 @@ export async function submitChangePassword(fields, deps = {}) {
   try {
     const rapport = await changeMasterPassword(manager, saisie, deps.changeOptions || {});
 
-    const complement = rapport.backup && rapport.backup.written === false
-      ? ' La sauvegarde secondaire n\'a pas pu etre mise a jour.'
-      : '';
-    showToast(`Mot de passe principal modifie.${complement}`, complement ? 'warning' : 'success');
+    const avertissements = [];
+    if (rapport.backup && rapport.backup.written === false) {
+      avertissements.push('La sauvegarde secondaire n\'a pas pu être mise à jour.');
+    }
+    // Lot 7b : le renouvellement de session peut echouer APRES un changement
+    // reussi. Le message doit alors dire que le changement a bien eu lieu.
+    if (rapport.session && rapport.session.reason === 'session_renewal_failed') {
+      avertissements.push(rapport.session.message);
+    }
+
+    showToast(
+      `Mot de passe principal modifié.${avertissements.length ? ' ' + avertissements.join(' ') : ''}`,
+      avertissements.length ? 'warning' : 'success',
+      avertissements.length ? 9000 : 3000
+    );
     closeChangePasswordModal(fields);
     return { changed: true, entryCount: rapport.entryCount };
   } catch (error) {
