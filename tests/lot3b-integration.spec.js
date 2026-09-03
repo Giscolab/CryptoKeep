@@ -70,6 +70,9 @@ const entryModal = await import('../scripts/ui/entry-modal.js');
 const viewRefresh = await import('../scripts/ui/vault-view-refresh.js');
 const masterPasswordModal = await import('../scripts/ui/master-password-modal.js');
 const auditReport = await import('../scripts/ui/audit-report-view.js');
+const settingsControls = await import('../scripts/ui/settings-controls.js');
+const appSettings = await import('../scripts/utils/app-settings.js');
+const hibp = await import('../scripts/security/hibp-service.js');
 
 const { createEntry, updateEntry, deleteEntry } = entryOperations;
 
@@ -1399,6 +1402,211 @@ check('L10 - Chart.min.js : la casse referencee correspond au fichier reel', asy
   assert.ok(loader.CHART_PATHS.includes(reference),
     'Le chargeur de secours doit connaitre le chemin reference par la page');
   assert.equal(loader.resolveChart({}), null, 'Absence detectee honnetement');
+});
+
+// ===========================================================================
+// M. LOT 7 : reglages et fonctions annoncees
+// ===========================================================================
+
+check('M1 - tous les reglages raccordables portent un identifiant', async () => {
+  const attendus = [
+    'setting-clipboard-clear', 'setting-clipboard-seconds',
+    'setting-generator-length', 'setting-generator-digits', 'setting-generator-symbols',
+    'setting-security-alerts', 'setting-hibp',
+    'autolock-enabled', 'autolock-delay', 'autolock-on-hidden',
+    'theme-select', 'launch-audit-ui'
+  ];
+  for (const id of attendus) {
+    assert.ok(document.getElementById(id), `#${id} doit exister dans index.html`);
+  }
+});
+
+check('M2 - AUCUNE bascule sans identifiant ne subsiste dans les reglages', async () => {
+  const vue = document.getElementById('settings-view');
+  const bascules = vue.querySelectorAll('input');
+  const anonymes = bascules.filter((n) => n.getAttribute('type') === 'checkbox' && !n.id);
+
+  assert.deepEqual(anonymes, [],
+    'Cinq bascules etaient livrees sans identifiant ni gestionnaire, '
+    + 'dont trois cochees par defaut : elles annoncaient une protection absente');
+});
+
+check('M3 - les reglages sont reellement raccordes', async () => {
+  const resultat = settingsControls.initSettingsControls({ doc: document });
+  assert.ok(resultat.bound, 'Le panneau doit etre raccorde');
+  assert.ok(resultat.controls >= 7, `Au moins 7 controles attendus, obtenu ${resultat.controls}`);
+
+  for (const id of ['setting-clipboard-clear', 'setting-clipboard-seconds',
+    'setting-generator-length', 'setting-generator-digits',
+    'setting-generator-symbols', 'setting-security-alerts', 'setting-hibp']) {
+    assert.equal(document.getElementById(id).listenerCount('change'), 1,
+      `#${id} doit porter exactement un gestionnaire`);
+  }
+  assert.equal(document.getElementById('launch-audit-ui').listenerCount('click'), 1);
+
+  // Idempotent.
+  assert.equal(settingsControls.initSettingsControls({ doc: document }).bound, false);
+});
+
+check('M4 - modifier un reglage le PERSISTE reellement', async () => {
+  const duree = document.getElementById('setting-clipboard-seconds');
+  duree.value = '120';
+  duree.dispatchEvent({ type: 'change', target: duree });
+
+  assert.equal(appSettings.readSettings().clipboardClearSeconds, 120,
+    'La valeur choisie doit etre persistee');
+
+  const longueur = document.getElementById('setting-generator-length');
+  longueur.value = '32';
+  longueur.dispatchEvent({ type: 'change', target: longueur });
+  assert.equal(appSettings.generatorOptionsFromSettings().length, 32,
+    'Le reglage du generateur doit etre reellement applique');
+});
+
+check('M4b - le bouton « Générer » applique REELLEMENT le reglage', async () => {
+  // Verifier `generatorOptionsFromSettings()` ne prouve rien : ce qui compte
+  // est que la fenetre d'entree s'en serve. Le vrai bouton est donc clique.
+  await installVault([]);
+  entryModal.initEntryModal({ doc: document });
+  const champ = document.getElementById('password');
+  const bouton = document.getElementById('generate-password');
+
+  for (const longueur of [12, 32, 48]) {
+    const select = document.getElementById('setting-generator-length');
+    select.value = String(longueur);
+    select.dispatchEvent({ type: 'change', target: select });
+
+    champ.value = '';
+    bouton.click();
+    assert.equal(champ.value.length, longueur,
+      `Le reglage « ${longueur} caractères » doit produire un mot de passe de cette longueur`);
+  }
+
+  // Et les classes de caracteres sont respectees.
+  const symboles = document.getElementById('setting-generator-symbols');
+  const chiffres = document.getElementById('setting-generator-digits');
+  symboles.checked = false;
+  symboles.dispatchEvent({ type: 'change', target: symboles });
+  chiffres.checked = false;
+  chiffres.dispatchEvent({ type: 'change', target: chiffres });
+
+  champ.value = '';
+  bouton.click();
+  assert.ok(!/[^A-Za-z]/.test(champ.value),
+    `Chiffres et symboles exclus, obtenu : ${champ.value.replace(/[A-Za-z]/g, '·')}`);
+
+  // Retablissement des defauts pour les scenarios suivants.
+  symboles.checked = true;
+  symboles.dispatchEvent({ type: 'change', target: symboles });
+  chiffres.checked = true;
+  chiffres.dispatchEvent({ type: 'change', target: chiffres });
+  champ.value = '';
+});
+
+check('M5 - desactiver l effacement grise la duree', async () => {
+  const bascule = document.getElementById('setting-clipboard-clear');
+  const duree = document.getElementById('setting-clipboard-seconds');
+
+  bascule.checked = false;
+  bascule.dispatchEvent({ type: 'change', target: bascule });
+  assert.equal(appSettings.readSettings().clipboardClearEnabled, false);
+  assert.equal(duree.disabled, true, 'Une duree sans effacement n a pas de sens');
+
+  bascule.checked = true;
+  bascule.dispatchEvent({ type: 'change', target: bascule });
+  assert.equal(duree.disabled, false);
+});
+
+check('M6 - 2FA et remplissage automatique : desactives et documentes', async () => {
+  for (const [id, badge] of [['setting-2fa', 'badge-2fa'], ['setting-autofill', 'badge-autofill']]) {
+    const controle = document.getElementById(id);
+    assert.ok(controle, `#${id} doit rester VISIBLE, pas supprime`);
+    assert.equal(controle.disabled, true,
+      `#${id} ne doit pas pouvoir etre coche : il ne protegerait rien`);
+    assert.equal(controle.getAttribute('checked'), null,
+      'Une fonction absente ne doit jamais etre livree comme active');
+    assert.equal(controle.listenerCount('change'), 0,
+      'Aucun gestionnaire ne doit simuler un effet');
+
+    assert.match(document.getElementById(badge).textContent, /non disponible/i);
+  }
+
+  // Le document d'analyse existe reellement.
+  const { existsSync } = await import('node:fs');
+  assert.ok(existsSync(new URL('../docs/2FA-WEBAUTHN-AUTOFILL.md', import.meta.url)),
+    'Le modele de menace doit exister, pas seulement etre promis');
+});
+
+check('M7 - HIBP : desactive par defaut, consentement affiche', async () => {
+  const bascule = document.getElementById('setting-hibp');
+  assert.equal(bascule.checked, false, 'La fonction reseau doit etre desactivee par defaut');
+  assert.equal(hibp.isHibpEnabled(), false);
+
+  // Le texte de consentement est REELLEMENT affiche, pas seulement disponible.
+  const notice = document.getElementById('hibp-notice-body').textContent;
+  assert.match(notice, /jamais envoye/i);
+  assert.match(notice, /5 premiers caracteres/i);
+  assert.match(notice, /adresse IP/i);
+  assert.match(notice, /api\.pwnedpasswords\.com/);
+});
+
+check('M8 - activer HIBP exige une action explicite et le dit', async () => {
+  const bascule = document.getElementById('setting-hibp');
+
+  bascule.checked = true;
+  bascule.dispatchEvent({ type: 'change', target: bascule });
+
+  assert.equal(hibp.isHibpEnabled(), true, 'Le consentement doit etre enregistre');
+  assert.match(document.getElementById('badge-hibp').textContent, /activ/i);
+  assert.match(document.getElementById('desc-hibp').textContent, /adresse IP/i,
+    'L etat actif doit rappeler ce que le service voit');
+
+  bascule.checked = false;
+  bascule.dispatchEvent({ type: 'change', target: bascule });
+  assert.equal(hibp.isHibpEnabled(), false);
+  assert.match(document.getElementById('desc-hibp').textContent, /Aucune requête/i,
+    'L etat inactif doit dire qu aucune requete n est emise');
+});
+
+check('M9 - le bouton d audit des reglages est raccorde au moteur du Lot 6', async () => {
+  await installVault([
+    { id: 'm9', title: 'Entree', username: 'u@example.test', password: 'MotDePasse-M9-1!' }
+  ]);
+  auditReport.clearAuditReport({ doc: document });
+
+  let navigation = null;
+  const ecouteur = (event) => { navigation = event.detail.view; };
+  document.addEventListener('vault:navigate', ecouteur);
+
+  document.getElementById('launch-audit-ui').click();
+  await attendreQue(() => auditReport.getLastAuditReport().status === 'completed',
+    'l audit lance depuis les reglages doit aboutir');
+
+  document.removeEventListener('vault:navigate', ecouteur);
+  assert.equal(navigation, 'security-report-view', 'Le bouton doit mener au rapport');
+  assert.equal(auditReport.getLastAuditReport().scope.entryCount, 1);
+});
+
+check('M10 - le profil n affiche plus de fausse identite', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const visible = source.replace(/<!--[\s\S]*?-->/g, '');
+
+  assert.ok(!visible.includes('John Doe'), 'Le champ nom portait une identite fictive');
+  assert.ok(!visible.includes('john.doe@example.com'));
+  assert.equal(document.getElementById('name').value, '');
+  assert.equal(document.getElementById('email').value, '');
+});
+
+check('M11 - la description du presse-papiers ne promet plus rien', async () => {
+  const description = document.getElementById('desc-clipboard').textContent;
+  assert.match(description, /essaie|tentative/i,
+    'Le libelle doit dire « tentative », pas « effacer »');
+  assert.match(description, /pas garantie/i);
+  assert.match(description, /rien n'est écrasé|rien n'est ecrase/i,
+    'La preservation d une copie ulterieure doit etre annoncee');
+  assert.ok(!description.includes('60 secondes'),
+    'La description annoncait 60 s alors que le delai reel etait de 30 s');
 });
 
 // ===========================================================================

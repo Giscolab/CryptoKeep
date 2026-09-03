@@ -201,4 +201,47 @@
   box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.25);
 }
 
+
+  /* --- Lot 7 : etats honnetes des reglages -------------------------------
+     Un reglage indisponible doit se VOIR comme tel, sans etre cache : le
+     masquer laisserait croire qu'il n'a jamais ete propose. */
+  .setting-item.is-unavailable {
+    opacity: 0.72;
+  }
+
+  .setting-item.is-unavailable .toggle-switch {
+    cursor: not-allowed;
+  }
+
+  .setting-badge {
+    display: inline-block;
+    margin-left: var(--spacing-sm);
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background-color: var(--color-surface-alt);
+    color: var(--color-text-muted, var(--color-text));
+    font-size: var(--fs-200, 0.75rem);
+    font-weight: 600;
+    vertical-align: middle;
+  }
+
+  .setting-details {
+    margin-top: var(--spacing-sm);
+    font-size: var(--fs-300);
+  }
+
+  .setting-details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .setting-details p {
+    margin: var(--spacing-sm) 0 0;
+    line-height: 1.45;
+  }
+
+  .setting-endpoint {
+    font-family: monospace;
+    word-break: break-all;
+  }
 }

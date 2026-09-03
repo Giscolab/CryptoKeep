@@ -40,6 +40,7 @@ import {
 	renderAuditReport,
 	getLastAuditReport
 } from './ui/audit-report-view.js';
+import { initSettingsControls } from './ui/settings-controls.js';
 import { installVaultViewRefresh, refreshVaultViews } from './ui/vault-view-refresh.js';
 import {
 	probeStoragePersistence,
@@ -595,6 +596,20 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Lot 6 : les quatre actions des cartes du tableau de bord etaient des
 	// <div> inertes. Elles sont desormais raccordees.
 	initDashboardMetricActions();
+
+	// Lot 7 : cinq bascules du panneau des reglages n'avaient ni identifiant
+	// ni gestionnaire, dont trois cochees par defaut.
+	const reglages = initSettingsControls();
+	if (!reglages.bound && reglages.reason === 'view_absent') {
+		console.warn('[Vault] Panneau des reglages introuvable.');
+	}
+});
+
+// Lot 7 : navigation demandee par un module qui ne depend pas de la barre
+// laterale (panneau des reglages).
+document.addEventListener('vault:navigate', (event) => {
+	const vue = event?.detail?.view;
+	if (typeof vue === 'string' && vue.length > 0) showView(vue);
 });
 
 // Lot 6 : navigation reelle depuis les cartes du tableau de bord.

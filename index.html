@@ -132,11 +132,14 @@
 						</nav>
 					</div>
 					<div class="user-section">
+						<!-- Lot 7 : cette identite fictive s affichait dans la barre laterale
+						     tant qu aucun profil n etait enregistre. `sidebar-profile.js` la
+						     remplace par le profil reel ; en son absence, l etat neutre. -->
 						<div class="user-info">
-							<div class="avatar">JD</div>
+							<div class="avatar">—</div>
 							<div class="user-details">
-								<div class="user-name">John Doe</div>
-								<div class="user-email">john.doe@example.com</div>
+								<div class="user-name">Profil non renseigné</div>
+								<div class="user-email"></div>
 							</div>
 						</div>
 						<div class="logout" id="logout-button" role="button" tabindex="0" aria-label="Déconnexion">
@@ -448,11 +451,11 @@
 								</div>
 								<div class="form-group">
 									<label for="name">Nom complet</label>
-									<input type="text" id="name" value="John Doe">
+									<input type="text" id="name" placeholder="Votre nom" autocomplete="off">
 								</div>
 								<div class="form-group">
 									<label for="email">Adresse e-mail</label>
-									<input type="email" id="email" value="john.doe@example.com">
+									<input type="email" id="email" placeholder="vous@exemple.fr" autocomplete="off">
 								</div>
 								<div class="form-group">
 									<label for="language">Langue</label>
@@ -528,16 +531,28 @@
 										</div>
 									</div>
 								</div>
+								<!-- Lot 7 : cette bascule n'etait raccordee a rien. L'activer
+								     n'ajoutait aucune protection : elle ANNONCAIT une securite
+								     inexistante, ce qui est pire que son absence. Le controle est
+								     conserve, visiblement desactive et documente. L'analyse du
+								     modele de menace est dans docs/2FA-WEBAUTHN-AUTOFILL.md. -->
 								<div class="settings-group">
 									<h4 class="settings-group-title">Authentification à deux facteurs</h4>
-									<div class="setting-item">
+									<div class="setting-item is-unavailable">
 										<div class="setting-info">
-											<div class="setting-label">Activer la 2FA</div>
-											<div class="setting-description">Ajoute une couche de sécurité supplémentaire</div>
+											<div class="setting-label">Activer la 2FA
+												<span class="setting-badge" id="badge-2fa">Non disponible</span>
+											</div>
+											<div class="setting-description" id="desc-2fa">
+												Non implémentée. Un second facteur n'aurait de sens ici que
+												s'il participait au déchiffrement du coffre ; une simple case
+												à cocher ne protégerait rien.
+												<a href="docs/2FA-WEBAUTHN-AUTOFILL.md" id="link-2fa">Analyse détaillée</a>
+											</div>
 										</div>
 										<div class="setting-control">
 											<label class="toggle-switch">
-												<input type="checkbox">
+												<input type="checkbox" id="setting-2fa" disabled aria-describedby="desc-2fa">
 												<span class="toggle-slider"></span>
 											</label>
 										</div>
@@ -552,38 +567,84 @@
 									</div>
 									<h3 class="settings-title">Confidentialité et sécurité</h3>
 								</div>
-								<div class="setting-item">
+								<!-- Lot 7 : cette bascule etait COCHEE PAR DEFAUT et ne faisait
+								     rien. Elle laissait croire qu'un remplissage automatique etait
+								     actif. Il exigerait une extension de navigateur, qui n'existe
+								     pas et ne sera jamais activee automatiquement. -->
+								<div class="setting-item is-unavailable">
 									<div class="setting-info">
-										<div class="setting-label">Services de remplissage automatique</div>
-										<div class="setting-description">Autoriser Vault à remplir automatiquement les identifiants</div>
+										<div class="setting-label">Services de remplissage automatique
+											<span class="setting-badge" id="badge-autofill">Non disponible</span>
+										</div>
+										<div class="setting-description" id="desc-autofill">
+											Non implémenté. Le remplissage automatique exige une extension
+											de navigateur : une page web ne peut pas écrire dans les
+											formulaires d'un autre site.
+											<a href="docs/2FA-WEBAUTHN-AUTOFILL.md">Analyse détaillée</a>
+										</div>
 									</div>
 									<div class="setting-control">
 										<label class="toggle-switch">
-											<input type="checkbox" checked>
+											<input type="checkbox" id="setting-autofill" disabled aria-describedby="desc-autofill">
+											<span class="toggle-slider"></span>
+										</label>
+									</div>
+								</div>
+								<!-- Lot 7 : « Utiliser le generateur avance » ne designait rien de
+								     precis et n'etait raccorde a rien. Remplace par les reglages
+								     REELS du generateur, appliques a chaque generation. -->
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Longueur des mots de passe générés</div>
+										<div class="setting-description">Appliquée par le bouton « Générer » de la fenêtre d'entrée</div>
+									</div>
+									<div class="setting-control">
+										<select id="setting-generator-length" class="dropdown-small" aria-label="Longueur des mots de passe générés">
+											<option value="12">12 caractères</option>
+											<option value="16" selected>16 caractères</option>
+											<option value="20">20 caractères</option>
+											<option value="24">24 caractères</option>
+											<option value="32">32 caractères</option>
+											<option value="48">48 caractères</option>
+										</select>
+									</div>
+								</div>
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Inclure des chiffres</div>
+										<div class="setting-description">Ajoute les chiffres à l'alphabet du générateur</div>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox" id="setting-generator-digits" checked>
 											<span class="toggle-slider"></span>
 										</label>
 									</div>
 								</div>
 								<div class="setting-item">
 									<div class="setting-info">
-										<div class="setting-label">Générateur de mots de passe </div>
-										<div class="setting-description">Utiliser le générateur de mots de passe avancé</div>
+										<div class="setting-label">Inclure des symboles</div>
+										<div class="setting-description">Ajoute la ponctuation à l'alphabet du générateur</div>
 									</div>
 									<div class="setting-control">
 										<label class="toggle-switch">
-											<input type="checkbox" checked>
+											<input type="checkbox" id="setting-generator-symbols" checked>
 											<span class="toggle-slider"></span>
 										</label>
 									</div>
 								</div>
+								<!-- Lot 7 : « Recevoir des notifications » etait vague et non
+								     raccorde. Le libelle dit desormais ce qui se produit REELLEMENT :
+								     un resume affiche dans l'application a la fin d'un audit.
+								     Aucune notification systeme, aucun envoi. -->
 								<div class="setting-item">
 									<div class="setting-info">
-										<div class="setting-label">Alertes de sécurité</div>
-										<div class="setting-description">Recevoir des notifications pour les problèmes de sécurité</div>
+										<div class="setting-label">Résumé après un audit</div>
+										<div class="setting-description">Affiche un résumé des constats dans l'application à la fin d'un audit. Aucune notification système, aucun envoi.</div>
 									</div>
 									<div class="setting-control">
 										<label class="toggle-switch">
-											<input type="checkbox" checked>
+											<input type="checkbox" id="setting-security-alerts" checked>
 											<span class="toggle-slider"></span>
 										</label>
 									</div>
@@ -591,22 +652,71 @@
 								<div class="setting-item">
 									<div class="setting-info">
 										<div class="setting-label">Audit de sécurité</div>
-										<div class="setting-description">Lancer une analyse cryptographique de votre coffre</div>
+										<div class="setting-description">Analyse les entrées déjà déchiffrées de la session. Aucun mot de passe n'est redemandé.</div>
 									</div>
 									<div class="setting-control">
-										<button id="launch-audit-ui" class="audit-settings-btn">Lancer l’audit</button>
+										<button type="button" id="launch-audit-ui" class="audit-settings-btn">Lancer l’audit</button>
+									</div>
+								</div>
+								<!-- Lot 7 : vérification de compromission, DÉSACTIVÉE PAR DÉFAUT.
+								     C'est la seule fonction réseau de l'application. Elle n'est
+								     jamais activée automatiquement, et le texte de consentement
+								     est affiché avant toute activation. -->
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Vérifier les mots de passe compromis
+											<span class="setting-badge" id="badge-hibp">Désactivé</span>
+										</div>
+										<div class="setting-description" id="desc-hibp">
+											Fonction réseau facultative, désactivée par défaut.
+										</div>
+										<details class="setting-details" id="hibp-notice">
+											<summary>Ce qui est envoyé, et à qui</summary>
+											<div id="hibp-notice-body"></div>
+										</details>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox" id="setting-hibp" aria-describedby="desc-hibp">
+											<span class="toggle-slider"></span>
+										</label>
+									</div>
+								</div>
+								<!-- Lot 7 : cette bascule n'etait raccordee a rien, elle etait
+								     DECOCHEE alors que l'effacement etait toujours actif, et sa
+								     description annoncait 60 secondes alors que le delai reel etait
+								     de 30. Le libelle dit maintenant « tentative » : aucune page web
+								     ne controle le presse-papiers du systeme. -->
+								<div class="setting-item">
+									<div class="setting-info">
+										<div class="setting-label">Tenter d'effacer le presse-papiers</div>
+										<div class="setting-description" id="desc-clipboard">
+											Après une copie, CryptoKeep essaie de vider le presse-papiers.
+											La réussite n'est pas garantie : le navigateur peut refuser,
+											et le système peut conserver une copie hors de portée.
+											Si vous avez copié autre chose entre-temps, rien n'est écrasé.
+										</div>
+									</div>
+									<div class="setting-control">
+										<label class="toggle-switch">
+											<input type="checkbox" id="setting-clipboard-clear" checked aria-describedby="desc-clipboard">
+											<span class="toggle-slider"></span>
+										</label>
 									</div>
 								</div>
 								<div class="setting-item">
 									<div class="setting-info">
-										<div class="setting-label">Effacer le presse-papiers</div>
-										<div class="setting-description">Effacer automatiquement le presse-papiers après 60 secondes</div>
+										<div class="setting-label">Délai avant la tentative</div>
+										<div class="setting-description">Temps laissé pour coller avant l'essai d'effacement</div>
 									</div>
 									<div class="setting-control">
-										<label class="toggle-switch">
-											<input type="checkbox">
-											<span class="toggle-slider"></span>
-										</label>
+										<select id="setting-clipboard-seconds" class="dropdown-small" aria-label="Délai avant la tentative d'effacement">
+											<option value="15">15 secondes</option>
+											<option value="30" selected>30 secondes</option>
+											<option value="60">1 minute</option>
+											<option value="120">2 minutes</option>
+											<option value="300">5 minutes</option>
+										</select>
 									</div>
 								</div>
 							</div>

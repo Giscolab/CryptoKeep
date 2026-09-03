@@ -20,6 +20,7 @@
 import { vaultManager } from '../core/vault/manager.js';
 import { createEntry, updateEntry } from '../core/vault/entry-operations.js';
 import { PasswordGenerator } from '../utils/password-generator.js';
+import { generatorOptionsFromSettings } from '../utils/app-settings.js';
 import { showToast } from '../utils/toast.js';
 
 
@@ -307,7 +308,8 @@ export function initEntryModal(options = {}) {
     fields.generate.addEventListener('click', (event) => {
       if (event && typeof event.preventDefault === 'function') event.preventDefault();
       try {
-        fields.password.value = PasswordGenerator.generate();
+        // Lot 7 : les reglages du generateur sont REELLEMENT appliques.
+        fields.password.value = PasswordGenerator.generate(generatorOptionsFromSettings());
         fields.password.dispatchEvent(new Event('input', { bubbles: true }));
       } catch {
         showToast('Génération impossible.', 'error');
