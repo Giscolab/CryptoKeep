@@ -161,11 +161,14 @@
 							</div>
 						</header>
 						<!-- Score Box -->
+						<!-- Lot 6 : « 73 % », « Sécurité modérée » et « 16 mots de passe »
+						     etaient ecrits en dur. Ces valeurs s affichaient avant tout calcul,
+						     coffre verrouille compris. « — » signifie « non calcule ». -->
 						<section class="score-box">
 							<div class="left">
-								<div class="score" id="stats-score">73%</div>
-								<div class="level" id="stats-level">Sécurité modérée</div>
-								<p class="info" id="stats-info"> Améliorez votre score de sécurité en mettant à jour les mots de passe faibles et réutilisés. Nous avons trouvé <span id="stats-weak-in-info">16</span> mots de passe qui nécessitent une attention particulière. </p>
+								<div class="score" id="stats-score">—</div>
+								<div class="level" id="stats-level">Score non calculé</div>
+								<p class="info" id="stats-info"> Déverrouillez le coffre pour calculer votre score de sécurité. Entrées nécessitant une attention : <span id="stats-weak-in-info">—</span>. </p>
 							</div>
 							<div class="progress-ring">
 								<svg width="120" height="120" viewBox="0 0 120 120">
@@ -173,58 +176,58 @@
 									<circle class="progress-fill" cx="60" cy="60" r="50">
 									</circle>
 								</svg>
-								<div class="progress-text" id="stats-score-ring">73%</div>
+								<div class="progress-text" id="stats-score-ring">—</div>
 							</div>
 						</section>
 						<!-- Metrics Cards -->
 						<section class="metrics">
 							<div class="metric-card metric-total">
 								<div class="metric-header">
-									<h3 id="stats-total">244</h3>
+									<h3 id="stats-total">—</h3>
 									<div class="metric-icon">
 										<i class="fas fa-database"></i>
 									</div>
 								</div>
 								<span>Nombre total de mots de passe</span>
-								<div class="metric-action view-all-passwords">
-									<i class="fas fa-eye"></i> Voir tout
-								</div>
+								<button type="button" class="metric-action view-all-passwords" data-metric-action="all">
+									<i class="fas fa-eye" aria-hidden="true"></i> Voir tout
+								</button>
 							</div>
 							<div class="metric-card metric-weak">
 								<div class="metric-header">
-									<h3 id="stats-weak">16</h3>
+									<h3 id="stats-weak">—</h3>
 									<div class="metric-icon">
 										<i class="fas fa-exclamation-triangle"></i>
 									</div>
 								</div>
 								<span>Mots de passe faibles</span>
-								<div class="metric-action update-weak-passwords">
-									<i class="fas fa-sync-alt"></i> Mettre à jour
-								</div>
+								<button type="button" class="metric-action update-weak-passwords" data-metric-action="weak">
+									<i class="fas fa-sync-alt" aria-hidden="true"></i> Mettre à jour
+								</button>
 							</div>
 							<div class="metric-card metric-reused">
 								<div class="metric-header">
-									<h3 id="stats-reused">9</h3>
+									<h3 id="stats-reused">—</h3>
 									<div class="metric-icon">
 										<i class="fas fa-redo"></i>
 									</div>
 								</div>
 								<span>Mots de passe réutilisés</span>
-								<div class="metric-action generate-reused-passwords">
-									<i class="fas fa-random"></i> Générer de nouveaux
-								</div>
+								<button type="button" class="metric-action generate-reused-passwords" data-metric-action="reused">
+									<i class="fas fa-random" aria-hidden="true"></i> Voir les réutilisations
+								</button>
 							</div>
 							<div class="metric-card metric-old">
 								<div class="metric-header">
-									<h3 id="stats-old">5</h3>
+									<h3 id="stats-old">—</h3>
 									<div class="metric-icon">
 										<i class="fas fa-clock"></i>
 									</div>
 								</div>
 								<span>Anciens mots de passe</span>
-								<div class="metric-action view-old-passwords">
-									<i class="fas fa-history"></i> Voir l’historique
-								</div>
+								<button type="button" class="metric-action view-old-passwords" data-metric-action="old">
+									<i class="fas fa-history" aria-hidden="true"></i> Voir les plus anciens
+								</button>
 							</div>
 						</section>
 						<!-- Accès récents -->
@@ -294,132 +297,107 @@
 					<section id="security-report-view" class="view" hidden>
 						<header class="header">
 							<h2>Rapport de sécurité</h2>
-							<button class="export-btn">
-								<i class="fas fa-file-export"></i> Exporter le rapport </button>
+							<div class="header-controls">
+								<button type="button" class="btn btn-primary" id="runAuditBtn">
+									<i class="fas fa-play" aria-hidden="true"></i> Lancer l'audit </button>
+								<button type="button" class="export-btn" id="exportAuditBtn">
+									<i class="fas fa-file-export" aria-hidden="true"></i> Exporter le rapport </button>
+							</div>
 						</header>
+						<!-- Lot 6 : etat de l audit. Tant qu aucun audit n a ete execute, le
+						     rapport le DIT au lieu d afficher des chiffres inventes. -->
+						<p class="audit-status" id="auditStatus" role="status" aria-live="polite">
+							Audit non encore exécuté.
+						</p>
 						<div class="score-overview">
+							<!-- Lot 6 : « — » signifie « non calcule ». Ces cartes affichaient
+							     73 %, 16, 9 et 5, valeurs entierement inventees et sans aucun
+							     rapport avec le coffre de l utilisateur. -->
 							<div class="score-card score-security">
-								<div class="score-value">73%</div>
+								<div class="score-value" id="report-score">—</div>
 								<div class="score-label">Score de sécurité</div>
-								<p class="score-description">Votre niveau global de sécurité des mots de passe</p>
+								<p class="score-description" id="report-score-note">Aucun audit exécuté pour l'instant</p>
 							</div>
 							<div class="score-card score-weak">
-								<div class="score-value">16</div>
+								<div class="score-value" id="report-weak">—</div>
 								<div class="score-label">Mots de passe faibles</div>
 								<p class="score-description">Mots de passe faciles à deviner </p>
 							</div>
 							<div class="score-card score-reused">
-								<div class="score-value">9</div>
+								<div class="score-value" id="report-reused">—</div>
 								<div class="score-label">Mots de passe réutilisés</div>
 								<p class="score-description">Mots de passe utilisés sur plusieurs comptes</p>
 							</div>
 							<div class="score-card score-old">
-								<div class="score-value">5</div>
+								<div class="score-value" id="report-old">—</div>
 								<div class="score-label">Mots de passe anciens</div>
 								<p class="score-description">Mots de passe inchangés depuis plus d'un an</p>
 							</div>
+							<div class="score-card score-incomplete">
+								<div class="score-value" id="report-no-url">—</div>
+								<div class="score-label">Entrées sans URL</div>
+								<p class="score-description">Impossible de vérifier le site associé</p>
+							</div>
+							<div class="score-card score-incomplete">
+								<div class="score-value" id="report-no-category">—</div>
+								<div class="score-label">Entrées sans catégorie</div>
+								<p class="score-description">Non classées dans le coffre</p>
+							</div>
+							<div class="score-card score-breached">
+								<div class="score-value" id="report-breached">—</div>
+								<div class="score-label">Mots de passe compromis</div>
+								<p class="score-description" id="report-breached-note">Vérification désactivée</p>
+							</div>
 						</div>
+						<!-- Lot 6 : ce graphique s intitulait « Evolution de la sante des
+						     mots de passe » et affichait douze mois de chiffres inventes. Le
+						     coffre ne conserve AUCUN historique de securite : une evolution
+						     dans le temps ne peut pas etre calculee, seulement fabriquee.
+						     Le graphique montre donc l etat ACTUEL, seul fait disponible. -->
 						<section class="chart-container">
 							<div class="chart-header">
-								<h3>Évolution de la santé des mots de passe</h3>
-								<div class="chart-actions">
-									<button><i class="fas fa-calendar"></i> 30 derniers jours</button>
-									<button><i class="fas fa-download"></i> Exporter</button>
-								</div>
+								<h3>Répartition actuelle des entrées</h3>
+								<p class="chart-note" id="chartNote">
+									État à la date du dernier audit. Le coffre ne conserve pas
+									d'historique : aucune évolution dans le temps ne peut être affichée.
+								</p>
 							</div>
 							<div class="chart-wrapper">
 								<canvas id="securityChart"></canvas>
+								<p class="chart-fallback" id="chartFallback" hidden></p>
+							</div>
+						</section>
+						<!-- Lot 6 : ces deux listes contenaient des vulnerabilites INVENTEES
+						     (« Compte NetBank », « Compte email reutilise sur 4 autres
+						     comptes »), et jusqu a un mot de passe EN CLAIR dans le markup :
+						     un mot de passe faible ecrit en clair. Elles sont desormais remplies
+						     par le moteur d audit a partir du coffre reel, et ne contiennent
+						     jamais de mot de passe. -->
+						<section class="vulnerability-section">
+							<div class="section-header">
+								<h3>Constats prioritaires</h3>
+								<span class="count-badge" id="findingsCount"></span>
+							</div>
+							<div class="vulnerability-list" id="auditFindings">
+								<p class="audit-empty">Aucun audit exécuté pour l'instant.</p>
 							</div>
 						</section>
 						<section class="vulnerability-section">
 							<div class="section-header">
-								<h3>Vulnérabilités critiques</h3>
-								<a href="#" class="view-all">Voir tout <i class="fas fa-arrow-right"></i></a>
+								<h3>Groupes de mots de passe réutilisés</h3>
+								<span class="count-badge" id="reuseGroupsCount"></span>
 							</div>
-							<div class="vulnerability-list">
-								<div class="vulnerability-item vuln-critical">
-									<div class="vuln-info">
-										<div class="vuln-icon">
-											<i class="fas fa-exclamation-triangle"></i>
-										</div>
-										<div class="vuln-details">
-											<strong>Compte NetBank</strong>
-											<span>Mot de passe compromis dans une fuite de données</span>
-										</div>
-									</div>
-									<div class="vuln-severity severity-critical">Critique</div>
-									<div class="vuln-actions">
-										<button class="vuln-action-btn"><i class="fas fa-sync-alt"></i> Mettre à jour</button>
-									</div>
-								</div>
-								<div class="vulnerability-item vuln-high">
-									<div class="vuln-info">
-										<div class="vuln-icon">
-											<i class="fas fa-redo"></i>
-										</div>
-										<div class="vuln-details">
-											<strong>Compte email</strong>
-											<span>Mot de passe réutilisé sur 4 autres comptes</span>
-										</div>
-									</div>
-									<div class="vuln-severity severity-high">Élevée</div>
-									<div class="vuln-actions">
-										<button class="vuln-action-btn"><i class="fas fa-random"></i> Changer</button>
-									</div>
-								</div>
-								<div class="vulnerability-item vuln-medium">
-									<div class="vuln-info">
-										<div class="vuln-icon">
-											<i class="fas fa-clock"></i>
-										</div>
-										<div class="vuln-details">
-											<strong>Stockage Cloud</strong>
-											<span>Mot de passe inchangé depuis 2 ans</span>
-										</div>
-									</div>
-									<div class="vuln-severity severity-medium">Moyenne</div>
-									<div class="vuln-actions">
-										<button class="vuln-action-btn"><i class="fas fa-history"></i> Mettre à jour</button>
-									</div>
-								</div>
+							<div class="vulnerability-list" id="auditReuseGroups">
+								<p class="audit-empty">Aucun audit exécuté pour l'instant.</p>
 							</div>
 						</section>
+						<!-- Lot 6 : ce que l audit N A PAS examine est affiche aussi
+						     clairement que ce qu il a examine. -->
 						<section class="vulnerability-section">
 							<div class="section-header">
-								<h3>Mots de passe faibles</h3>
-								<a href="#" class="view-all">Voir tout <i class="fas fa-arrow-right"></i></a>
+								<h3>Portée de l'audit</h3>
 							</div>
-							<div class="vulnerability-list">
-								<div class="vulnerability-item">
-									<div class="vuln-info">
-										<div class="vuln-icon vuln-high">
-											<i class="fas fa-unlock" aria-hidden="true"></i>
-										</div>
-										<div class="vuln-details">
-											<strong>Compte de réseau social</strong>
-											<span>Mot de passe : "password123" – Très faible</span>
-										</div>
-									</div>
-									<div class="vuln-actions">
-										<button class="vuln-action-btn" type="button" title="Générer un mot de passe sécurisé" aria-label="Générer un mot de passe sécurisé">
-											<i class="fas fa-random" aria-hidden="true"></i> Générer </button>
-									</div>
-								</div>
-								<div class="vulnerability-item">
-									<div class="vuln-info">
-										<div class="vuln-icon vuln-high">
-											<i class="fas fa-unlock" aria-hidden="true"></i>
-										</div>
-										<div class="vuln-details">
-											<strong>Achat en ligne</strong>
-											<span>Mot de passe : "qwerty" - Extrêmement faible</span>
-										</div>
-									</div>
-									<div class="vuln-actions">
-										<button class="vuln-action-btn"><i class="fas fa-random"></i> Générer</button>
-									</div>
-								</div>
-							</div>
+							<dl class="audit-scope" id="auditScope"></dl>
 						</section>
 						<section class="recommendations">
 							<h3>Recommandations de sécurité</h3>
@@ -855,8 +833,15 @@
 		<script type="module" src="scripts/app.js?v=20260719-1" crossorigin="anonymous">
 		</script>
 		<script type="module" src="scripts/ui/security-report-init.js"></script>
-		<script src="scripts/tools/audit-crypto.js"></script>
-		<script src="scripts/ui/audit-panel.js" defer></script>
+		<!-- Lot 6 : scripts/tools/audit-crypto.js et scripts/ui/audit-panel.js ne
+		     sont plus charges. Le premier produisait des estimations de temps de
+		     cassage a partir d une cadence GPU INVENTEE (`gpuRate = 10000`) et une
+		     « simulation de collision PBKDF2 » sans valeur demonstrative. Le
+		     second ajoutait un bouton flottant qui REDEMANDAIT le mot de passe
+		     maitre alors que la session etait deja deverrouillee.
+		     Les deux fichiers sont CONSERVES dans le depot, marques comme
+		     historiques, et ne font plus autorite sur rien.
+		     Le moteur qui fait foi est scripts/security/audit-engine.js. -->
 	</main>
 </body>
 

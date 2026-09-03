@@ -1,3 +1,24 @@
+/**
+ * MODULE HISTORIQUE - conserve, NON CHARGE, NON DECISIONNEL (Lot 6).
+ *
+ * Ce fichier n'est plus reference par index.html. Il produisait :
+ *
+ *  - des ESTIMATIONS DE TEMPS DE CASSAGE fondees sur une cadence inventee
+ *    (`let gpuRate = 10000;`, commentee « hypothetical » dans le code) ;
+ *  - une « simulation de collision PBKDF2 » qui derivait deux cles a partir
+ *    de deux mots de passe differents et constatait qu'elles differaient.
+ *    Ce constat est certain par construction : il ne demontre rien et
+ *    laissait croire qu'une propriete cryptographique avait ete testee ;
+ *  - un affichage console de ces resultats, presente comme un audit.
+ *
+ * Le moteur qui fait foi est scripts/security/audit-engine.js. Il ne produit
+ * que des faits verifiables sur le coffre, sans aucune hypothese de
+ * puissance de calcul.
+ *
+ * Ce fichier est conserve a titre documentaire et de reference historique.
+ * Ne pas le rebrancher.
+ */
+
 (function(){
     'use strict';
 

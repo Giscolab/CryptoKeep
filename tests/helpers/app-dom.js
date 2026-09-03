@@ -211,11 +211,39 @@ export class DomNode {
   }
   listenerCount(type) { return (this.listeners.get(type) || []).length; }
 
+  /**
+   * Diffuse un evenement, AVEC PROPAGATION vers les ancetres.
+   *
+   * La delegation d'evenements — un seul ecouteur sur un conteneur, qui
+   * traite les clics de tous ses descendants — est un motif courant et
+   * legitime. Sans propagation, ce DOM de test faisait echouer du code
+   * parfaitement correct dans un navigateur, ce qui est le pire defaut
+   * possible pour un harnais de test.
+   */
   dispatchEvent(event) {
     const payload = typeof event === 'string' ? { type: event } : event;
-    const enriched = { preventDefault() {}, stopPropagation() {}, ...payload };
+    let arrete = false;
+    const enriched = {
+      preventDefault() {},
+      stopPropagation() { arrete = true; },
+      ...payload
+    };
     if (!enriched.target) enriched.target = this;
-    (this.listeners.get(enriched.type) || []).slice().forEach((h) => h(enriched));
+
+    let noeud = this;
+    while (noeud) {
+      enriched.currentTarget = noeud;
+      (noeud.listeners.get(enriched.type) || []).slice().forEach((h) => h(enriched));
+      if (arrete) return true;
+      noeud = noeud.parentNode;
+    }
+
+    // Puis le document lui-meme, comme dans un navigateur.
+    const doc = this.ownerDocument;
+    if (doc && typeof doc.listenerCount === 'function' && doc.listenerCount(enriched.type) > 0) {
+      enriched.currentTarget = doc;
+      (doc.listeners.get(enriched.type) || []).slice().forEach((h) => h(enriched));
+    }
     return true;
   }
 

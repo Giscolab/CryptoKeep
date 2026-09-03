@@ -1,3 +1,24 @@
+/**
+ * MODULE HISTORIQUE - conserve, NON CHARGE (Lot 6).
+ *
+ * Ce fichier n'est plus reference par index.html. Il ajoutait un bouton
+ * flottant « Audit Securite » ouvrant une fenetre qui REDEMANDAIT le mot de
+ * passe maitre — « Saisissez votre mot de passe maitre pour lancer l'analyse
+ * complete » — alors que la session etait deja deverrouillee et que les
+ * entrees dechiffrees etaient disponibles. Reclamer un secret sans necessite
+ * habitue l'utilisateur a le saisir sur demande, ce qui est exactement le
+ * reflexe qu'un gestionnaire de mots de passe doit decourager.
+ *
+ * Il alimentait par ailleurs `AuditCrypto.runAudit`, dont les resultats sont
+ * decrits dans l'en-tete de scripts/tools/audit-crypto.js.
+ *
+ * Le rapport actuel s'obtient par le bouton « Lancer l'audit » du rapport de
+ * securite, qui travaille sur les entrees deja dechiffrees et ne demande
+ * jamais de mot de passe.
+ *
+ * Ce fichier est conserve a titre documentaire. Ne pas le rebrancher.
+ */
+
 // scripts/ui/audit-panel.js
 (function () {
   'use strict';

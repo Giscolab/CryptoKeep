@@ -35,6 +35,11 @@ import {
 import { requestPasswordDialog, confirmDialog } from './ui/secure-dialogs.js';
 import { initEntryModal } from './ui/entry-modal.js';
 import { initMasterPasswordModal } from './ui/master-password-modal.js';
+import {
+	initDashboardMetricActions,
+	renderAuditReport,
+	getLastAuditReport
+} from './ui/audit-report-view.js';
 import { installVaultViewRefresh, refreshVaultViews } from './ui/vault-view-refresh.js';
 import {
 	probeStoragePersistence,
@@ -61,9 +66,9 @@ import {
 import {
 	renderRecentAccesses
 } from './ui/dashboard.js';
-import {
-	renderSecurityReport
-} from './ui/security-report.js';
+// Lot 6 : `renderSecurityReport` n'est plus importe ici. Le module
+// scripts/ui/security-report.js est CONSERVE et documente comme historique ;
+// il n'est simplement plus branche sur l'affichage.
 import {
 	renderSecurityDashboardSections
 } from './ui/security-dashboard.js';
@@ -124,7 +129,8 @@ document.addEventListener('vault:security-updated', () => {
 	const entries = vaultManager.getEntries();
 	auditSecurityDashboard(entries).then((report) => {
 		renderSecurityDashboardSections(report);
-		renderSecurityReport();
+		// Lot 6 : `renderSecurityReport()` retire d'ici pour la meme raison.
+		// Le rapport de securite ne se rafraichit que sur demande explicite.
 	}).catch((err) => {
 		console.warn('[Security Dashboard] Rafraîchissement indisponible :', err?.message || err);
 	});
@@ -157,7 +163,16 @@ if (navPasswords) {
 if (navSecurity) {
 	navSecurity.addEventListener('click', () => {
 		showView('security-report-view');
-		renderSecurityReport(); // met à jour dynamiquement à chaque affichage
+		// Lot 6 : `renderSecurityReport()` n'est plus appele ici. Il ecrivait
+		// dans les memes cartes que le nouveau rapport, avec les compteurs
+		// naifs de `getPasswordStats()`, et redessinait le graphique a partir
+		// de `getMonthlyStats()`, une « evolution » reconstituee mois par mois
+		// alors que le coffre ne conserve aucun historique.
+		// L'audit reel se lance par le bouton « Lancer l'audit ». Afficher la
+		// vue ne declenche donc plus aucun calcul automatique : l'utilisateur
+		// voit l'etat honnete du dernier audit, ou « non encore execute ».
+		// Le dernier etat connu est re-affiche, sans relancer de calcul.
+		renderAuditReport(getLastAuditReport());
 		const entries = vaultManager.getEntries();
 		auditSecurityDashboard(entries).then((report) => {
 			renderSecurityDashboardSections(report);
@@ -576,4 +591,18 @@ document.addEventListener('DOMContentLoaded', () => {
 	if (!changeModal.bound && changeModal.reason === 'modal_absent') {
 		console.warn('[Vault] Fenetre de changement de mot de passe introuvable.');
 	}
+
+	// Lot 6 : les quatre actions des cartes du tableau de bord etaient des
+	// <div> inertes. Elles sont desormais raccordees.
+	initDashboardMetricActions();
+});
+
+// Lot 6 : navigation reelle depuis les cartes du tableau de bord.
+document.addEventListener('vault:metric-action', (event) => {
+	const action = event?.detail?.action;
+	if (action === 'reused') {
+		showView('security-report-view');
+		return;
+	}
+	showView('passwords-view');
 });

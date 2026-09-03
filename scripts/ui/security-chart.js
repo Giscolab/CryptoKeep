@@ -1,17 +1,31 @@
+import { resolveChart } from './chart-loader.js';
+
 // /scripts/ui/security-chart.js
 
 /**
  * Rendu dynamique d'un graphique "Password Health" via Chart.js
- * Nécessite que Chart.js soit déjà chargé en global (scripts/vendor/chart.min.js dans le HTML AVANT ce fichier !)
+ * Necessite Chart.js en global. Le fichier reel est
+ * `scripts/vendor/Chart.min.js`, avec une MAJUSCULE : ce commentaire
+ * indiquait auparavant `chart.min.js`, variante qui fonctionne sur Windows
+ * et macOS mais echoue sur tout systeme sensible a la casse.
+ * `chart-loader.js` resout les deux et signale honnetement un echec.
  *
  * @param {string} domId - L'ID du <canvas>
  * @param {Object} data  - { labels: [], scores: [], weak: [] }
  */
 export function renderSecurityChart(domId, { labels, scores, weak }) {
   const ctx = document.getElementById(domId);
-  if (!ctx || typeof Chart === "undefined") {
-    console.warn('[security-chart] Chart.js non chargé ou canvas inexistant');
-    return;
+  if (!ctx) {
+    console.warn('[security-chart] canevas introuvable');
+    return false;
+  }
+
+  const Chart = resolveChart();
+  if (!Chart) {
+    // L'appelant affiche un message a l'utilisateur : un cadre vide et un
+    // avertissement en console ne sont pas un retour honnete.
+    console.warn('[security-chart] Chart.js indisponible');
+    return false;
   }
 
   // Si déjà un graphique Chart attaché, détruit-le proprement
@@ -81,4 +95,6 @@ export function renderSecurityChart(domId, { labels, scores, weak }) {
       }
     }
   });
+
+  return true;
 }

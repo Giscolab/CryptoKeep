@@ -1,3 +1,19 @@
+/**
+ * MODULE HISTORIQUE - conserve, NON BRANCHE (Lot 6).
+ *
+ * Ce module ecrivait dans les memes cartes que le rapport actuel, a partir de
+ * `getPasswordStats()`, dont la regle de faiblesse est la regle naive par
+ * classes de caracteres remplacee au Lot 5. Il redessinait surtout le
+ * graphique avec `getMonthlyStats()`, qui reconstitue une « evolution »
+ * mois par mois a partir des seules dates de modification : un mois sans
+ * modification y apparait avec un score de 0, ce qui ne decrit rien.
+ * Le coffre ne conserve aucun historique de securite.
+ *
+ * Le moteur qui fait foi est scripts/security/audit-engine.js, affiche par
+ * scripts/ui/audit-report-view.js. Ce fichier reste exporte et fonctionnel
+ * pour ne casser aucun appelant externe. Ne pas le rebrancher.
+ */
+
 // scripts/ui/security-report.js
 import { getMonthlyStats } from '../utils/vault-stats.js';
 import { renderSecurityChart } from './security-chart.js'; // tu l'as déjà dans init

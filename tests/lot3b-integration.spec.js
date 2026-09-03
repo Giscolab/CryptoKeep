@@ -69,6 +69,7 @@ const dashboard = await import('../scripts/ui/dashboard.js');
 const entryModal = await import('../scripts/ui/entry-modal.js');
 const viewRefresh = await import('../scripts/ui/vault-view-refresh.js');
 const masterPasswordModal = await import('../scripts/ui/master-password-modal.js');
+const auditReport = await import('../scripts/ui/audit-report-view.js');
 
 const { createEntry, updateEntry, deleteEntry } = entryOperations;
 
@@ -1164,6 +1165,240 @@ check('K8 - raccordement idempotent', async () => {
   assert.equal(document.getElementById('confirmChangePasswordBtn').listenerCount('click'), 1);
   assert.equal(document.getElementById('cancelChangeModalBtn').listenerCount('click'), 1);
   assert.equal(document.getElementById('closeChangeModal').listenerCount('click'), 1);
+});
+
+// ===========================================================================
+// L. LOT 6 : rapport de securite veridique
+// ---------------------------------------------------------------------------
+// Le document est le VRAI index.html : ce qui est verifie ici, c'est que le
+// markup livre ne contient plus de valeurs inventees, et que le rapport rendu
+// provient d'un audit reellement execute.
+// ===========================================================================
+
+check('L1 - le markup ne contient plus AUCUNE valeur fictive', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  // Les commentaires documentent le defaut corrige : ils sont exclus.
+  const visible = source.replace(/<!--[\s\S]*?-->/g, '');
+
+  for (const invente of ['NetBank', 'password123', 'qwerty',
+    'Compte de réseau social', 'Achat en ligne', '30 derniers jours',
+    'Évolution de la santé']) {
+    assert.ok(!visible.includes(invente),
+      `Le markup ne doit plus contenir la valeur inventee « ${invente} »`);
+  }
+
+  // Aucun mot de passe en clair ne doit subsister dans la page.
+  assert.ok(!/Mot de passe\s*:\s*"/.test(visible),
+    'Un mot de passe etait ecrit en clair dans le markup du rapport');
+
+  // Les compteurs LIVRES doivent etre vierges. Sans cette verification, un
+  // chiffre code en dur passerait inapercu tant que le moteur le recouvre au
+  // premier rendu : l'utilisateur le verrait pourtant avant tout calcul,
+  // coffre verrouille compris.
+  const compteurs = [
+    'report-score', 'report-weak', 'report-reused', 'report-old',
+    'report-no-url', 'report-no-category', 'report-breached',
+    'stats-score', 'stats-score-ring', 'stats-total', 'stats-weak',
+    'stats-reused', 'stats-old', 'stats-weak-in-info'
+  ];
+
+  // Analyse par decoupage plutot que par expression reguliere construite :
+  // pas de RegExp non litterale, et le decoupage est plus lisible.
+  for (const id of compteurs) {
+    const marqueur = `id="${id}"`;
+    const debut = visible.indexOf(marqueur);
+    assert.notEqual(debut, -1, `#${id} doit exister dans index.html`);
+
+    const finBalise = visible.indexOf('>', debut);
+    const finContenu = visible.indexOf('<', finBalise);
+    const contenu = visible.slice(finBalise + 1, finContenu).trim();
+
+    assert.equal(contenu, '—',
+      `#${id} contient la valeur codee en dur « ${contenu} » : `
+      + 'elle serait affichee avant tout calcul');
+  }
+
+  // Et aucun pourcentage en dur ne doit subsister nulle part dans la page.
+  const pourcentages = visible.match(/>\s*\d{1,3}\s*%\s*</g) || [];
+  assert.deepEqual(pourcentages, [],
+    `Pourcentages codes en dur trouves : ${pourcentages.join(', ')}`);
+});
+
+check('L2 - les compteurs affichent « — » tant qu aucun audit n a tourne', async () => {
+  await installVault([
+    { id: 'l2', title: 'Entree', username: 'u@example.test', password: 'MotDePasse-L2-1!' }
+  ]);
+
+  auditReport.clearAuditReport({ doc: document });
+
+  for (const id of ['report-score', 'report-weak', 'report-reused', 'report-old',
+    'report-no-url', 'report-no-category', 'report-breached']) {
+    const node = document.getElementById(id);
+    assert.ok(node, `#${id} doit exister dans index.html`);
+    assert.equal(node.textContent, '—',
+      `#${id} ne doit afficher aucun chiffre avant un audit`);
+  }
+
+  assert.match(document.getElementById('auditStatus').textContent, /non encore exécuté|verrouillé/i,
+    'L etat doit etre annonce honnetement');
+});
+
+check('L3 - un audit reel remplit le rapport avec les donnees du coffre', async () => {
+  await installVault([
+    { id: 'a', title: 'Solide', username: 'a@example.test', password: 'x7$Qm2!vLp9Zk', url: 'https://a.test', category: 'bank' },
+    { id: 'b', title: 'Faible', username: 'b@example.test', password: 'azerty2024', url: 'https://b.test', category: 'social' },
+    { id: 'c', title: 'Partage1', username: 'c@example.test', password: 'MemeMotDePasse-1!', url: 'https://c.test', category: 'cloud' },
+    { id: 'd', title: 'Partage2', username: 'd@example.test', password: 'MemeMotDePasse-1!' }
+  ]);
+
+  const rapport = await auditReport.runAndRenderAudit({ doc: document });
+
+  assert.equal(rapport.status, 'completed');
+  assert.equal(document.getElementById('report-score').textContent, `${rapport.score.value}%`);
+  assert.equal(document.getElementById('report-reused').textContent, '2');
+  assert.equal(document.getElementById('report-no-url').textContent, '1');
+  assert.equal(document.getElementById('report-no-category').textContent, '1');
+  assert.equal(document.getElementById('report-breached').textContent, '—',
+    'La compromission n a pas ete verifiee : « — », jamais « 0 »');
+
+  assert.match(document.getElementById('auditStatus').textContent, /Audit exécuté le/);
+  assert.ok(document.getElementById('auditFindings').children.length > 0,
+    'Les constats doivent etre rendus');
+  assert.ok(document.getElementById('auditReuseGroups').children.length > 0,
+    'Le groupe de reutilisation doit etre rendu');
+  assert.ok(document.getElementById('auditScope').children.length > 0,
+    'La portee de l audit doit etre affichee');
+});
+
+check('L4 - AUCUN mot de passe rendu dans le rapport affiche', async () => {
+  const secrets = ['x7$Qm2!vLp9Zk', 'azerty2024', 'MemeMotDePasse-1!'];
+  for (const conteneur of ['auditFindings', 'auditReuseGroups', 'auditScope']) {
+    const texte = document.getElementById(conteneur).textContent;
+    for (const secret of secrets) {
+      assert.ok(!texte.includes(secret),
+        `Le conteneur #${conteneur} ne doit afficher aucun mot de passe`);
+    }
+  }
+});
+
+check('L5 - chaque constat porte une action REELLE', async () => {
+  // Le raccordement re-rend le conteneur : les fiches doivent etre relues
+  // APRES, sinon on manipulerait des noeuds detaches de l'arbre.
+  entryModal.initEntryModal({ doc: document });
+  auditReport.initAuditReport({ doc: document });
+
+  const constats = document.getElementById('auditFindings').children
+    .filter((child) => child.classList.contains('vulnerability-item'));
+  assert.ok(constats.length > 0);
+
+  for (const constat of constats) {
+    const bouton = constat.querySelector('[data-audit-action="edit"]');
+    assert.ok(bouton, 'Chaque constat doit porter un bouton d action');
+    assert.ok(bouton.dataset.entryId, 'Le bouton doit designer une entree precise');
+    // Ce que l action NE fait PAS est dit explicitement.
+    assert.match(bouton.title, /ne peut pas changer le mot de passe sur le site/i,
+      'L infobulle doit expliquer pourquoi une intervention manuelle reste necessaire');
+  }
+
+  // Le clic ouvre reellement la fenetre d edition. La delegation d'evenements
+  // impose que l'evenement remonte du bouton jusqu'au conteneur.
+  const premier = constats[0].querySelector('[data-audit-action="edit"]');
+  premier.click();
+
+  const fenetre = document.getElementById('passwordModal');
+  assert.ok(fenetre.classList.contains('active'),
+    'Le bouton doit ouvrir la fenetre d edition de l entree');
+  assert.equal(document.getElementById('entry-title').value, constats[0].querySelector('strong').textContent,
+    'La fenetre doit etre pre-remplie avec l entree designee');
+
+  entryModal.closeEntryModal(
+    entryModal.initEntryModal({ doc: document }).fields
+      || (() => { const b = entryModal.initEntryModal({ doc: document }); return b.fields; })()
+  );
+});
+
+check('L6 - les quatre actions du tableau de bord sont raccordees', async () => {
+  const resultat = auditReport.initDashboardMetricActions({ doc: document });
+  assert.equal(resultat.bound, 4, 'Les quatre cartes doivent etre raccordees');
+
+  const boutons = document.querySelectorAll('[data-metric-action]');
+  assert.equal(boutons.length, 4);
+  for (const bouton of boutons) {
+    assert.equal(bouton.tagName, 'BUTTON',
+      'Une action doit etre un bouton, pas un <div> inerte');
+    assert.equal(bouton.listenerCount('click'), 1);
+    assert.ok(bouton.title.length > 0, 'Chaque action doit expliquer ce qu elle fait');
+  }
+
+  let recu = null;
+  const ecouteur = (event) => { recu = event.detail.action; };
+  document.addEventListener('vault:metric-action', ecouteur);
+  boutons.find((b) => b.dataset.metricAction === 'reused').click();
+  document.removeEventListener('vault:metric-action', ecouteur);
+  assert.equal(recu, 'reused', 'Le clic doit reellement declencher la navigation');
+});
+
+check('L7 - le rapport est efface au verrouillage', async () => {
+  await installVault([
+    { id: 'l7', title: 'Entree', username: 'u@example.test', password: 'MotDePasse-L7-1!' }
+  ]);
+  await auditReport.runAndRenderAudit({ doc: document });
+  assert.equal(auditReport.getLastAuditReport().status, 'completed');
+
+  const efface = auditReport.clearAuditReport({ doc: document });
+  assert.equal(efface.cleared, true, 'Le nettoyage doit etre verifiable');
+  assert.equal(auditReport.getLastAuditReport().status, 'not_run');
+  assert.equal(document.getElementById('report-score').textContent, '—',
+    'L affichage doit revenir a l etat non calcule');
+});
+
+check('L8 - coffre verrouille : aucun mot de passe demande', async () => {
+  const faux = { masterKey: null, getEntries: () => [] };
+  const rapport = await auditReport.runAndRenderAudit({ doc: document, vaultManager: faux });
+
+  assert.equal(rapport.status, 'not_run');
+  assert.match(rapport.message, /verrouill/i);
+  assert.equal(document.getElementById('changePasswordModal').classList.contains('active'), false,
+    'Aucune fenetre de saisie de mot de passe ne doit s ouvrir');
+  assert.equal(document.getElementById('report-score').textContent, '—');
+});
+
+check('L9 - les scripts a valeurs fictives ne sont plus charges', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const balises = source.match(/<script[^>]*src="[^"]+"/g) || [];
+  const charges = balises.map((b) => b.match(/src="([^"]+)"/)[1]);
+
+  for (const interdit of ['scripts/tools/audit-crypto.js', 'scripts/ui/audit-panel.js']) {
+    assert.ok(!charges.some((src) => src.includes(interdit)),
+      `${interdit} ne doit plus etre charge : simulations GPU et demande de mot de passe inutile`);
+  }
+
+  // Mais les fichiers restent presents dans le depot.
+  const { existsSync } = await import('node:fs');
+  for (const conserve of ['../scripts/tools/audit-crypto.js', '../scripts/ui/audit-panel.js']) {
+    assert.ok(existsSync(new URL(conserve, import.meta.url)),
+      `${conserve} doit rester conserve dans le depot`);
+  }
+});
+
+check('L10 - Chart.min.js : la casse referencee correspond au fichier reel', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const reference = (source.match(/src="(scripts\/vendor\/[^"]*hart[^"]*)"/i) || [])[1];
+  assert.ok(reference, 'index.html doit referencer la bibliotheque de graphiques');
+
+  const fichiers = readdirSync(new URL('../scripts/vendor/', import.meta.url));
+  const nom = reference.split('/').pop();
+  assert.ok(fichiers.includes(nom),
+    `« ${nom} » doit exister exactement sous ce nom : sur un systeme sensible `
+    + `a la casse, toute autre variante echouerait. Presents : ${fichiers.join(', ')}`);
+
+  const loader = await import('../scripts/ui/chart-loader.js');
+  assert.ok(loader.CHART_PATHS.includes(reference),
+    'Le chargeur de secours doit connaitre le chemin reference par la page');
+  assert.equal(loader.resolveChart({}), null, 'Absence detectee honnetement');
 });
 
 // ===========================================================================

@@ -50,6 +50,16 @@ async function refreshDashboardStats() {
         : 'Sécurité faible';
   }
 
+  // Lot 6 : le texte d'accompagnement portait un compte fixe (« 16 mots de
+  // passe »). Il decrit desormais l'etat reel de la session.
+  const info = document.getElementById('stats-info');
+  if (info && info.firstChild && info.firstChild.nodeType === 3) {
+    info.firstChild.textContent = stats.total === 0
+      ? ' Aucune entrée dans le coffre. '
+      : ' Améliorez votre score en corrigeant les mots de passe signalés. '
+        + 'Entrées nécessitant une attention : ';
+  }
+
   return true;
 }
 

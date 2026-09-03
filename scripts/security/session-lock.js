@@ -6,6 +6,7 @@ import { clearMasterPasswordField } from './master-password-field.js';
 import { closeAllModals } from '../ui/modal-cleanup.js';
 import { clearReuseAnalysis } from './password-reuse.js';
 import { clearHibpCache } from './hibp-service.js';
+import { clearAuditReport } from '../ui/audit-report-view.js';
 
 function clearInputValue(selector) {
   document.querySelectorAll(selector).forEach((input) => {
@@ -114,6 +115,14 @@ export async function lockVaultSession(
   //   - le cache HIBP retient des condensats derives des mots de passe.
   // Les deux sont en memoire uniquement, et sont vides ici.
   const reuse = clearReuseAnalysis();
+  // Le rapport d'audit decrit des entrees dechiffrees : titres, identifiants
+  // de connexion, motifs de faiblesse. Il disparait avec la session.
+  let auditCleared = false;
+  try {
+    auditCleared = clearAuditReport().cleared;
+  } catch {
+    /* nettoyage best-effort */
+  }
   let hibpCacheCleared = false;
   try {
     clearHibpCache();
@@ -144,6 +153,7 @@ export async function lockVaultSession(
     clipboardCleanupAttempted: clipboard.attempted,
     clipboardCleanupSucceeded: clipboard.succeeded,
     reuseGroupsCleared: reuse.cleared,
-    hibpCacheCleared
+    hibpCacheCleared,
+    auditReportCleared: auditCleared
   };
 }

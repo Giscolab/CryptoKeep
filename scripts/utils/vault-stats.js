@@ -1,3 +1,19 @@
+/**
+ * MODULE HISTORIQUE - conserve, NON BRANCHE sur l'affichage (Lot 6).
+ *
+ * `getMonthlyStats()` produit une serie mensuelle a partir des seules dates
+ * de derniere modification des entrees. Ce n'est PAS un historique de
+ * securite : le coffre n'en conserve aucun. Un mois durant lequel aucune
+ * entree n'a ete modifiee y ressort avec un score de 0, et une entree
+ * modifiee deux fois n'apparait que dans le dernier mois. Presentee comme
+ * une « evolution de la sante des mots de passe », cette serie induisait
+ * l'utilisateur en erreur.
+ *
+ * Le rapport actuel affiche l'etat ACTUEL, seul fait disponible.
+ * Ce fichier reste exporte pour ne casser aucun appelant. Ne pas le
+ * rebrancher sur un graphique presente comme historique.
+ */
+
 // scripts/utils/vault-stats.js
 
 /**
