@@ -26,7 +26,6 @@ src-tauri/target/
 src-tauri/WixTools/
 
 # 📄 docs/assets — build Vite (hashé, regénéré)
-docs/assets/
 
 # ⚡ Dépendances
 node_modules/
