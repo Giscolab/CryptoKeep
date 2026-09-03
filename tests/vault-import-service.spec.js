@@ -428,6 +428,43 @@ try {
     assert.equal(nettoyages, 2, 'Le nettoyage doit avoir lieu en reussite comme en echec');
   }
 
+  // ============ 26. LOT 3C : coffre courant illisible = refus ==============
+  // Un import remplace l'INTEGRALITE du coffre. La lecture qui construit
+  // l'instantane etait enveloppee dans un `catch { currentRecord = null; }` :
+  // une base illisible etait donc traitee comme une base vide, l'import
+  // ecrasait le coffre, et aucun retour arriere n'etait possible.
+  {
+    const storage = new FakeVaultStorage(coffreCourant.record);
+    const avant = canonicalize(storage.record);
+    storage.failNextRead = true;
+
+    let erreur = null;
+    try {
+      await importVaultFile(makeVaultFile(coffreImporte.record), deps(storage));
+    } catch (error) {
+      erreur = error;
+    }
+
+    assert.ok(erreur instanceof VaultImportError, 'Un import sur base illisible doit etre refuse');
+    assert.equal(erreur.code, 'current_vault_unreadable',
+      'Le refus doit nommer la cause : le coffre actuel n a pas pu etre lu');
+    assert.equal(erreur.details.wrote, false);
+    assert.equal(storage.writes, 0,
+      'AUCUNE ecriture ne doit avoir lieu quand l etat courant est inconnu');
+    assert.equal(canonicalize(storage.record), avant,
+      'Le coffre courant doit rester exactement dans son etat');
+  }
+
+  // ============ 27. Un coffre ABSENT reste un import normal ================
+  {
+    const storage = new FakeVaultStorage(null);
+    const rapport = await importVaultFile(makeVaultFile(coffreImporte.record), deps(storage));
+    assert.equal(rapport.imported, true,
+      'Importer dans une base vide doit rester possible : absent n est pas illisible');
+    assert.equal(rapport.replacedEntryCount, 0);
+    assert.equal(storage.writes, 1);
+  }
+
   console.log('Vault import service tests passed.');
 } catch (error) {
   console.error('Vault import service tests failed:', error);

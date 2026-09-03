@@ -788,10 +788,10 @@
 			</div>
 		</section>
 		<!-- Modal de changement de mot de passe -->
-		<div class="modal-overlay" id="changePasswordModal">
+		<div class="modal-overlay" id="changePasswordModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="changePasswordTitle">
 			<div class="modal">
 				<div class="modal-header">
-					<h3>Changer le mot de passe principal</h3>
+					<h3 id="changePasswordTitle">Changer le mot de passe principal</h3>
 					<button class="close-modal" id="closeChangeModal" type="button" title="Fermer la fenêtre" aria-label="Fermer la fenêtre">
 						<i class="fas fa-times" aria-hidden="true"></i>
 					</button>
@@ -825,18 +825,26 @@
 						</div>
 					</div>
 				</div>
-				<div class="strength-indicator">
+				<!-- Lot 4 : indicateur pilote par le champ « Nouveau mot de passe ».
+				     Le premier point etait allume en dur dans le markup, ce qui
+				     affichait un niveau de securite pour un champ vide. -->
+				<div class="strength-indicator" id="changePasswordStrength">
 					<span>Sécurité du mot de passe :</span>
-					<div class="strength-dot active"></div>
 					<div class="strength-dot"></div>
 					<div class="strength-dot"></div>
 					<div class="strength-dot"></div>
 					<div class="strength-dot"></div>
+					<div class="strength-dot"></div>
+					<span class="strength-label" id="changePasswordStrengthLabel"></span>
 				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" id="cancelChangeModalBtn">Annuler</button>
-				<button class="btn btn-primary">Changer le mot de passe</button>
+				<!-- Lot 4 : ce pied de fenetre etait un FRERE de .modal, donc
+				     rendu en dehors de la boite de dialogue. Il est desormais
+				     a l'interieur, et le bouton de validation a un identifiant. -->
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" id="cancelChangeModalBtn">Annuler</button>
+					<button type="button" class="btn btn-primary" id="confirmChangePasswordBtn">Changer le mot de passe</button>
+				</div>
+				<p class="modal-message" id="changePasswordMessage" role="status" aria-live="polite" hidden></p>
 			</div>
 		</div>
 		<div class="auto-lock" id="autolock-timer">

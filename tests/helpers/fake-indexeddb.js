@@ -17,7 +17,10 @@
  *   - `abortNextWrites` : annule les N prochaines transactions d'ecriture ;
  *   - `divergeReadAfterCommit` : la premiere relecture qui suit une ecriture
  *     VALIDEE renvoie un record different de celui ecrit. C'est exactement le
- *     scenario "commit reussi puis verification en echec".
+ *     scenario "commit reussi puis verification en echec" ;
+ *   - `failNextReads` : fait ECHOUER les N prochaines lectures. Une base
+ *     illisible n'est pas une base vide : c'est la distinction que le Lot 3c
+ *     verifie.
  *
  * Aucune donnee reelle : tout est fabrique par les fixtures synthetiques.
  */
@@ -39,6 +42,7 @@ class FakeObjectStore {
     this.transaction.reads.push({ key, request });
     return request;
   }
+
 
   put(value) {
     const request = new FakeRequest();
@@ -88,6 +92,20 @@ class FakeTransaction {
 
     // Lectures : servies au moment de la validation.
     for (const read of this.reads) {
+      // Une base ILLISIBLE n'est pas une base vide : la requete echoue, elle
+      // ne renvoie pas `undefined`. C'est la distinction que le Lot 3c doit
+      // faire, et qu'un stub renvoyant `null` masquerait completement.
+      this.db.readCount += 1;
+
+      if (this.db.failNextReads > 0 || this.db.failReadsAt.has(this.db.readCount)) {
+        if (this.db.failNextReads > 0) this.db.failNextReads -= 1;
+        this.db.readFailures += 1;
+        const error = new Error('IndexedDB read failed.');
+        error.name = 'DataError';
+        if (typeof read.request.onerror === 'function') read.request.onerror(error);
+        continue;
+      }
+
       const result = this.db._readRecord(read.key);
       if (typeof read.request.onsuccess === 'function') {
         read.request.onsuccess({ target: { result } });
@@ -120,6 +138,13 @@ export class FakeIDBDatabase {
     this.commits = 0;
     this.aborts = 0;
     this.abortNextWrites = 0;
+    this.failNextReads = 0;
+    // Numeros de lecture (1-based) a faire echouer. Permet de viser une
+    // lecture PRECISE de la sequence, par exemple la lecture prealable faite
+    // par saveVault() apres celle du VaultManager.
+    this.failReadsAt = new Set();
+    this.readCount = 0;
+    this.readFailures = 0;
     this.divergeReadAfterCommit = false;
     this._divergePending = false;
     this.history = [];

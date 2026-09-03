@@ -241,11 +241,21 @@ export async function importVaultFile(file, deps = {}) {
     }
 
     // --- 13. instantane exclusivement chiffre du coffre courant ---------
+    //
+    // LOT 3C : ce bloc confondait lui aussi « aucun coffre » et « coffre
+    // illisible ». Un import remplace l'INTEGRALITE du coffre : poursuivre
+    // sans instantane exploitable rendait l'operation irreversible tout en
+    // laissant croire qu'une restauration la protegeait. Une lecture qui
+    // echoue interrompt donc l'import AVANT toute ecriture.
     let currentRecord = null;
     try {
       currentRecord = await storage.loadVault();
-    } catch {
-      currentRecord = null;
+    } catch (error) {
+      throw new VaultImportError(
+        'current_vault_unreadable',
+        'Le coffre actuel n\'a pas pu etre lu. Import abandonne, rien n\'a ete ecrit.',
+        { wrote: false, cause: error && error.name ? error.name : 'unknown' }
+      );
     }
     const snapshot = createEncryptedSnapshot(currentRecord);
 

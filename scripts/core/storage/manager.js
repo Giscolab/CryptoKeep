@@ -9,7 +9,8 @@ import { writeLocalBackup } from './local-backup.js';
 import {
 	canonicalize,
 	createEncryptedSnapshot,
-	writeVaultRecordVerified
+	writeVaultRecordVerified,
+	VaultWriteError
 } from './vault-transaction.js';
 import { restoreBackupWhenPrimaryMissing } from './backup-restore-service.js';
 
@@ -74,16 +75,61 @@ export class StorageManager {
 		//
 		//    L'instantane ne contient que { id, iv, ciphertext } et des
 		//    metadonnees non secretes : aucune donnee dechiffree n'y figure.
-		//    Son absence n'empeche jamais l'ecriture — un coffre inexistant,
-		//    a la premiere creation, n'a simplement rien a restaurer — et
-		//    l'echec de sa construction ne doit pas faire echouer une
-		//    sauvegarde par ailleurs legitime.
-		let snapshot = null;
+		//
+		//    LOT 3C - DEFAUT CORRIGE. La premiere version de ce bloc plaçait
+		//    la lecture prealable dans un `try { ... } catch { snapshot = null; }`
+		//    global, au motif qu'un instantane manquant ne devait pas faire
+		//    echouer une sauvegarde legitime. Ce raccourci confondait DEUX
+		//    situations opposees :
+		//
+		//      - `loadVault()` renvoie `null` : il n'existe AUCUN coffre. C'est
+		//        le cas normal de la premiere creation ; il n'y a rien a
+		//        restaurer et l'ecriture doit se poursuivre ;
+		//
+		//      - `loadVault()` LEVE : le coffre precedent est ILLISIBLE. Son
+		//        etat est alors inconnu, pas vide. Poursuivre l'ecriture la
+		//        rendait irreversible tout en laissant croire qu'un rollback
+		//        la protegeait : une divergence post-commit detruisait alors
+		//        definitivement le coffre precedent.
+		//
+		//    Les deux cas sont desormais distingues. Une base illisible, ou un
+		//    enregistrement courant dont l'instantane ne peut pas etre
+		//    construit, interrompt l'operation AVANT toute ecriture : rien
+		//    n'est ecrit, le coffre existant reste exactement dans son etat.
+		let current = null;
 		try {
-			const current = await this.loadVault();
-			if (current) snapshot = validateVaultRecord(createEncryptedSnapshot(current));
-		} catch {
-			snapshot = null;
+			current = await this.loadVault();
+		} catch (error) {
+			throw new VaultWriteError(
+				'snapshot_unavailable',
+				'L\'etat actuel du coffre n\'a pas pu etre lu. Aucune modification n\'a ete ecrite.',
+				{
+					written: false,
+					restored: false,
+					restoreNeeded: false,
+					cause: error && error.name ? error.name : 'unknown'
+				}
+			);
+		}
+
+		let snapshot = null;
+		if (current) {
+			try {
+				snapshot = validateVaultRecord(createEncryptedSnapshot(current));
+			} catch (error) {
+				// Un coffre existe mais ne peut pas etre preserve : ecrire
+				// par-dessus serait une perte de donnees irreversible.
+				throw new VaultWriteError(
+					'snapshot_unusable',
+					'L\'etat actuel du coffre n\'a pas pu etre preserve. Aucune modification n\'a ete ecrite.',
+					{
+						written: false,
+						restored: false,
+						restoreNeeded: false,
+						cause: error && error.name ? error.name : 'unknown'
+					}
+				);
+			}
 		}
 
 		// 1 a 4. ecriture dans UNE transaction, attente de la VALIDATION,

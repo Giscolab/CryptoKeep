@@ -34,6 +34,7 @@ import {
 } from './core/storage/legacy-backup-migration.js';
 import { requestPasswordDialog, confirmDialog } from './ui/secure-dialogs.js';
 import { initEntryModal } from './ui/entry-modal.js';
+import { initMasterPasswordModal } from './ui/master-password-modal.js';
 import { installVaultViewRefresh, refreshVaultViews } from './ui/vault-view-refresh.js';
 import {
 	probeStoragePersistence,
@@ -568,4 +569,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Abonnement UNIQUE : toute mutation d'entree rafraichit les memes vues.
 	installVaultViewRefresh();
+
+	// Lot 4 : la fenetre de changement du mot de passe maitre existait dans
+	// index.html sans aucun gestionnaire ; elle ne s'ouvrait jamais.
+	const changeModal = initMasterPasswordModal();
+	if (!changeModal.bound && changeModal.reason === 'modal_absent') {
+		console.warn('[Vault] Fenetre de changement de mot de passe introuvable.');
+	}
 });

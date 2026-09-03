@@ -101,6 +101,10 @@ function dispatchEntriesChanged(reason, detail = {}) {
  * un echec comme un succes, et aucun ne contient de donnee de coffre.
  */
 const WRITE_FAILURE_MESSAGES = Object.freeze({
+  // Lot 3c : l'etat precedent n'a pas pu etre lu ou preserve. Rien n'a ete
+  // ecrit ; le message doit le dire, sans laisser croire a une perte.
+  snapshot_unavailable: "L'etat actuel du coffre n'a pas pu etre lu. Aucune modification n'a ete enregistree.",
+  snapshot_unusable: "L'etat actuel du coffre n'a pas pu etre preserve. Aucune modification n'a ete enregistree.",
   transaction_aborted: "L'enregistrement a ete annule. Le coffre precedent est inchange.",
   verification_failed: "L'enregistrement n'a pas pu etre verifie.",
   restore_failed: "L'enregistrement n'a pas pu etre verifie et le coffre precedent n'a pas pu etre retabli.",
@@ -131,6 +135,9 @@ function toOperationError(error) {
     const operationError = new EntryOperationError(`write_${error.code}`, message);
     operationError.restored = details.restored === true;
     operationError.verifiedRestore = details.verifiedRestore === true;
+    // Lot 3c : `written === false` signifie qu'AUCUNE ecriture n'a eu lieu.
+    // L'interface peut alors proposer une nouvelle tentative sans risque.
+    operationError.written = details.written !== false;
     return operationError;
   }
 

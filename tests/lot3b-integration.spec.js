@@ -21,7 +21,6 @@
 
 import './webcrypto-setup.js';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { loadIndexHtmlDocument } from './helpers/app-dom.js';
 import { FakeIDBDatabase } from './helpers/fake-indexeddb.js';
 import { buildSyntheticVault } from './helpers/vault-fixtures.js';
@@ -69,6 +68,7 @@ const vaultList = await import('../scripts/ui/vault-list/vault-list.js');
 const dashboard = await import('../scripts/ui/dashboard.js');
 const entryModal = await import('../scripts/ui/entry-modal.js');
 const viewRefresh = await import('../scripts/ui/vault-view-refresh.js');
+const masterPasswordModal = await import('../scripts/ui/master-password-modal.js');
 
 const { createEntry, updateEntry, deleteEntry } = entryOperations;
 
@@ -90,8 +90,15 @@ async function installVault(entries) {
   vaultManager.storage = storage;
   vaultManager.clearSession?.();
   await vaultManager.unlock(MDP);
+  // Compteurs remis a zero APRES le deverrouillage : `unlock()` lit et peut
+  // reecrire le coffre. Les numeros de lecture utilises par les scenarios
+  // sont donc relatifs a l'operation testee, pas au montage.
   db.commits = 0;
   db.aborts = 0;
+  db.readCount = 0;
+  db.readFailures = 0;
+  db.failReadsAt = new Set();
+  db.failNextReads = 0;
   return { db, storage, built };
 }
 
@@ -117,6 +124,28 @@ async function captureFailure(promise, message) {
 
 const results = [];
 function check(label, fn) { results.push({ label, fn }); }
+
+/**
+ * Attend qu'une condition devienne vraie, dans une limite de temps.
+ *
+ * Les gestionnaires de clic sont volontairement « fire and forget » : le
+ * bouton ne renvoie pas de promesse. Or deux derivations PBKDF2 a 220 000
+ * iterations prennent un temps reel, que quelques tours de boucle ne
+ * couvrent pas. Attendre une CONDITION, plutot qu'un nombre arbitraire de
+ * tours, garde le chemin reel du bouton sous test sans le rendre fragile.
+ */
+async function attendreQue(predicat, message, limiteMs = 30000) {
+  const echeance = Date.now() + limiteMs;
+  for (;;) {
+    let satisfait = false;
+    try { satisfait = Boolean(predicat()); } catch { satisfait = false; }
+    if (satisfait) return true;
+    if (Date.now() > echeance) {
+      assert.fail(`Condition jamais atteinte (${limiteMs} ms) : ${message}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 function textOf(node) { return node ? node.textContent : ''; }
 
@@ -249,6 +278,113 @@ check('A4 - transaction annulee : aucune ecriture, donc AUCUNE restauration', as
 });
 
 // ===========================================================================
+// A5 a A8. LOT 3C : une base ILLISIBLE n'est pas une base vide
+// ---------------------------------------------------------------------------
+// Defaut reproduit avant correction : la lecture prealable qui construit
+// l'instantane etait enveloppee dans un `catch { snapshot = null; }`. Une
+// erreur reelle de lecture etait donc traitee comme « aucun coffre
+// precedent », l'ecriture se poursuivait, et une divergence post-commit
+// detruisait definitivement le coffre : sortie observee
+//   ecriture effectuee : true / coffre precedent perdu : true
+// ===========================================================================
+
+check('A5 - lecture prealable en echec : aucune ecriture, coffre intact', async () => {
+  const { db } = await installVault([
+    { id: 'a5', title: 'Intacte', username: 'u@example.test', password: 'mdp-synthetique-9' }
+  ]);
+
+  const avant = persistentFingerprint(db);
+  // Lecture 1 = celle du VaultManager, lecture 2 = la prealable de saveVault.
+  db.failReadsAt = new Set([2]);
+
+  const error = await captureFailure(
+    updateEntry(vaultManager, 'a5', { title: 'Apres', password: 'mdp-synthetique-9' }),
+    'Modification avec lecture prealable en echec'
+  );
+
+  assert.equal(error.code, 'write_snapshot_unavailable',
+    "DEFAUT 3C : une lecture en echec doit etre signalee comme telle, "
+    + "et non confondue avec un coffre absent");
+  assert.equal(error.written, false, "Rien ne doit avoir ete ecrit");
+  assert.equal(error.restored, false);
+  assert.equal(db.commits, 0,
+    'DEFAUT 3C : aucune ecriture ne doit avoir lieu quand l etat precedent est inconnu');
+  assert.equal(db.readFailures, 1, 'La lecture visee doit bien avoir echoue');
+  assert.deepEqual(persistentFingerprint(db), avant, 'Le coffre doit rester intact');
+});
+
+check('A6 - lecture prealable en echec PUIS divergence : le coffre n est pas perdu', async () => {
+  const { db, built } = await installVault([
+    { id: 'a6', title: 'Avant', username: 'u@example.test', password: 'mdp-synthetique-10' }
+  ]);
+
+  const avant = persistentFingerprint(db);
+  db.failReadsAt = new Set([2]);
+  db.divergeReadAfterCommit = true;
+
+  const error = await captureFailure(
+    updateEntry(vaultManager, 'a6', { title: 'Apres', password: 'mdp-synthetique-10' }),
+    'Lecture prealable en echec et divergence post-commit'
+  );
+
+  assert.equal(error.code, 'write_snapshot_unavailable');
+  assert.equal(error.written, false);
+  assert.equal(db.commits, 0,
+    "C'est le scenario destructeur : sans instantane, l ecriture ne doit "
+    + 'jamais etre tentee, sans quoi la divergence serait irreversible');
+  assert.deepEqual(persistentFingerprint(db), avant);
+
+  const conserve = db.peek().entries.find((entry) => entry.id === 'a6');
+  const clair = await decryptData(conserve, built.key, {
+    additionalData: entryAdditionalData('a6', 2)
+  });
+  assert.equal(clair.title, 'Avant', 'Le coffre precedent reste dechiffrable');
+});
+
+check('A7 - coffre ABSENT : la premiere ecriture reste possible', async () => {
+  // La correction ne doit pas transformer un cas normal en refus : un coffre
+  // inexistant n'a legitimement rien a restaurer, et `loadVault()` renvoyant
+  // `null` n'est pas une erreur.
+  const { db, storage, built } = await installVault([
+    { id: 'a7', title: 'Base', username: 'u@example.test', password: 'mdp-synthetique-11' }
+  ]);
+
+  db.records.clear();
+  db.commits = 0;
+  assert.equal(db.peek(), null, 'Le pre-requis du test : aucun coffre en base');
+
+  const rapport = await storage.saveVault(built.record.entries, built.record.meta);
+  assert.ok(rapport, 'Une premiere creation doit aboutir');
+  assert.equal(db.commits, 1, 'Exactement une ecriture');
+  assert.ok(db.peek(), 'Le coffre doit exister apres la creation');
+  assert.equal(db.peek().entries.length, 1);
+});
+
+check('A8 - lecture en echec APRES le commit : restauration, pas de perte', async () => {
+  // Distinct de A5 : ici l'ecriture a bien eu lieu, c'est la RELECTURE de
+  // verification qui echoue. L'instantane existe, la restauration doit jouer.
+  const { db } = await installVault([
+    { id: 'a8', title: 'Origine', username: 'u@example.test', password: 'mdp-synthetique-12' }
+  ]);
+
+  const avant = persistentFingerprint(db);
+  // Lecture 1 = VaultManager, 2 = prealable de saveVault (doit reussir),
+  // 3 = relecture de verification (echoue).
+  db.failReadsAt = new Set([3]);
+
+  const error = await captureFailure(
+    updateEntry(vaultManager, 'a8', { title: 'Apres', password: 'mdp-synthetique-12' }),
+    'Relecture de verification en echec'
+  );
+
+  assert.equal(error.code, 'write_verification_failed');
+  assert.equal(error.restored, true, 'Un instantane etait disponible : il doit servir');
+  assert.equal(error.verifiedRestore, true);
+  assert.deepEqual(persistentFingerprint(db), avant,
+    'Le coffre doit avoir ete ramene a son etat initial');
+});
+
+// ===========================================================================
 // B. Invariant #13 : aucune persistance si le CHIFFREMENT lui-meme echoue
 // ===========================================================================
 
@@ -331,21 +467,11 @@ check('C2 - un seul ecouteur sur le generateur (defaut 2)', async () => {
     'Une seconde initialisation ne doit ajouter aucun ecouteur');
 });
 
-check('C3 - garde statique : scripts/app.js ne raccorde plus le generateur', async () => {
-  const source = readFileSync(new URL('../scripts/app.js', import.meta.url), 'utf8');
-  const lignes = source.split(/\r?\n/);
-
-  const raccordements = lignes.filter((ligne) => !ligne.trim().startsWith('//')
-    && /addEventListener/.test(ligne)
-    && /generate/i.test(ligne));
-  assert.equal(raccordements.length, 0,
-    'scripts/app.js ne doit plus installer d\'ecouteur sur le generateur');
-
-  const usages = lignes.filter((ligne) => !ligne.trim().startsWith('//')
-    && /PasswordGenerator/.test(ligne));
-  assert.equal(usages.length, 0,
-    'scripts/app.js ne doit plus utiliser PasswordGenerator');
-});
+// La garde STATIQUE equivalente — un seul module raccorde le generateur, et
+// scripts/app.js n'utilise plus PasswordGenerator — vit dans
+// tests/security-no-plaintext.spec.js, qui analyse deja l'integralite de
+// scripts/. Elle y couvre aussi les fichiers que ce test d'integration ne
+// charge pas, notamment scripts/app.js lui-meme.
 
 // ===========================================================================
 // D. Invariant #37 : les vues sont REELLEMENT rafraichies
@@ -814,6 +940,230 @@ check('I2 - une action utilisateur ne produit qu une seule ecriture', async () =
   assert.equal(db.commits, 1,
     'Deux declenchements pour une meme action ne doivent produire qu une ecriture');
   assert.equal(vaultManager.getEntries().find((e) => e.id === 'i2').title, 'Unique modifiee');
+});
+
+// ===========================================================================
+// K. LOT 4 : la fenetre de changement du mot de passe maitre
+// ---------------------------------------------------------------------------
+// Le document est le VRAI index.html. Les boutons sont reellement cliques.
+// ===========================================================================
+
+const MDP_LOT4_NOUVEAU = 'phrase-de-passe-lot4-integration-neuve';
+
+check('K1 - la fenetre s ouvre et se ferme reellement', async () => {
+  await installVault([
+    { id: 'k1', title: 'Entree', username: 'u@example.test', password: 'MotDePasse-K1-1!' }
+  ]);
+
+  const bind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  assert.ok(bind.bound || bind.reason === 'already_bound',
+    'La fenetre de changement doit etre raccordee au document reel');
+
+  const fields = bind.fields || masterPasswordModal.collectChangePasswordFields(document);
+  const fenetre = document.getElementById('changePasswordModal');
+  const ouvrir = document.getElementById('changePasswordBtn');
+  assert.ok(fenetre && ouvrir, 'Les elements doivent exister dans index.html');
+
+  assert.equal(fenetre.classList.contains('active'), false, 'Fermee au depart');
+
+  ouvrir.click();
+  assert.equal(fenetre.classList.contains('active'), true,
+    'DEFAUT CORRIGE : #changePasswordBtn n avait aucun gestionnaire');
+  assert.equal(fenetre.getAttribute('aria-hidden'), 'false');
+
+  document.getElementById('cancelChangeModalBtn').click();
+  assert.equal(fenetre.classList.contains('active'), false);
+  assert.equal(fenetre.getAttribute('aria-hidden'), 'true');
+
+  ouvrir.click();
+  document.getElementById('closeChangeModal').click();
+  assert.equal(fenetre.classList.contains('active'), false, 'La croix doit fermer aussi');
+  void fields;
+});
+
+check('K2 - le pied de fenetre est DANS la boite de dialogue', async () => {
+  // Defaut de markup corrige : `.modal-footer` etait un FRERE de `.modal`,
+  // donc rendu hors de la fenetre.
+  const boite = document.querySelector('#changePasswordModal .modal');
+  assert.ok(boite, 'La boite de dialogue doit exister');
+
+  const pied = document.querySelector('#changePasswordModal .modal-footer');
+  assert.ok(pied, 'Le pied de fenetre doit exister');
+  assert.ok(pied.closest('.modal') === boite,
+    'Le pied de fenetre doit etre un descendant de .modal, pas un frere');
+
+  const valider = document.getElementById('confirmChangePasswordBtn');
+  assert.ok(valider, 'Le bouton de validation doit avoir un identifiant');
+  assert.equal(valider.listenerCount('click'), 1, 'Exactement un gestionnaire');
+});
+
+check('K3 - changement complet : coffre rechiffre, champs purges', async () => {
+  const { db } = await installVault([
+    { id: 'k3a', title: 'Alpha', username: 'a@example.test', password: 'MotDePasse-K3-1!' },
+    { id: 'k3b', title: 'Beta', username: 'b@example.test', password: 'MotDePasse-K3-2!' }
+  ]);
+
+  const bind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  const fields = bind.fields || masterPasswordModal.collectChangePasswordFields(document);
+  const avant = persistentFingerprint(db);
+
+  document.getElementById('changePasswordBtn').click();
+  fields.current.value = MDP;
+  fields.next.value = MDP_LOT4_NOUVEAU;
+  fields.confirm.value = MDP_LOT4_NOUVEAU;
+
+  // Le BOUTON reel est clique : c'est ce chemin qui doit fonctionner.
+  const fenetre = document.getElementById('changePasswordModal');
+  document.getElementById('confirmChangePasswordBtn').click();
+
+  // Les champs du document sont purges DES la lecture de la saisie, sans
+  // attendre la fin des deux derivations PBKDF2.
+  assert.equal(fields.current.value, '',
+    'Le mot de passe actuel ne doit pas rester dans le document pendant l operation');
+  assert.equal(fields.next.value, '');
+  assert.equal(fields.confirm.value, '');
+
+  await attendreQue(() => !fenetre.classList.contains('active'),
+    'la fenetre doit se fermer apres un changement reussi');
+
+  assert.notDeepEqual(persistentFingerprint(db), avant, 'Le coffre doit avoir ete rechiffre');
+  assert.equal(db.commits, 1, 'Une seule ecriture');
+  assert.equal(db.peek().entries.length, 2, 'Les deux entrees doivent survivre');
+
+  // Les champs sont purges et remasques.
+  for (const champ of [fields.current, fields.next, fields.confirm]) {
+    assert.equal(champ.value, '', 'Le champ doit etre vide apres un changement');
+    assert.equal(champ.type, 'password', 'Le champ doit etre remasque');
+  }
+  assert.equal(fenetre.classList.contains('active'), false,
+    'La fenetre doit se fermer apres un succes');
+
+  // La session continue avec la nouvelle cle.
+  assert.equal(vaultManager.getEntries().length, 2);
+  assert.equal(vaultManager.masterKey.extractable, false);
+});
+
+check('K4 - refus : message generique affiche, champs purges, fenetre ouverte', async () => {
+  const { db } = await installVault([
+    { id: 'k4', title: 'Gamma', username: 'g@example.test', password: 'MotDePasse-K4-1!' }
+  ]);
+
+  const bind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  const fields = bind.fields || masterPasswordModal.collectChangePasswordFields(document);
+  const avant = persistentFingerprint(db);
+
+  document.getElementById('changePasswordBtn').click();
+  fields.current.value = 'mot-de-passe-actuel-faux-synthetique';
+  fields.next.value = MDP_LOT4_NOUVEAU;
+  fields.confirm.value = MDP_LOT4_NOUVEAU;
+
+  document.getElementById('confirmChangePasswordBtn').click();
+  await attendreQue(() => document.getElementById('changePasswordMessage').hidden === false,
+    'un message de refus doit apparaitre');
+
+  assert.equal(db.commits, 0, 'Aucune ecriture apres un refus');
+  assert.deepEqual(persistentFingerprint(db), avant, 'Le coffre doit etre intact');
+
+  const message = document.getElementById('changePasswordMessage');
+  assert.equal(message.hidden, false, 'Un message doit etre affiche');
+  assert.ok(message.textContent.length > 0);
+  assert.ok(!message.textContent.includes(MDP)
+    && !message.textContent.includes(MDP_LOT4_NOUVEAU),
+  'Aucun mot de passe ne doit apparaitre a l ecran');
+  for (const terme of ['PBKDF2', 'AES', 'GCM', 'AAD', 'ciphertext']) {
+    assert.ok(!message.textContent.includes(terme),
+      `Le message ne doit pas reveler « ${terme} »`);
+  }
+
+  // Les champs sont purges meme en cas d'echec, et la fenetre reste ouverte.
+  for (const champ of [fields.current, fields.next, fields.confirm]) {
+    assert.equal(champ.value, '', 'Le champ doit etre vide apres un refus');
+    assert.equal(champ.type, 'password');
+  }
+  assert.equal(document.getElementById('changePasswordModal').classList.contains('active'), true,
+    'La fenetre reste ouverte pour permettre une nouvelle tentative');
+
+  masterPasswordModal.closeChangePasswordModal(fields);
+});
+
+check('K5 - confirmation differente : refus immediat, aucune lecture du coffre', async () => {
+  const { db } = await installVault([
+    { id: 'k5', title: 'Delta', username: 'd@example.test', password: 'MotDePasse-K5-1!' }
+  ]);
+
+  const bind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  const fields = bind.fields || masterPasswordModal.collectChangePasswordFields(document);
+
+  document.getElementById('changePasswordBtn').click();
+  fields.current.value = MDP;
+  fields.next.value = MDP_LOT4_NOUVEAU;
+  fields.confirm.value = `${MDP_LOT4_NOUVEAU}-different`;
+
+  document.getElementById('confirmChangePasswordBtn').click();
+  await attendreQue(() => document.getElementById('changePasswordMessage').hidden === false,
+    'un message de refus doit apparaitre');
+
+  assert.equal(db.commits, 0);
+  assert.equal(db.readCount, 0,
+    'Une confirmation differente est refusee AVANT toute lecture du coffre');
+  assert.match(document.getElementById('changePasswordMessage').textContent, /correspondent pas/);
+
+  masterPasswordModal.closeChangePasswordModal(fields);
+});
+
+check('K6 - fermer la fenetre purge les champs saisis', async () => {
+  await installVault([]);
+  const bind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  const fields = bind.fields || masterPasswordModal.collectChangePasswordFields(document);
+
+  document.getElementById('changePasswordBtn').click();
+  fields.current.value = 'saisie-abandonnee-synthetique';
+  fields.next.value = 'autre-saisie-abandonnee';
+  fields.confirm.value = 'autre-saisie-abandonnee';
+  fields.current.type = 'text';
+
+  document.getElementById('cancelChangeModalBtn').click();
+
+  for (const champ of [fields.current, fields.next, fields.confirm]) {
+    assert.equal(champ.value, '', 'Annuler doit vider les champs');
+    assert.equal(champ.type, 'password', 'Annuler doit remasquer les champs');
+  }
+  assert.equal(document.getElementById('changePasswordMessage').hidden, true);
+});
+
+check('K7 - indicateur de solidite : rien d allume pour un champ vide', async () => {
+  await installVault([]);
+  const bind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  const fields = bind.fields || masterPasswordModal.collectChangePasswordFields(document);
+
+  const points = () => document
+    .querySelectorAll('#changePasswordStrength .strength-dot')
+    .filter((dot) => dot.classList.contains('active')).length;
+
+  document.getElementById('changePasswordBtn').click();
+  assert.equal(points(), 0,
+    'Un indicateur ne doit afficher aucun niveau tant qu il n a rien analyse');
+
+  fields.next.value = 'phrase-de-passe-longue-et-variee-9!';
+  fields.next.dispatchEvent({ type: 'input', target: fields.next });
+  assert.ok(points() > 0, 'Une saisie solide doit allumer des points');
+
+  fields.next.value = '';
+  fields.next.dispatchEvent({ type: 'input', target: fields.next });
+  assert.equal(points(), 0, 'Effacer la saisie doit tout eteindre');
+
+  masterPasswordModal.closeChangePasswordModal(fields);
+});
+
+check('K8 - raccordement idempotent', async () => {
+  const rebind = masterPasswordModal.initMasterPasswordModal({ doc: document });
+  assert.equal(rebind.bound, false);
+  assert.equal(rebind.reason, 'already_bound');
+
+  assert.equal(document.getElementById('changePasswordBtn').listenerCount('click'), 1);
+  assert.equal(document.getElementById('confirmChangePasswordBtn').listenerCount('click'), 1);
+  assert.equal(document.getElementById('cancelChangeModalBtn').listenerCount('click'), 1);
+  assert.equal(document.getElementById('closeChangeModal').listenerCount('click'), 1);
 });
 
 // ===========================================================================

@@ -193,6 +193,50 @@ try {
       'La garde doit preceder immediatement l\'ecriture');
   }
 
+  // ===== LOT 3C : une base ILLISIBLE n'est pas une base vide ==============
+  // Les deux lectures du service (empreinte avant dialogue, relecture juste
+  // avant l'ecriture) etaient enveloppees dans un `catch { ... = null; }`.
+  // Deux lectures en echec produisaient donc deux `null` compares entre eux :
+  // la garde anti-course concluait « rien n'a change » et la restauration
+  // ecrasait un coffre dont l'etat n'avait jamais pu etre constate.
+  {
+    const store = new FakeLocalStorage();
+    writeLocalBackup(sauvegarde.record, { storage: store });
+
+    // Le diagnostic ne doit pas presenter une base illisible comme absente.
+    const storageDiag = new FakeVaultStorage(principal.record);
+    storageDiag.failNextRead = true;
+    const situation = await inspectRestoreSituation({ storage: storageDiag, localStorageRef: store });
+    assert.equal(situation.primaryUnreadable, true,
+      'Le diagnostic doit dire que le coffre est illisible');
+    assert.equal(situation.primaryUsable, false);
+    assert.equal(situation.offerRestore, false,
+      'Aucune restauration ne doit etre PROPOSEE par-dessus un coffre illisible');
+    assert.equal(situation.reason, 'primary_vault_unreadable');
+
+    // Et le service d'ecriture doit refuser, sans rien ecrire.
+    const storage = new FakeVaultStorage(principal.record);
+    const avant = canonicalize(storage.record);
+    storage.failNextRead = true;
+
+    const erreur = await expectCode(
+      restoreBackupDeliberately({
+        storage,
+        localStorageRef: store,
+        requestPassword: async () => MDP_SAUVEGARDE,
+        confirmRestore: async () => true
+      }),
+      'primary_vault_unreadable',
+      'Restauration sur coffre illisible'
+    );
+
+    assert.equal(erreur.details.wrote, false);
+    assert.equal(storage.writes, 0,
+      'AUCUNE ecriture ne doit avoir lieu quand l etat du coffre est inconnu');
+    assert.equal(canonicalize(storage.record), avant,
+      'Le coffre principal doit rester exactement dans son etat');
+  }
+
   console.log('Restore race tests passed.');
 } catch (error) {
   console.error('Restore race tests failed:', error);

@@ -68,11 +68,16 @@ export function isUsablePrimaryVault(record) {
 export async function inspectRestoreSituation(deps = {}) {
   const { storage, localStorageRef } = deps;
 
+  // LOT 3C : une lecture qui ECHOUE n'est pas un coffre absent. Confondre
+  // les deux amenerait ce diagnostic a proposer une restauration par-dessus
+  // un coffre parfaitement valide mais momentanement illisible.
   let primary = null;
+  let primaryUnreadable = false;
   try {
     primary = storage ? await storage.loadVault() : null;
   } catch {
     primary = null;
+    primaryUnreadable = true;
   }
 
   const primaryUsable = isUsablePrimaryVault(primary);
@@ -88,6 +93,7 @@ export async function inspectRestoreSituation(deps = {}) {
   if (!envelope) {
     return {
       primaryUsable,
+      primaryUnreadable,
       backupAvailable: false,
       backupError,
       offerRestore: false,
@@ -99,17 +105,22 @@ export async function inspectRestoreSituation(deps = {}) {
 
   return {
     primaryUsable,
+    primaryUnreadable,
     backupAvailable: true,
     backupError: null,
     backupCreatedAt: envelope.backupCreatedAt,
     backupEntryCount: envelope.entryCount,
     backupFormatVersion: envelope.vaultFormatVersion,
     // Une proposition automatique n'a lieu que si le coffre principal est
-    // absent ou inexploitable.
-    offerRestore: !primaryUsable,
+    // absent ou inexploitable. LOT 3C : un coffre ILLISIBLE n'entre dans
+    // aucune de ces deux categories. Son etat est inconnu, donc rien ne peut
+    // etre propose par-dessus.
+    offerRestore: !primaryUsable && !primaryUnreadable,
     stale: freshness.stale,
     freshnessNote: freshness.note,
-    reason: primaryUsable ? 'primary_vault_has_priority' : 'primary_missing_or_invalid'
+    reason: primaryUnreadable
+      ? 'primary_vault_unreadable'
+      : (primaryUsable ? 'primary_vault_has_priority' : 'primary_missing_or_invalid')
   };
 }
 
@@ -129,11 +140,18 @@ async function performRestore(envelope, deps, options) {
   // un coffre principal peut apparaitre (creation dans un autre onglet,
   // import termine, restauration concurrente). L'etat observe maintenant
   // sera compare a l'etat reel juste avant l'ecriture.
+  // LOT 3C : si cette lecture echoue, l'etat de reference est INCONNU. La
+  // comparaison faite juste avant l'ecriture comparerait alors deux `null`
+  // issus d'erreurs et conclurait a tort que « rien n'a change ».
   let primaryBefore = null;
   try {
     primaryBefore = await storage.loadVault();
-  } catch {
-    primaryBefore = null;
+  } catch (error) {
+    throw new BackupRestoreError(
+      'primary_vault_unreadable',
+      'Le coffre principal n\'a pas pu etre lu. Restauration abandonnee, rien n\'a ete ecrit.',
+      { wrote: false, cause: error && error.name ? error.name : 'unknown' }
+    );
   }
   const primaryBeforeCanonical = canonicalize(primaryBefore ?? null);
   const primaryWasUsable = isUsablePrimaryVault(primaryBefore);
@@ -192,11 +210,18 @@ async function performRestore(envelope, deps, options) {
     // Cette defense vit dans le service metier, pas dans l'interface : meme
     // si app.js comporte une erreur de synchronisation, l'ecrasement est
     // impossible.
+    // LOT 3C : meme regle qu'a l'empreinte initiale. Un echec de lecture
+    // juste avant l'ecriture rend l'instantane impossible : ecrire ici
+    // detruirait un coffre dont l'etat n'a pas pu etre constate.
     let currentRecord = null;
     try {
       currentRecord = await storage.loadVault();
-    } catch {
-      currentRecord = null;
+    } catch (error) {
+      throw new BackupRestoreError(
+        'primary_vault_unreadable',
+        'Le coffre principal n\'a pas pu etre relu avant l\'ecriture. Restauration abandonnee, rien n\'a ete ecrit.',
+        { wrote: false, cause: error && error.name ? error.name : 'unknown' }
+      );
     }
 
     if (!primaryWasUsable && isUsablePrimaryVault(currentRecord)) {
@@ -252,6 +277,18 @@ async function performRestore(envelope, deps, options) {
 export async function restoreBackupWhenPrimaryMissing(deps = {}) {
   const situation = await inspectRestoreSituation(deps);
 
+  // LOT 3C : « illisible » n'est pas « manquant ». Cette fonction ne se
+  // declenche que lorsque le coffre principal est reellement absent ou
+  // invalide ; un coffre dont l'etat n'a pas pu etre constate ne remplit pas
+  // cette condition et ne doit jamais etre ecrase.
+  if (situation.primaryUnreadable) {
+    throw new BackupRestoreError(
+      'primary_vault_unreadable',
+      'Le coffre principal n\'a pas pu etre lu. Restauration abandonnee, rien n\'a ete ecrit.',
+      { wrote: false }
+    );
+  }
+
   if (!situation.backupAvailable) {
     throw new BackupRestoreError(
       situation.backupError ? 'backup_invalid' : 'no_backup',
@@ -284,6 +321,16 @@ export async function restoreBackupWhenPrimaryMissing(deps = {}) {
  */
 export async function restoreBackupDeliberately(deps = {}) {
   const situation = await inspectRestoreSituation(deps);
+
+  // LOT 3C : sans cette garde, un coffre illisible ressortait sous le code
+  // `no_backup`, message faux et trompeur pour l'utilisateur.
+  if (situation.primaryUnreadable) {
+    throw new BackupRestoreError(
+      'primary_vault_unreadable',
+      'Le coffre principal n\'a pas pu etre lu. Restauration abandonnee, rien n\'a ete ecrit.',
+      { wrote: false }
+    );
+  }
 
   if (!situation.backupAvailable) {
     throw new BackupRestoreError(

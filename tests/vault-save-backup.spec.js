@@ -55,7 +55,17 @@ function makeFakeDb(journal, options = {}) {
             journal.push('idb:read');
             const req = {};
             queueMicrotask(() => {
-              const result = options.corruptRead ? { ...structuredClone(stored), id: 'divergent' } : stored;
+              // LOT 3C : la lecture PREALABLE (instantane) et la RELECTURE
+              // post-commit sont deux moments distincts. Le stub les
+              // confondait, ce qui empechait de tester l'un sans l'autre.
+              if (options.failRead) {
+                journal.push('idb:read-error');
+                if (req.onerror) req.onerror(new Error('lecture IndexedDB impossible'));
+                return;
+              }
+              const corrompre = options.corruptRead
+                || (options.corruptReadAfterWrite && journal.includes('idb:commit'));
+              const result = corrompre ? { ...structuredClone(stored), id: 'divergent' } : stored;
               if (req.onsuccess) req.onsuccess({ target: { result } });
             });
             return req;
@@ -167,7 +177,9 @@ try {
     globalThis.localStorage = store;
 
     const sm = new StorageManager();
-    sm.db = makeFakeDb(journal, { corruptRead: true }).db;
+    // Seule la relecture QUI SUIT le commit diverge : la lecture prealable
+    // reussit, comme dans le scenario reel vise par ce test.
+    sm.db = makeFakeDb(journal, { corruptReadAfterWrite: true }).db;
 
     // Ici le coffre de depart est vide : aucun instantane exploitable n'est
     // disponible, la restauration est donc IMPOSSIBLE et doit etre annoncee
@@ -190,6 +202,99 @@ try {
     assert.ok(journal.includes('idb:read'), 'La relecture doit avoir eu lieu');
     assert.ok(!journal.some((step) => step.startsWith('ls:write')),
       'Aucune sauvegarde secondaire apres divergence');
+
+    delete globalThis.localStorage;
+  }
+
+  // ===== 4bis. LOT 3C : une base ILLISIBLE n'est pas une base vide =======
+  // Defaut corrige : la lecture prealable etait enveloppee dans un
+  // `catch { snapshot = null; }`. Une erreur reelle de lecture etait donc
+  // traitee comme « aucun coffre precedent », et l'ecriture se poursuivait
+  // sans qu'aucun retour arriere ne soit possible.
+  {
+    const journal = [];
+    const store = makeJournalStorage(journal);
+    globalThis.localStorage = store;
+
+    const fake = makeFakeDb(journal, { failRead: true, initial: coffre.record });
+    const sm = new StorageManager();
+    sm.db = fake.db;
+
+    await assert.rejects(
+      sm.saveVault(coffre.record.entries, coffre.record.meta),
+      (error) => {
+        assert.equal(error.name, 'VaultWriteError');
+        assert.equal(error.code, 'snapshot_unavailable',
+          'Une lecture en echec doit etre signalee comme telle, pas confondue '
+          + 'avec un coffre absent');
+        assert.equal(error.details.written, false, 'Rien ne doit avoir ete ecrit');
+        assert.equal(error.details.restored, false);
+        assert.equal(error.details.restoreNeeded, false,
+          'Aucune restauration n est requise puisque rien n a ete ecrit');
+        return true;
+      },
+      'Une base illisible doit interrompre la sauvegarde'
+    );
+
+    assert.ok(!journal.includes('idb:put'),
+      'AUCUNE ecriture ne doit etre tentee quand l etat precedent est inconnu');
+    assert.ok(!journal.some((step) => step.startsWith('ls:write')),
+      'Aucune sauvegarde secondaire non plus');
+    assert.equal(
+      canonicalize(fake.stored),
+      canonicalize(coffre.record),
+      'Le coffre existant doit rester exactement dans son etat'
+    );
+
+    delete globalThis.localStorage;
+  }
+
+  // ===== 4ter. Coffre present mais impossible a preserver ===============
+  {
+    const journal = [];
+    const store = makeJournalStorage(journal);
+    globalThis.localStorage = store;
+
+    // Un enregistrement present mais inexploitable : l'instantane ne peut pas
+    // en etre construit, donc aucun retour arriere ne serait possible.
+    const fake = makeFakeDb(journal, { initial: { id: 'current', entries: [], meta: {} } });
+    const sm = new StorageManager();
+    sm.db = fake.db;
+
+    await assert.rejects(
+      sm.saveVault(coffre.record.entries, coffre.record.meta),
+      (error) => {
+        assert.equal(error.name, 'VaultWriteError');
+        assert.equal(error.code, 'snapshot_unusable');
+        assert.equal(error.details.written, false);
+        return true;
+      },
+      'Un coffre impossible a preserver doit interrompre la sauvegarde'
+    );
+
+    assert.ok(!journal.includes('idb:put'),
+      'Ecrire par-dessus un coffre non preservable serait une perte definitive');
+
+    delete globalThis.localStorage;
+  }
+
+  // ===== 4quater. Un coffre ABSENT reste un cas normal ==================
+  // La correction ne doit pas empecher la premiere creation : `loadVault()`
+  // renvoyant `null` n'est pas une erreur.
+  {
+    const journal = [];
+    const store = makeJournalStorage(journal);
+    globalThis.localStorage = store;
+
+    const fake = makeFakeDb(journal);
+    const sm = new StorageManager();
+    sm.db = fake.db;
+
+    const rapport = await sm.saveVault(coffre.record.entries, coffre.record.meta);
+    assert.equal(rapport.written, true,
+      'Une premiere creation, sans coffre precedent, doit reussir normalement');
+    assert.ok(journal.includes('idb:put'));
+    assert.equal(canonicalize(fake.stored), canonicalize(coffre.record));
 
     delete globalThis.localStorage;
   }
