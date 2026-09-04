@@ -193,6 +193,79 @@ function createReuseGroupElement(groupe) {
   return wrapper;
 }
 
+/**
+ * Cartes SQUELETTES de l'etat vide.
+ *
+ * LOT 6 bis - REGRESSION VISUELLE CORRIGEE. Tant qu'aucun audit n'avait ete
+ * lance, ces deux sections ne contenaient plus qu'une seule ligne de texte,
+ * la ou l'interface d'origine presentait des cartes completes. L'ecran avait
+ * perdu sa densite : le gain d'honnetete n'imposait pas cette perte de forme.
+ *
+ * Ces cartes reprennent EXACTEMENT la structure d'un constat reel — icone,
+ * details, severite, action — sans aucune donnee : pas de nom de compte
+ * invente, pas de chiffre, pas de mot de passe. Elles sont non interactives
+ * et masquees aux lecteurs d'ecran. Le moteur les remplace integralement des
+ * qu'un audit reel produit des resultats.
+ *
+ * @param {number} nombre nombre de cartes a produire
+ * @returns {Array<HTMLElement>}
+ */
+function skeletonCards(nombre) {
+  const cartes = [];
+
+  for (let index = 0; index < nombre; index += 1) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'vulnerability-item vulnerability-item--skeleton';
+    wrapper.dataset.auditSkeleton = 'true';
+    wrapper.setAttribute('aria-hidden', 'true');
+
+    const info = document.createElement('div');
+    info.className = 'vuln-info';
+
+    const icone = document.createElement('div');
+    icone.className = 'vuln-icon';
+    const glyphe = document.createElement('i');
+    glyphe.className = 'fas fa-shield-alt';
+    icone.appendChild(glyphe);
+
+    const details = document.createElement('div');
+    details.className = 'vuln-details';
+    const titre = document.createElement('strong');
+    titre.textContent = '\u2014';
+    const sous = document.createElement('span');
+    sous.textContent = 'En attente d\'un audit';
+    details.append(titre, sous);
+
+    info.append(icone, details);
+
+    const severite = document.createElement('div');
+    severite.className = 'vuln-severity';
+    severite.textContent = '\u2014';
+
+    const actions = document.createElement('div');
+    actions.className = 'vuln-actions';
+    const bouton = document.createElement('button');
+    bouton.type = 'button';
+    bouton.className = 'vuln-action-btn';
+    bouton.disabled = true;
+    const iconeAction = document.createElement('i');
+    iconeAction.className = 'fas fa-sync-alt';
+    bouton.append(iconeAction, document.createTextNode(' Action'));
+    actions.appendChild(bouton);
+
+    wrapper.append(info, severite, actions);
+    cartes.push(wrapper);
+  }
+
+  return cartes;
+}
+
+/** Etat vide d'une liste : le message d'etat PUIS les cartes squelettes. */
+function appendEmptyState(conteneur, message, nombreDeCartes) {
+  conteneur.appendChild(paragraph(message, 'audit-empty'));
+  for (const carte of skeletonCards(nombreDeCartes)) conteneur.appendChild(carte);
+}
+
 /** Portee de l'audit : ce qui a ete examine, et ce qui ne l'a pas ete. */
 function renderScope(doc, rapport) {
   const conteneur = byId(doc, 'auditScope');
@@ -338,12 +411,13 @@ export function renderAuditReport(rapport, options = {}) {
   if (constats) {
     constats.replaceChildren();
     if (!complet) {
-      constats.appendChild(paragraph('Aucun audit exécuté pour l\'instant.', 'audit-empty'));
+      appendEmptyState(constats, 'Aucun audit exécuté pour l\'instant.', 3);
     } else if (rapport.findings.length === 0) {
-      constats.appendChild(paragraph(
+      appendEmptyState(
+        constats,
         `Aucun problème détecté sur les ${rapport.scope.entryCount} entrées examinées.`,
-        'audit-empty'
-      ));
+        3
+      );
     } else {
       for (const item of rapport.findings) constats.appendChild(createFindingElement(item));
     }
@@ -355,9 +429,9 @@ export function renderAuditReport(rapport, options = {}) {
   if (groupes) {
     groupes.replaceChildren();
     if (!complet) {
-      groupes.appendChild(paragraph('Aucun audit exécuté pour l\'instant.', 'audit-empty'));
+      appendEmptyState(groupes, 'Aucun audit exécuté pour l\'instant.', 2);
     } else if (rapport.reuseGroups.length === 0) {
-      groupes.appendChild(paragraph('Aucune réutilisation détectée.', 'audit-empty'));
+      appendEmptyState(groupes, 'Aucune réutilisation détectée.', 2);
     } else {
       for (const groupe of rapport.reuseGroups) {
         groupes.appendChild(createReuseGroupElement(groupe));

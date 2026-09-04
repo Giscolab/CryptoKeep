@@ -142,3 +142,41 @@
     }
   }
 }
+
+/* ==========================================================================
+   LOT 6 bis — RETABLISSEMENT DE LA COMPOSITION VISUELLE.
+
+   Avant qu'un audit soit lancé, la section des vulnérabilités ne contenait
+   plus qu'une seule ligne de texte. La densité de l'écran d'origine est
+   rétablie par des cartes SQUELETTES : même structure, mêmes icônes, mêmes
+   hauteurs, mêmes espacements — et aucune donnée inventée.
+
+   Elles sont en retrait visuel, non interactives, et masquées aux lecteurs
+   d'écran. Le moteur d'audit les remplace intégralement dès qu'un audit
+   réel est exécuté.
+   ========================================================================== */
+
+.vulnerability-item--skeleton {
+  opacity: 0.38;
+  pointer-events: none;
+  user-select: none;
+}
+
+.vulnerability-item--skeleton .vuln-details strong,
+.vulnerability-item--skeleton .vuln-severity {
+  color: var(--color-text-muted, #8b93a7);
+}
+
+.vulnerability-item--skeleton .vuln-details span {
+  font-style: italic;
+}
+
+.vulnerability-item--skeleton .vuln-action-btn {
+  cursor: default;
+}
+
+/* La ligne d'état reste au-dessus des squelettes : c'est elle qui porte
+   l'information, les cartes ne portent que la forme. */
+.vulnerability-list .audit-empty {
+  margin-bottom: 0.75rem;
+}
