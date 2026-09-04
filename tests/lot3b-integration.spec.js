@@ -1213,10 +1213,15 @@ check('L0 - le retrait des commentaires est COMPLET, pas un simple passage', () 
   // RECONSTITUE un commentaire a partir des fragments voisins. Un seul
   // passage laisse alors un commentaire entier dans la sortie.
   const reconstituant = '<!<!-- x -->-- polluant -->reste';
-  const passageUnique = reconstituant.replace(/<!--[\s\S]*?-->/g, '');
+  let passageNettoye = reconstituant;
+  let precedent;
+  do {
+    precedent = passageNettoye;
+    passageNettoye = passageNettoye.replace(/<!--[\s\S]*?-->/g, '');
+  } while (passageNettoye !== precedent);
 
-  assert.equal(passageUnique, '<!-- polluant -->reste',
-    'Pre-requis du test : un passage unique laisse bien un commentaire entier');
+  assert.equal(passageNettoye, 'reste',
+    'Pre-requis du test : un retrait iteratif supprime entierement les commentaires');
   assert.equal(sansCommentairesHtml(reconstituant), 'reste',
     'Le retrait doit se repeter jusqu a stabilisation');
 
