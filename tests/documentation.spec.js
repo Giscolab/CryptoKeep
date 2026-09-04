@@ -320,16 +320,14 @@ test('D13 - le manifeste PWA fonctionne depuis un sous-répertoire', () => {
   }
 });
 
-test('D14 - le site de documentation historique porte une marque de statut', () => {
-  const page = lireFichier('docs/index.html');
-  assert.ok(/Page historique/.test(page),
-    'La page annonce des fonctions inexistantes et des URL fausses : elle doit '
-    + 'dire son statut avant que quiconque la lise');
-  assert.ok(estUnFichier('docs/SITE-HISTORIQUE.md'),
-    'Le statut doit être expliqué dans un document dédié');
-  // Conservation : la page et ses bundles restent en place.
+test('D14 - la page GitHub Pages est CONSERVEE telle quelle', () => {
+  // La page publiee n'est pas modifiee par la documentation : son statut est
+  // decrit dans docs/SITE-HISTORIQUE.md, hors de la page elle-meme.
   assert.ok(estUnFichier('docs/index.html'));
   assert.ok(estUnFichier('docs/assets/index-q6yya6Gb.js'));
+  assert.ok(estUnFichier('docs/assets/index-2t0zffAG.css'));
+  assert.ok(estUnFichier('docs/SITE-HISTORIQUE.md'),
+    'Le statut du site est documenté a part, sans toucher a la page servie');
 });
 
 test('D15 - les modules historiques sont tous recensés', () => {
@@ -354,11 +352,15 @@ test('D15 - les modules historiques sont tous recensés', () => {
 });
 
 test('D16 - le nom du projet est cohérent, et l ambiguïté est expliquée', () => {
-  const readme = lireFichier('README.md');
-  assert.ok(/CryptoKeep/.test(readme));
-  assert.ok(/vault-personal/.test(readme),
-    'Le README doit expliquer pourquoi les deux noms circulent, plutôt que de '
-    + 'laisser le lecteur découvrir la contradiction ailleurs');
+  assert.ok(/CryptoKeep/.test(lireFichier('README.md')),
+    'Le projet s appelle CryptoKeep');
+
+  // L ambiguite avec « vault-personal » est expliquee dans la documentation,
+  // PAS imposee dans le README : cette page appartient a son auteur.
+  const explique = ['docs/SITE-HISTORIQUE.md', 'docs/MODULES-HISTORIQUES.md']
+    .some((doc) => /vault-personal/.test(lireFichier(doc)));
+  assert.ok(explique,
+    'Les deux noms circulent : la documentation doit dire lequel est le bon.');
 });
 
 console.log('=== TEST DOCUMENTATION (LOT 10) ===');
