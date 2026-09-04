@@ -233,7 +233,7 @@ l'impossibilité d'effacer de façon fiable la mémoire JavaScript.
 ---
 
 <p align="center">
-  Développé avec ❤️ par <b>Franck</b> | 
+  Développé avec ❤️ par <b>giscolab</b> | 
   <a href="https://github.com/Giscolab/CryptoKeep">⭐ GitHub</a> •
   <a href="https://github.com/Giscolab/CryptoKeep/blob/main/SECURITY.md">🛡️ Documentation Sécurité</a> •
   <a href="https://github.com/Giscolab/CryptoKeep/releases">📦 Téléchargements</a>
@@ -246,5 +246,4 @@ l'impossibilité d'effacer de façon fiable la mémoire JavaScript.
 
 <p align="center">
   <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs bienvenus">
-  <img src="https://img.shields.io/github/contributors/Giscolab/CryptoKeep" alt="Contributeurs">
 </p>

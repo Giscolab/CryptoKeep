@@ -333,7 +333,7 @@ fonctionnalité n'a été supprimé.
 
 ## 📦 [760faa3] Initialisation complète du projet – *18 mai 2025*
 
-**Auteur :** Franck  
+**Auteur :** giscolab  
 **Résumé :** Mise en place de la structure initiale du projet
 
 - Ajout du système de chiffrement AES-GCM avec PBKDF2 (Web Crypto API)
@@ -349,7 +349,7 @@ fonctionnalité n'a été supprimé.
 
 ## 🛠️ [2f328d3 → c2c1b72] Refonte HTML & Modularisation – *30 mai 2025*
 
-**Auteur :** Franck Da Costa  
+**Auteur :** giscolab
 **Résumé :** Accessibilité renforcée, structure CSS/JS réorganisée
 
 - Refonte complète de `index.html` (HTML sémantique, responsive, `<noscript>`, CSP stricte)
@@ -365,7 +365,7 @@ fonctionnalité n'a été supprimé.
 
 ## ✨ [8b7cdee] Version 3 (v3) – UI Visuelle & Sécurité – *9 juin 2025*
 
-**Auteur :** Franck  
+**Auteur :** giscolab  
 **Résumé :** Intégration de composants visuels, modularisation avancée
 
 - Ajout de nombreux composants CSS :
@@ -382,7 +382,7 @@ fonctionnalité n'a été supprimé.
 
 ## 🧹 [38a5d2c → 5573d68] Nettoyage & Finalisation – *15 juin 2025*
 
-**Auteur :** Franck  
+**Auteur :** giscolab  
 **Résumé :** Rationalisation du projet avant mise en ligne
 
 - Ajout de `.stylelintrc.json` et `purgecss.config.cjs`
@@ -456,7 +456,7 @@ fonctionnalité n'a été supprimé.
 
 ﻿## 🎨 [7c2115e] Mise à jour thémes & composants UI – *11 juillet 2025*
 
-**Auteur :** Franck  
+**Auteur :** giscolab  
 **Résumé :** Finalisation de la thématisation complète et ajout de nouveaux composants pour l’audit et les réglages
 
 ### ✨ Nouveaux fichiers
@@ -506,7 +506,7 @@ Ajout ou mise à jour des thèmes suivants dans `public/themes/` :
 
 ## 🚀 [1.0.0] Première version stable – *18 mai 2025*
 
-**Auteur :** Franck  
+**Auteur :** giscolab  
 **Fonctionnalités livrées dans les premiers jours (18–30 mai)**
 
 - 🔐 Chiffrement AES-GCM + dérivation PBKDF2
