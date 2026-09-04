@@ -32,12 +32,11 @@ Pages. Ce n'est pas l'application : c'est une ancienne page de présentation.
 
 ## Ce qui a été fait, et ce qui ne l'a pas été
 
-**Fait au Lot 10** : un bandeau visible en haut de `docs/index.html` annonce le
-statut historique et renvoie vers la documentation en vigueur. La page continue
-de se charger normalement.
+**La page publiée n'est pas modifiée.** `docs/index.html` et ses bundles sont
+inchangés, octet pour octet. Le statut est décrit ici, dans ce document, et
+non dans la page elle-même.
 
-**Pas fait** : rien n'a été supprimé. Ni la page, ni les bundles, ni les
-métadonnées. La règle de conservation du projet s'applique intégralement.
+**Rien n'a été supprimé.** Ni la page, ni les bundles, ni les métadonnées.
 
 ## Décision à prendre par le mainteneur
 
