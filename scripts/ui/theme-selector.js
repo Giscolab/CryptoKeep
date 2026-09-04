@@ -44,11 +44,23 @@ const applyTheme = (theme) => {
   const linkId = "theme-css";
   let link = document.getElementById(linkId);
 
-  // Sécurisation : vérifie si le thème est autorisé
-  if (!allowedThemes.includes(theme)) {
+  // Sécurisation : vérifie si le thème est autorisé.
+  //
+  // CodeQL signalait « DOM text reinterpreted as HTML » sur la construction de
+  // `link.href` plus bas : la valeur vient de `localStorage`, donc d'une source
+  // que l'analyse considère comme contrôlable. Le contrôle ci-dessous la
+  // bornait déjà à quinze littéraux, mais la garde et le point d'écriture sont
+  // séparés par une vingtaine de lignes — une modification future pouvait les
+  // désolidariser sans que rien ne le signale.
+  //
+  // La valeur retenue est désormais prise DANS la liste blanche elle-même, et
+  // non recopiée depuis l'entrée. Ce qui atteint `href` provient donc toujours
+  // d'une constante du fichier, jamais d'une chaîne extérieure.
+  const themeAutorise = allowedThemes.find((autorise) => autorise === theme);
+  if (!themeAutorise) {
     console.warn(`Thème non autorisé : "${theme}"`);
-    theme = "default";
   }
+  theme = themeAutorise || "default";
 
   // Met à jour l'attribut data-theme
   document.documentElement.setAttribute("data-theme", theme);

@@ -305,8 +305,18 @@ test('3.12 - aucun secret journalise, meme en cas d echec', async () => {
 
   const journal = captures.join('\n');
   assert.ok(!journal.includes(MDP), 'Le mot de passe ne doit jamais etre journalise');
-  assert.ok(!journal.includes('pwnedpasswords.com'),
-    'Ni l URL complete, qui contiendrait le prefixe');
+  // CodeQL signalait « Incomplete URL substring sanitization » sur
+  // `journal.includes('pwnedpasswords.com')`. La regle vise les controles qui
+  // AUTORISENT une URL par sous-chaine — ou « evil-pwnedpasswords.com.x.net »
+  // passerait. Ici le sens est inverse : on verifie une ABSENCE dans un
+  // journal, et la correspondance par sous-chaine est la direction stricte.
+  //
+  // L assertion est neanmoins RENFORCEE : elle porte desormais sur le seul
+  // radical, sans domaine de premier niveau. Elle echoue donc aussi sur
+  // « pwnedpasswords.net », sur « api.pwnedpasswords.com/range/... » et sur
+  // toute variante de casse.
+  assert.ok(!/pwnedpasswords/i.test(journal),
+    'Ni l URL, ni le domaine du service ne doivent apparaitre dans un journal');
   assert.ok(journal.includes('network_error'), 'Seule la categorie d echec est journalisee');
   clearHibpCache();
 });

@@ -130,6 +130,35 @@ const results = [];
 function check(label, fn) { results.push({ label, fn }); }
 
 /**
+ * Retire les commentaires HTML, JUSQU A STABILISATION.
+ *
+ * CodeQL signalait « Incomplete multi-character sanitization » sur les trois
+ * appels `source.replace(/<!--[\s\S]*?-->/g, '')` de ce fichier : un unique
+ * passage ne suffit pas, car un commentaire imbrique ou malforme peut laisser
+ * derriere lui un fragment qui reforme un commentaire.
+ *
+ * Ici, le sens de l'erreur ne peut produire qu'un FAUX ECHEC, jamais un faux
+ * succes : du texte non retire rend les assertions « ne doit pas contenir »
+ * plus strictes, pas plus laxistes. Le defaut n'ouvrait donc aucun trou de
+ * securite. Il rendait en revanche ces tests dependants du balisage exact de
+ * index.html, ce qui n'est pas acceptable pour un controle de non-regression.
+ *
+ * La boucle repete le retrait tant que le texte change. Elle se termine
+ * toujours : chaque passage ne peut que raccourcir la chaine.
+ */
+function sansCommentairesHtml(source) {
+  let precedent;
+  let courant = source;
+
+  do {
+    precedent = courant;
+    courant = courant.replace(/<!--[\s\S]*?-->/g, '');
+  } while (courant !== precedent);
+
+  return courant;
+}
+
+/**
  * Attend qu'une condition devienne vraie, dans une limite de temps.
  *
  * Les gestionnaires de clic sont volontairement « fire and forget » : le
@@ -1178,11 +1207,28 @@ check('K8 - raccordement idempotent', async () => {
 // provient d'un audit reellement execute.
 // ===========================================================================
 
+check('L0 - le retrait des commentaires est COMPLET, pas un simple passage', () => {
+  // Le cas qui compte n'est pas le commentaire imbrique — un passage unique
+  // et une boucle y laissent le meme residu — mais celui ou le retrait
+  // RECONSTITUE un commentaire a partir des fragments voisins. Un seul
+  // passage laisse alors un commentaire entier dans la sortie.
+  const reconstituant = '<!<!-- x -->-- polluant -->reste';
+  const passageUnique = reconstituant.replace(/<!--[\s\S]*?-->/g, '');
+
+  assert.equal(passageUnique, '<!-- polluant -->reste',
+    'Pre-requis du test : un passage unique laisse bien un commentaire entier');
+  assert.equal(sansCommentairesHtml(reconstituant), 'reste',
+    'Le retrait doit se repeter jusqu a stabilisation');
+
+  assert.equal(sansCommentairesHtml('X<!-- a --><!-- b -->Y'), 'XY');
+  assert.equal(sansCommentairesHtml('sans commentaire'), 'sans commentaire');
+});
+
 check('L1 - le markup ne contient plus AUCUNE valeur fictive', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   // Les commentaires documentent le defaut corrige : ils sont exclus.
-  const visible = source.replace(/<!--[\s\S]*?-->/g, '');
+  const visible = sansCommentairesHtml(source);
 
   for (const invente of ['NetBank', 'password123', 'qwerty',
     'Compte de réseau social', 'Achat en ligne', '30 derniers jours',
@@ -1590,7 +1636,7 @@ check('M9 - le bouton d audit des reglages est raccorde au moteur du Lot 6', asy
 check('M10 - le profil n affiche plus de fausse identite', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  const visible = source.replace(/<!--[\s\S]*?-->/g, '');
+  const visible = sansCommentairesHtml(source);
 
   assert.ok(!visible.includes('John Doe'), 'Le champ nom portait une identite fictive');
   assert.ok(!visible.includes('john.doe@example.com'));
@@ -1727,7 +1773,7 @@ check('N5 - les groupes de reutilisation portent une action REELLE', async () =>
 check('N6 - aucune recommandation ne contient de decompte invente', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  const visible = source.replace(/<!--[\s\S]*?-->/g, '');
+  const visible = sansCommentairesHtml(source);
 
   const recommandations = visible.match(/<p>[^<]*<\/p>/g) || [];
   for (const texte of recommandations) {
