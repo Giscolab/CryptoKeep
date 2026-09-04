@@ -1,246 +1,182 @@
-# 🔐 CryptoKeep - Gestionnaire de mots de passe chiffré 100% local  
-**Votre coffre-fort numérique personnel et ultra-sécurisé**  
+# 🔐 CryptoKeep
+
+**Coffre-fort de mots de passe 100 % local, chiffré dans le navigateur.**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Chiffrement-AES--GCM_256--bit-green?style=flat&logo=lock">
-  <img src="https://img.shields.io/badge/Stockage-100%25_local-blue?style=flat&logo=hard-drive">
-  <img src="https://img.shields.io/badge/Zero_Cloud-Zero_Tracking-success?style=flat&logo=privacy">
-  <img src="https://img.shields.io/github/last-commit/Giscolab/CryptoKeep?color=blue">
-  <img src="https://img.shields.io/badge/Licence-MIT-brightgreen">
+  <img src="https://img.shields.io/badge/Chiffrement-AES--GCM_256--bit-green?style=flat&logo=lock" alt="AES-GCM 256 bits">
+  <img src="https://img.shields.io/badge/Stockage-100%25_local-blue?style=flat&logo=hard-drive" alt="Stockage local">
+  <img src="https://img.shields.io/badge/D%C3%A9pendances-aucune-success?style=flat" alt="Aucune dépendance">
+  <img src="https://img.shields.io/badge/Licence-MIT-brightgreen" alt="Licence MIT">
 </p>
+
+> **Sur le nom.** Le projet s'appelle **CryptoKeep**. `vault-personal` est le
+> nom du dossier local et de l'ancien site de documentation ; ce n'est pas le
+> nom du projet. Le dépôt publié est
+> [`Giscolab/CryptoKeep`](https://github.com/Giscolab/CryptoKeep).
 
 ---
 
-## 🌟 Présentation
+## Ce que c'est
 
-**CryptoKeep** est un gestionnaire local de mots de passe chiffre dans le navigateur. Il fonctionne hors ligne par defaut; la verification HIBP reste desactivee tant que l'utilisateur ne l'active pas explicitement.
+Une page web que vous servez vous-même sur `127.0.0.1`. Vos mots de passe sont
+chiffrés en AES-GCM 256 avec une clé dérivée de votre mot de passe maître, et
+stockés dans IndexedDB. **Aucun compte, aucun serveur applicatif, aucune
+synchronisation.** La seule fonction réseau est la vérification de compromission
+(HIBP) : elle est désactivée par défaut et n'émet rien tant que vous ne l'avez
+pas explicitement activée.
+
+| | |
+|---|---|
+| Dérivation de clé | PBKDF2-HMAC-SHA-512, **220 000 itérations** |
+| Chiffrement | AES-GCM 256, IV de 12 octets unique par chiffrement, AAD par entrée |
+| Clé maître | `CryptoKey` Web Crypto **non extractible** |
+| Stockage | IndexedDB, format versionné (v1 historique, v2 courant) |
+| Dépendances | **aucune** — pas de framework, pas de CDN |
+
+---
+
+## Documentation
+
+**Commencez par ici. Ces documents décrivent ce que le code fait réellement.**
+
+| Document | Contenu |
+|---|---|
+| [`SECURITY.md`](SECURITY.md) | Protections implémentées, **limites réelles**, signalement de vulnérabilité |
+| [`docs/LANCEMENT-SECURISE.md`](docs/LANCEMENT-SECURISE.md) | Lancement Windows, développement local, tests |
+| [`docs/FONCTIONS-IMPLEMENTEES.md`](docs/FONCTIONS-IMPLEMENTEES.md) | Inventaire vérifié, avec le test qui prouve chaque ligne |
+| [`docs/FONCTIONS-PREVUES.md`](docs/FONCTIONS-PREVUES.md) | Ce qui est prévu, envisagé, ou écarté — et pourquoi |
+| [`docs/FORMATS-DE-COFFRE.md`](docs/FORMATS-DE-COFFRE.md) | Formats v1 et v2, bornes de validation |
+| [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) | Sauvegarde, restauration, migrations, dépannage |
+| [`THREAT_MODEL.md`](THREAT_MODEL.md) | Modèle de menace détaillé |
+| [`docs/2FA-WEBAUTHN-AUTOFILL.md`](docs/2FA-WEBAUTHN-AUTOFILL.md) | Pourquoi 2FA et remplissage automatique restent désactivés |
+| [`docs/DECISION-APPLICATION-DESKTOP.md`](docs/DECISION-APPLICATION-DESKTOP.md) | Application desktop : options, critères, **non tranché** |
+| [`docs/MODULES-HISTORIQUES.md`](docs/MODULES-HISTORIQUES.md) | Modules conservés mais remplacés |
+| [`CHANGELOG.md`](CHANGELOG.md) | Journal par lot |
+| [`docs/launcher.md`](docs/launcher.md) | Décisions techniques du lanceur |
+| [`tests/browser/README.md`](tests/browser/README.md) | Parcours navigateur, sans dépendance |
+
+---
+
+## Lancement
+
+### Windows — recommandé
+
+```bat
+start_vault_secure.bat
+```
+
+Puis **1**. Le lanceur démarre le serveur local et ouvre Edge ou Chrome sur un
+**profil dédié et persistant** (`%LOCALAPPDATA%\CryptoKeep\browser-profile`).
+
+`start_vault_local.bat` est le lanceur historique, conservé.
+Il n'existe **pas** de `start.bat`.
+
+### macOS, Linux
+
+```bash
+python3 scripts/secure_local_server.py
+```
+
+Puis ouvrez `http://127.0.0.1:8000/index.html`.
+
+### Deux règles
+
+> **L'accès local est en HTTP EN CLAIR.** Il n'y a **aucun TLS** : ne décrivez
+> jamais cette adresse comme `https://`. La confidentialité au repos repose
+> exclusivement sur le chiffrement AES-GCM des données, pas sur le transport.
+> Le serveur n'écoute que sur l'interface de bouclage.
+
+> **Ne lancez jamais le coffre en navigation privée.** L'application dépend
+> d'IndexedDB et de `localStorage` : en mode éphémère, le coffre est **détruit
+> à la fermeture du navigateur**.
+
+Détails : [`docs/LANCEMENT-SECURISE.md`](docs/LANCEMENT-SECURISE.md).
+
+---
+
+## Chaîne de chiffrement
 
 ```mermaid
 graph TD
-  A[Master Password] --> B[PBKDF2-HMAC-SHA512]
-  B --> C[Clé de chiffrement unique]
-  C --> D[AES-GCM 256-bit]
-  D --> E[(IndexedDB - Stockage local)]
-  E --> F[Données chiffrées]
-  F --> G[Interface sécurisée]
-  G --> H[Web Crypto API]
-  style A fill:#2E7D32,stroke:#1B5E20
-  style D fill:#EF6C00,stroke:#E65100
-  style E fill:#0277BD,stroke:#01579B
+  A[Mot de passe maître] --> B[PBKDF2-HMAC-SHA-512<br/>220 000 itérations]
+  B --> C[CryptoKey AES-GCM<br/>non extractible]
+  C --> D[AES-GCM 256<br/>IV unique + AAD par entrée]
+  D --> E[(IndexedDB VaultDB)]
+  style A fill:#2E7D32,stroke:#1B5E20,color:#fff
+  style D fill:#EF6C00,stroke:#E65100,color:#fff
+  style E fill:#0277BD,stroke:#01579B,color:#fff
 ```
 
 ---
 
-## 🚀 Fonctionnalités Avancées
-
-### 🛡️ Architecture de securite
-| Composant | Technologie | Protection |
-|-----------|-------------|------------|
-| **Chiffrement** | AES-GCM 256-bit | IV unique par entrée |
-| **Dérivation de clé** | PBKDF2-HMAC-SHA512 | 220,000 iterations et metadata versionnee par coffre |
-| **Gestion de clé** | Web Crypto `CryptoKey` | Cle AES-GCM non extractible |
-| **Verrouillage** | Auto-détection d'inactivité | Configurable (1-60 min) |
-
-### 💼 Gestion Professionnelle
-<div align="center">
-
-| Fonction | Description | Avantage Clé |
-|----------|-------------|--------------|
-| **🔍 Audit de sécurité** | Analyse en temps réel des vulnérabilités | Détection des mots de passe faibles/réutilisés |
-| **🗂️ Organisation hiérarchique** | Catégories, tags et collections | Structure personnalisable |
-| **🔄 Synchronisation chiffrée** | Export .vault (AES-256) | Transfert sécurisé entre appareils |
-| **⌛ Presse-papiers** | Effacement conditionnel apres 30 s | N'ecrase pas une copie plus recente |
-
-</div>
-
-### ✨ Expérience Utilisiteur Premium
-- **Thèmes dynamiques** : Dark Mode certifié WCAG AA+ et Light Mode
-- **Design néumorphique** : Interface tactile avec ombres portées
-- **Animations fluides** : Transitions CSS hardware-accelerated
-- **Feedback haptique** : Retour tactile sur les actions critiques (mobile)
-
----
-
-### Stack technologique
-```mermaid
-pie
-  title Technologies Clés (pondération réelle)
-  "Web Crypto API" : 40
-  "IndexedDB" : 30
-  "Vanilla JS" : 15
-  "CSS3 Variables" : 5
-  "CSP et en-tetes locaux" : 10
+## Structure réelle du projet
 
 ```
-
-![Présentation CryptoKeep](docs/vault-demo.gif)  
-*Interface principale avec navigation sécurisée*
-
----
-
-## 🚀 Installation Rapide
-
-### Prérequis Système
-```bash
-✅ Navigateur moderne (Chromium 90+, Firefox 87+, Safari 15+)
-✅ 50MB d'espace de stockage
-✅ Accès Web Crypto API activé
-```
-
-### Lancement Local
-```bash
-# Cloner le dépôt
-git clone https://github.com/Giscolab/CryptoKeep.git
-cd CryptoKeep
-
-# Windows - lanceur recommande (profil navigateur persistant)
-start_vault_secure.bat
-
-# Windows - lanceur historique, conserve
-start_vault_local.bat
-
-# macOS/Linux
-python3 -m http.server 8000 --bind 127.0.0.1 --directory .
-```
-
-> **Accès local** : http://127.0.0.1:8000/index.html
->
-> Le serveur local sert le projet en **HTTP en clair** sur l'interface de bouclage. Il n'y a **aucun TLS** : ne pas décrire cet accès comme HTTPS. La confidentialité au repos repose sur le chiffrement applicatif AES-GCM, pas sur le transport.
->
-> **Ne pas lancer le coffre en navigation privée.** L'application dépend d'IndexedDB et de `localStorage` : en mode éphémère, le coffre est détruit à la fermeture du navigateur. `start_vault_secure.bat` ouvre un **profil navigateur dédié et persistant** (`%LOCALAPPDATA%\CryptoKeep\browser-profile`), distinct de votre profil personnel.
-
----
-
-## 🏗️ Architecture Technique
-
-### Structure Avancée du Projet
-```bash
 CryptoKeep/
-├── core/
-│   ├── crypto-engine.js       # Moteur cryptographique
-│   ├── vault-manager.js       # Gestionnaire de coffre
-│   └── security-monitor.js    # Surveillance en temps réel
-├── ui/
-│   ├── biometric-auth/        # Intégration WebAuthn/FIDO2
-│   ├── password-meter/        # Analyseur de robustesse
-│   └── emergency-kit/         # Gestion de secours
-├── security/                  # Verrouillage, politique de mot de passe et audit
-└── tests/
-    ├── stress-tests/          # Tests de performance
-    └── penetration-tests/     # Scénarios d'attaque
-```
-
-### Workflow de Chiffrement
-```mermaid
-sequenceDiagram
-  Utilisateur->>+Application: Saisie master password
-  Application->>+Crypto API: PBKDF2-HMAC-SHA512
-  Crypto API-->>-Application: CryptoKey AES-GCM non extractible
-  Application->>+Crypto API: Chiffrement AES-GCM
-  Crypto API-->>-Application: Données chiffrées
-  Application->>+IndexedDB: Stockage sécurisé
+├── index.html                  # L'application, une seule page
+├── scripts/
+│   ├── app.js                  # Point d'entrée
+│   ├── core/
+│   │   ├── crypto/             # pbkdf2.js, aes-gcm.js, runtime.js
+│   │   ├── storage/            # manager.js, vault-format.js, import, sauvegarde
+│   │   └── vault/              # manager.js, entry-operations.js, destruction
+│   ├── security/               # verrouillage, politique, audit, HIBP
+│   ├── ui/                     # écrans et fenêtres
+│   ├── utils/                  # presse-papiers, filtres, préférences
+│   ├── vendor/                 # Chart.min.js (seul fichier tiers, non modifié)
+│   └── secure_local_server.py  # serveur local avec en-têtes de sécurité
+├── public/                     # CSS, thèmes, icônes
+├── tests/                      # 33 suites Node + parcours navigateur
+├── docs/                       # documentation
+├── start_vault_secure.bat      # lanceur recommandé
+└── start_vault_local.bat       # lanceur historique, conservé
 ```
 
 ---
 
-## 🔮 Roadmap Stratégique 2025-2026
+## Tests
 
-```mermaid
-gantt
-    title Feuille de Route CryptoKeep
-    dateFormat  YYYY-MM-DD
-    section Q3 2025
-    Intégration WebAuthn       :active, 2025-07-01, 60d
-    Application Desktop        :2025-08-15, 45d
-    section Q4 2025
-    Partage Chiffré            :2025-10-01, 45d
-    Audit Sécurité             :2025-11-15, 30d
-    section 2026
-    Sync P2P E2EE             :2026-01-15, 90d
-    Modules Plugins            :2026-04-01, 120d
-```
-
----
-
-## 🛡️ Philosophie de Sécurité
-
-> **"La véritable sécurité naît de la transparence et du contrôle absolu"**
-
-**Principes fondamentaux :**
-1. 🔒 **Zero-Knowledge Architecture** : Aucune donnée lisible ne quitte votre appareil
-2. 🔍 **Auditabilité totale** : Code 100% inspectable ([SECURITY.md](SECURITY.md))
-3. ⚡ **Minimalisme cryptographique** : Algorithmes standardisés (NIST, BSI)
-4. 🧩 **Isolation des processus** : Séparation stricte UI/crypto/storage
-
-**Protections avancées :**
-- Nettoyage automatique des buffers mémoire
-- Protection contre les attaques par canaux auxiliaires
-- Détection d'environnements compromis (DevTools non sécurisés)
-- Verrouillage cryptographique lors du changement d'onglet
-
----
-
-## 💡 Pourquoi Choisir CryptoKeep?
-
-<table>
-<tr>
-  <th width="30%">Solution</th>
-  <th>Stockage</th>
-  <th>Chiffrement</th>
-  <th>Open Source</th>
-  <th>Local First</th>
-</tr>
-<tr>
-  <td><b>CryptoKeep</b></td>
-  <td align="center">✅ 100% Local</td>
-  <td align="center">✅ AES-256</td>
-  <td align="center">✅ MIT License</td>
-  <td align="center">✅ Native</td>
-</tr>
-<tr>
-  <td>Solutions Cloud</td>
-  <td align="center">❌ Serveurs tiers</td>
-  <td align="center">⚠️ Dépend du fournisseur</td>
-  <td align="center">❌ Propriétaire</td>
-  <td align="center">❌</td>
-</tr>
-</table>
-
----
-
-## 🤝 Contribution & Support
-
-> ℹ️ **Artefacts locaux non versionnés** : les exports HTML de logs (ex. `export-log.html`) sont générés localement et ne doivent pas être commités. Le script `export_log.py` est conservé pour produire ces exports à la demande.
-
-**contributions appréciées !**  
 ```bash
-# Workflow recommandé :
-1. Fork du projet
-2. Création d'une branche (`feature/ma-fonctionnalite`)
-3. Commit des modifications
-4. Push vers la branche
-5. Ouverture d'une Pull Request
+npm test              # suite complète — sortie non nulle en cas d'échec
+npm run test:security # non-régression sécurité
+npm run test:syntax   # syntaxe de TOUS les fichiers JS, historiques inclus
+npm run test:python   # compilation des scripts Python
+npm run test:browser  # parcours navigateur complet, sans dépendance installée
+npm run lint          # ESLint — 0 erreur exigée
 ```
 
-**Support technique :**    
-🐛 [Signaler un bug](https://github.com/Giscolab/CryptoKeep/issues)  
-💡 [Soumettre une idée](https://github.com/Giscolab/CryptoKeep/discussions)
+Le parcours navigateur pilote Edge, Chrome ou Chromium **déjà installé**, via le
+Chrome DevTools Protocol, avec les seuls modules natifs de Node. Rien n'est
+téléchargé. Voir [`tests/browser/README.md`](tests/browser/README.md).
+
+---
+
+## Feuille de route
+
+Le projet n'annonce pas de dates. Il avance par lots, livrés puis audités. Ce
+qui est prévu, envisagé ou écarté est dans
+[`docs/FONCTIONS-PREVUES.md`](docs/FONCTIONS-PREVUES.md).
+
+---
+
+## Contribuer
+
+Voir [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+- Signaler un bug : [issues](https://github.com/Giscolab/CryptoKeep/issues)
+- Vulnérabilité : voir [`SECURITY.md`](SECURITY.md)
+
+> Les exports HTML de journaux (`export-log.html`) sont générés localement et ne
+> doivent pas être commités. `export_log.py` reste conservé pour les produire à
+> la demande.
 
 ---
 
 <p align="center">
-  Développé avec ❤️ par <b>Franck</b> | 
-  <a href="https://github.com/Giscolab/CryptoKeep">⭐ GitHub</a> •
-  <a href="https://github.com/Giscolab/CryptoKeep/blob/main/SECURITY.md">🛡️ Documentation Sécurité</a> •
-  <a href="https://github.com/Giscolab/CryptoKeep/releases">📦 Téléchargements</a>
+  Développé par <b>Franck</b> — <a href="https://github.com/Giscolab/CryptoKeep">GitHub</a> — licence MIT
 </p>
 
-<p align="center">
-  ⚠️ <b>Avertissement crucial</b> : Votre master password n'est jamais stocké. <br>
-  Sa perte entraîne l'<b>irrécupérabilité définitive</b> de vos données.
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs bienvenus">
-  <img src="https://img.shields.io/github/contributors/Giscolab/CryptoKeep" alt="Contributeurs">
-</p>
+> ⚠️ **Votre mot de passe maître n'est stocké nulle part.** Il n'existe ni
+> récupération, ni question de secours, ni porte dérobée. Sa perte rend le
+> coffre définitivement inaccessible. **Exportez régulièrement votre coffre**
+> — voir [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md).

@@ -28,9 +28,59 @@ export const PROBE_TIMEOUT_MS = 4000;
 export const PERSISTENCE_STATUS = Object.freeze({
   UNAVAILABLE: 'unavailable',
   BLOCKED: 'blocked',
+  PROBE_FAILED: 'probe_failed',
   UNKNOWN: 'unknown',
   SURVIVED: 'survived'
 });
+
+/**
+ * Erreur provenant REELLEMENT d'IndexedDB.
+ *
+ * LOT 9 - DEFAUT CORRIGE. Toute exception levee pendant la sonde etait
+ * traduite en « le navigateur refuse d'ecrire dans IndexedDB », y compris
+ * une panne de la sonde elle-meme. La sonde annoncait donc un refus qu'elle
+ * n'avait pas observe, et conseillait de relancer avec le lanceur que
+ * l'utilisateur venait precisement d'utiliser.
+ *
+ * Les rejets d'origine IndexedDB portent desormais ce type ; tout le reste
+ * est classe `probe_failed` et ne conclut RIEN sur le stockage.
+ */
+class ProbeIndexedDbError extends Error {
+  constructor(message, cause) {
+    super(message);
+    this.name = 'ProbeIndexedDbError';
+    this.cause = cause || null;
+  }
+}
+
+/** Une exception vient-elle d'IndexedDB, ou de la sonde ? */
+function vientDIndexedDb(error) {
+  if (!error) return false;
+  if (error instanceof ProbeIndexedDbError) return true;
+  // `DOMException` couvre les refus reels du navigateur (mode prive, quota,
+  // stockage desactive). Elle n'est pas definie hors navigateur.
+  return typeof DOMException !== 'undefined' && error instanceof DOMException;
+}
+
+/**
+ * Minuteurs utilisables meme detaches de leur objet d'origine.
+ *
+ * LOT 9 - CAUSE RACINE DU DEFAUT. `timers = { setTimeout, clearTimeout }`
+ * capturait les fonctions natives SANS leur receveur. En navigateur,
+ * `timers.setTimeout(...)` s'appelle alors avec `this === timers` et Chrome
+ * leve « Illegal invocation ». La sonde echouait donc a CHAQUE demarrage,
+ * et affichait une alerte rouge sur un coffre parfaitement enregistre.
+ *
+ * Sous Node, `setTimeout` n'est pas liee a un receveur natif : les tests
+ * unitaires passaient, et seul un chargement en navigateur revelait le
+ * defaut.
+ */
+function timersParDefaut() {
+  return {
+    setTimeout: (fn, delay) => setTimeout(fn, delay),
+    clearTimeout: (handle) => clearTimeout(handle)
+  };
+}
 
 function nowIso(clock) {
   return new Date(clock()).toISOString();
@@ -77,7 +127,7 @@ function openProbeDatabase(indexedDBRef) {
     try {
       request = indexedDBRef.open(PROBE_DB_NAME, 1);
     } catch (error) {
-      reject(error);
+      reject(new ProbeIndexedDbError('Ouverture IndexedDB refusee.', error));
       return;
     }
 
@@ -88,8 +138,8 @@ function openProbeDatabase(indexedDBRef) {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('Ouverture IndexedDB refusee.'));
-    request.onblocked = () => reject(new Error('Ouverture IndexedDB bloquee.'));
+    request.onerror = () => reject(new ProbeIndexedDbError('Ouverture IndexedDB refusee.', request.error));
+    request.onblocked = () => reject(new ProbeIndexedDbError('Ouverture IndexedDB bloquee.', null));
   });
 }
 
@@ -99,7 +149,7 @@ function readWriteProbe(db, marker) {
     try {
       tx = db.transaction(PROBE_STORE_NAME, 'readwrite');
     } catch (error) {
-      reject(error);
+      reject(new ProbeIndexedDbError('Transaction de sonde refusee.', error));
       return;
     }
 
@@ -111,11 +161,11 @@ function readWriteProbe(db, marker) {
       previous = getRequest.result || null;
       store.put(marker, 'marker');
     };
-    getRequest.onerror = () => reject(getRequest.error || new Error('Lecture de sonde refusee.'));
+    getRequest.onerror = () => reject(new ProbeIndexedDbError('Lecture de sonde refusee.', getRequest.error));
 
     tx.oncomplete = () => resolve(previous);
-    tx.onerror = () => reject(tx.error || new Error('Ecriture de sonde refusee.'));
-    tx.onabort = () => reject(tx.error || new Error('Transaction de sonde annulee.'));
+    tx.onerror = () => reject(new ProbeIndexedDbError('Ecriture de sonde refusee.', tx.error));
+    tx.onabort = () => reject(new ProbeIndexedDbError('Transaction de sonde annulee.', tx.error));
   });
 }
 
@@ -134,7 +184,7 @@ export async function probeStoragePersistence(deps = {}) {
     localStorageRef = typeof localStorage !== 'undefined' ? localStorage : null,
     cryptoRef = typeof crypto !== 'undefined' ? crypto : null,
     storageManagerRef = typeof navigator !== 'undefined' ? navigator.storage : null,
-    timers = { setTimeout, clearTimeout },
+    timers = timersParDefaut(),
     clock = Date.now,
     timeoutMs = PROBE_TIMEOUT_MS
   } = deps;
@@ -176,10 +226,21 @@ export async function probeStoragePersistence(deps = {}) {
     report.indexedDbWritable = true;
     report.observedRestart = Boolean(previous && previous.id && previous.id !== marker.id);
   } catch (error) {
-    report.status = PERSISTENCE_STATUS.BLOCKED;
     report.error = error && error.message ? error.message : String(error);
-    report.message =
-      'IndexedDB a refuse l ecriture. Le coffre ne peut pas etre enregistre de facon fiable.';
+
+    if (vientDIndexedDb(error)) {
+      // Refus OBSERVE : c'est bien IndexedDB qui a dit non.
+      report.status = PERSISTENCE_STATUS.BLOCKED;
+      report.message =
+        'IndexedDB a refuse l ecriture. Le coffre ne peut pas etre enregistre de facon fiable.';
+    } else {
+      // La sonde elle-meme a echoue. Elle n'a donc RIEN observe, et ne peut
+      // rien affirmer sur le stockage — ni en bien, ni en mal.
+      report.status = PERSISTENCE_STATUS.PROBE_FAILED;
+      report.message =
+        'La verification de persistance n a pas pu s executer. Elle ne dit rien '
+        + 'sur l etat reel du stockage.';
+    }
     return report;
   } finally {
     try {
@@ -247,6 +308,18 @@ export function describePersistenceIssue(report) {
       severity: 'error',
       text:
         'Le navigateur refuse d ecrire dans IndexedDB. Le coffre ne serait pas conserve. Relancez avec start_vault_secure.bat (profil persistant).'
+    };
+  }
+
+  // LOT 9 : une sonde en panne n'est PAS un stockage en panne. Le message ne
+  // met donc pas le coffre en cause et ne renvoie pas vers un lanceur que
+  // l'utilisateur vient d'employer ; il dit exactement ce qui s'est passe.
+  if (report.status === PERSISTENCE_STATUS.PROBE_FAILED) {
+    return {
+      severity: 'warning',
+      text:
+        'La verification de persistance n a pas pu s executer. Votre coffre n est '
+        + 'pas remis en cause : cette alerte ne concerne que le controle lui-meme.'
     };
   }
 

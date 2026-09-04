@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import './webcrypto-setup.js';
 import { encryptData, decryptData } from '../scripts/core/crypto/aes-gcm.js';
 import { deriveMasterKey } from '../scripts/core/crypto/pbkdf2.js';
@@ -10,9 +11,9 @@ import {
   entryAdditionalData
 } from '../scripts/core/storage/vault-format.js';
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
+// LOT 9 : l'assertion maison est remplacee par `node:assert/strict`, qui
+// s'appelle de la meme facon — assert(valeur, message) — mais apporte en
+// plus `equal`, `deepEqual`, `rejects` et un diff lisible en cas d'echec.
 
 class MemoryStorage {
   constructor(record) {

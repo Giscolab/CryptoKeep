@@ -94,7 +94,7 @@ Trois vérifications sont **toutes** exigées avant tout arrêt :
 1. le PID enregistré correspond à un processus vivant ;
 2. son heure de démarrage correspond à celle enregistrée — protection contre la
    réattribution de PID par le système ;
-3. sa ligne de commande référence `secure_local_server.py`.
+3. sa ligne de commande référence `scripts/secure_local_server.py`.
 
 Si l'une échoue, **aucun processus n'est arrêté** et un avertissement est émis.
 

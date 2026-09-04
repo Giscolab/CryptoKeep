@@ -1,8 +1,8 @@
 {
     "name": "CryptoKeep",
-    "short_name": "Vault",
-    "description": "Gestionnaire de mots de passe personnel, local et sécurisé.",
-    "start_url": "/index.html",
+    "short_name": "CryptoKeep",
+    "description": "Coffre-fort de mots de passe 100% local, chiffre AES-GCM. Aucune donnee ne quitte l'appareil.",
+    "start_url": "../../index.html",
     "display": "standalone",
     "background_color": "#121212",
     "theme_color": "#BB86FC",
@@ -27,5 +27,6 @@
             "sizes": "16x16",
             "type": "image/png"
         }
-    ]
+    ],
+    "scope": "../../"
 }

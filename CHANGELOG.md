@@ -1,4 +1,153 @@
-﻿# 🧾 Changelog Complet du Projet `Vault`
+# 🧾 Changelog — CryptoKeep
+
+> Journal par lot. Le projet s'appelle **CryptoKeep** ; `Vault` et
+> `vault-personal` sont d'anciens noms encore présents dans des entrées
+> antérieures au Lot 10. Elles sont **conservées telles quelles** : un
+> journal se lit tel qu'il a été écrit.
+
+---
+
+## 📚 [Lot 10] Documentation et cohérence – *4 septembre 2026*
+
+**Résumé :** aucune documentation supprimée. Les documents historiques sont
+marqués, la documentation en vigueur est créée et rendue prioritaire, et les
+incohérences relevées sont corrigées puis verrouillées par des tests.
+
+### Documents créés
+- `SECURITY.md` — référencé deux fois par le README et **inexistant**.
+  Protections implémentées avec le test qui prouve chaque ligne, et sept
+  limites réelles énoncées sans euphémisme.
+- `docs/LANCEMENT-SECURISE.md`, `docs/FONCTIONS-IMPLEMENTEES.md`,
+  `docs/FONCTIONS-PREVUES.md`, `docs/FORMATS-DE-COFFRE.md`,
+  `docs/MIGRATIONS.md`, `docs/DECISION-APPLICATION-DESKTOP.md`,
+  `docs/MODULES-HISTORIQUES.md`, `docs/SITE-HISTORIQUE.md`.
+
+### Incohérences corrigées
+- **Arborescence fictive** dans le README : `core/crypto-engine.js`,
+  `ui/biometric-auth/`, `ui/emergency-kit/`, `tests/stress-tests/`,
+  `tests/penetration-tests/` — aucun n'existe. Remplacée par la structure réelle.
+- **Onze fonctions annoncées sans code** : WebAuthn, biométrie, kit de secours,
+  synchronisation, étiquettes, retour haptique, canaux auxiliaires, détection
+  d'environnement compromis, « nettoyage automatique des buffers mémoire ».
+- **Feuille de route datée et périmée** (2025-2026) retirée ; renvoi vers
+  `docs/FONCTIONS-PREVUES.md`, qui explique pourquoi.
+- **Licence MIT** : clause de permission et clause de garantie présentes
+  **deux fois**, dont une tronquée. Rétablie en MIT standard.
+- **Manifeste PWA** : `start_url` absolu, cassant l'installation depuis un
+  sous-répertoire. Rendu relatif ; `short_name` aligné sur le nom du projet.
+- **`docs/index.html`** : site compilé obsolète pointant vers
+  `giscolab.github.io/vault-personal/` alors que le dépôt est
+  `Giscolab/CryptoKeep`. **Conservé**, avec bandeau de statut.
+- **Image `docs/vault-demo.gif`** référencée et absente : référence retirée.
+- **`start.bat`** : n'a jamais existé ; les deux lanceurs réels sont nommés.
+- **`docs/launcher.md`** : chemin `secure_local_server.py` complété.
+- **Nom du projet** : CryptoKeep retenu, l'ambiguïté avec `vault-personal`
+  expliquée au lieu d'être laissée au lecteur.
+- **CHANGELOG** : BOM retiré, titre aligné, lots 3 à 10 ajoutés.
+
+### Tests
+- `tests/documentation.spec.js` — **16 scénarios** : liens locaux, chemins
+  cités, images, constantes cryptographiques comparées au code, absence de
+  HTTPS pour l'accès local, fonctions inexistantes, licence, manifeste, site
+  historique, modules historiques recensés.
+
+---
+
+## 🧪 [Lot 9] Tests et qualité – *4 septembre 2026*
+
+**Défaut de démarrage corrigé.** `storage-persistence.js` capturait
+`timers = { setTimeout, clearTimeout }` — donc sans receveur. En navigateur,
+`timers.setTimeout()` lève « Illegal invocation » : la sonde échouait à
+**chaque** démarrage et affichait « Le navigateur refuse d'écrire dans
+IndexedDB — relancez avec `start_vault_secure.bat` » sur un coffre parfaitement
+enregistré, en renvoyant vers le lanceur déjà utilisé. Sous Node, une fonction
+détachée reste appelable : les tests unitaires passaient.
+
+- Classification des pannes : un échec de la **sonde** ne peut plus être
+  présenté comme un refus **d'IndexedDB** (`probe_failed`, avertissement).
+- `console.assert` éliminé — il écrivait un message sans jamais changer le code
+  de sortie. Douze suites converties à `node:assert/strict`.
+- `tests/test-harness.spec.js` — le harnais vérifié par un canari qui échoue
+  par construction et doit sortir en code 1.
+- `tests/crypto-integrity.spec.js` (16) — unicité des IV sur 500 tirages,
+  altération du ciphertext, du tag, de l'IV, de l'AAD, clé non extractible.
+- `tests/vault-lifecycle.spec.js` (19) — création, mauvais mot de passe,
+  verrouillage, purge, coffre altéré.
+- `tests/syntax-all-files.spec.js` — 139 fichiers, **modules historiques inclus**.
+- `tests/browser/` — parcours navigateur en **16 étapes**, sans aucune
+  dépendance installée : pilotage CDP d'Edge/Chrome/Chromium déjà présent.
+- Mutations M68–M79. Batterie : **79/79**.
+
+---
+
+## 🗑️ [Lot 8] Suppression volontaire du coffre – *3 septembre 2026*
+
+Le bouton « Supprimer le compte » n'avait ni identifiant ni gestionnaire, et
+parlait d'un compte qui n'existe pas.
+
+- `scripts/core/vault/vault-destruction.js` — portées **coffre / profil / tout**,
+  correspondant à deux bases IndexedDB réellement distinctes (`VaultDB` et
+  `vault-db`). Effacement vérifié par relecture ; une transaction échouée laisse
+  les données en place et le rapport le dit.
+- `scripts/ui/vault-destruction-modal.js` — phrase de confirmation exacte,
+  double verrou, annonce de ce qui est **conservé** autant que de ce qui part.
+- Retour à l'état de première utilisation **uniquement** si le coffre a
+  réellement disparu.
+- 46 scénarios, mutations M53–M67.
+
+---
+
+## ⚙️ [Lot 7, 7b, 7c] Réglages et fonctions annoncées – *2-3 septembre 2026*
+
+- Cinq bascules sans identifiant ni gestionnaire, dont trois cochées par
+  défaut, présentaient des protections inactives comme actives.
+- `app-settings.js` — schéma **fermé**, validé dans les deux sens.
+- **7c** : `writeSettings()` renvoyait `{written:false}` et le résultat était
+  ignoré ; l'interface affichait la valeur demandée alors que le réglage
+  enregistré n'avait pas bougé. Corrigé pour tous les réglages.
+- Thème : le menu réaffichait une valeur refusée par la liste blanche.
+- Minuterie de notification annulable : suite de tests 30 078 ms → 87 ms.
+
+---
+
+## 📊 [Lot 6] Rapport de sécurité véridique – *2 septembre 2026*
+
+- Le rapport affichait des valeurs **fictives** codées dans le markup, et des
+  simulations GPU/PBKDF2 inventées. Moteur remplacé par `audit-engine.js`.
+- Une compromission non vérifiée n'est plus comptée comme « non compromis ».
+- La portée de l'audit dit ce qui **n'a pas** été examiné.
+
+---
+
+## 🔑 [Lot 5] Politique et analyse des mots de passe – *2 septembre 2026*
+
+- Politique de mot de passe maître, estimateur d'entropie plafonné par
+  alphabet observé (Lot 7b), pénalités de répétition.
+- Réutilisation détectée par **égalité exacte** après regroupement par
+  condensat — l'ancien hachage 32 bits regroupait `Aa` et `BB`.
+- HIBP : désactivé par défaut, consentement explicite, préfixe de 5 caractères,
+  échec jamais présenté comme « non compromis ».
+
+---
+
+## 🔐 [Lot 4] Gestion réelle du mot de passe maître – *2 septembre 2026*
+
+- `master-password-change.js` — 17 étapes : nouveau sel, nouvelle clé,
+  re-chiffrement complet avec IV neufs, écriture vérifiée, relecture du coffre
+  écrit. En cas d'échec, l'ancien coffre reste ouvrable avec l'ancien mot de
+  passe.
+
+---
+
+## 🧱 [Lot 3, 3b, 3c] Entrées, vues et atomicité – *1-2 septembre 2026*
+
+- Ajout, modification, suppression, catégories, recherche insensible aux
+  accents, tris.
+- **3b** : `saveVault` levait sans restaurer. Écriture par transaction unique,
+  relecture et comparaison **canonique**, restauration de l'instantané chiffré
+  seulement si l'écriture a été validée mais que la relecture diverge.
+- **3c** : une lecture qui **échoue** n'est pas un coffre absent. Quatre sites
+  confondaient les deux et pouvaient écrire sans rollback possible.
 
 ---
 

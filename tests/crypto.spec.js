@@ -6,10 +6,11 @@ import {
   entryAdditionalData
 } from '../scripts/core/storage/vault-format.js';
 import { assertSecureWebCrypto } from '../scripts/core/crypto/runtime.js';
+import assert from 'node:assert/strict';
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
+// LOT 9 : l'assertion maison est remplacee par `node:assert/strict`, qui
+// s'appelle de la meme facon — assert(valeur, message) — mais apporte en
+// plus `equal`, `deepEqual`, `rejects` et un diff lisible en cas d'echec.
 
 async function expectRejection(action, message) {
   try {
