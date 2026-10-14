@@ -70,9 +70,10 @@ distincte, locale et expressément bornée, avec des données factices.
 
 ## Activation
 
-Une fois relus et validés, les nouveaux fichiers doivent être commités et
-poussés sur `main`. Aucune modification des règles du dépôt ni aucun push
-n'est effectué automatiquement par ce document.
+Les nouveaux workflows ont été publiés sur `main` dans le commit `bf03f19`
+(le 14 octobre 2026). Leur première exécution GitHub a été vérifiée.
+Les modifications locales ultérieures nécessitent un nouveau commit/push
+après revue ; aucune modification des règles du dépôt n'est nécessaire.
 
 Dans GitHub : **Actions** pour lancer les workflows manuellement, puis
 **Security → Code scanning** pour les analyses compatibles.
@@ -80,3 +81,25 @@ Dans GitHub : **Actions** pour lancer les workflows manuellement, puis
 Si une analyse échoue, ne pas simplement désactiver son étape :
 vérifier le journal, reproduire le défaut sur une fixture et documenter
 le faux positif éventuel.
+
+## Première vérification locale — 14 octobre 2026
+
+- `npm run fuzz:properties` : OK, 500 cas générés sur trois propriétés.
+- `npm run fuzz:regression` : OK, 2 graines synthétiques rejouées.
+- Jazzer.js 15 secondes sur corpus temporaire : 330 478 exécutions, `cov: 96`,
+  aucun crash signalé. `cov` n'est PAS un pourcentage de code couvert.
+- `npm run test:security` : OK.
+- `npm run test:browser` : OK, 16 étapes dans un profil Edge jetable.
+- `npm run lint:security` : succès avec 24 avertissements à qualifier.
+- `npm audit` : deux avis de gravité élevée et deux modérés dans l'outillage ;
+  `npm audit --omit=dev --audit-level=high` : aucune vulnérabilité signalée.
+- `npm test` : interrompu après le passage du balayage de syntaxe (143 fichiers)
+  par une assertion interne Node/Undici dans `tests/local-server.spec.js` sur
+  Windows avec Node 24.19.0. Le problème reste à reproduire sous Linux.
+- YAML des workflows et de Dependabot analysé localement avec `js-yaml` : OK.
+- Premier push GitHub du commit `bf03f19` : **Security checks OK**, **CodeQL OK**.
+- **OSV Scanner en échec attendu**, car il a trouvé 8 avis de vulnérabilité
+  (5 High, 3 Medium), correspondant à 4 instances de paquets de développement.
+  Les résultats SARIF ont été transmis à GitHub Security.
+- Le nouveau fuzzing planifié n'a pas encore eu sa première exécution planifiée.
+- Cette mise à jour du bilan reste locale tant qu'elle n'est pas publiée.
