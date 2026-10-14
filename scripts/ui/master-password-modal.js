@@ -208,7 +208,7 @@ export async function submitChangePassword(fields, deps = {}) {
     }
     // Lot 7b : le renouvellement de session peut echouer APRES un changement
     // reussi. Le message doit alors dire que le changement a bien eu lieu.
-    if (rapport.session && rapport.session.reason === 'session_renewal_failed') {
+    if (rapport.session && rapport.session.message) {
       avertissements.push(rapport.session.message);
     }
 

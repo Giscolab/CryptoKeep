@@ -24,10 +24,60 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
+import { request } from 'node:http';
 import { lireFichier } from './helpers/repo-files.js';
 
 const cas = [];
 function test(label, fn) { cas.push({ label, fn }); }
+
+// Network requests use only these reviewed literals. Values discovered in
+// index.html are compared with the manifest below, never sent to node:http.
+const SCRIPTS_INDEX_ATTENDUS = Object.freeze([
+  '/scripts/utils/theme-loader.js',
+  '/scripts/vendor/Chart.min.js',
+  '/scripts/app.js',
+  '/scripts/ui/security-report-init.js'
+]);
+const FEUILLES_INDEX_ATTENDUES = Object.freeze([
+  '/public/main.css',
+  '/public/vendor/vault-icons.css',
+  '/public/components/audit-panel.css'
+]);
+
+function tries(values) {
+  return [...values].sort((a, b) => a.localeCompare(b));
+}
+
+function avecBarreInitiale(reference) {
+  return reference.startsWith('/') ? reference : `/${reference}`;
+}
+
+function attributHtml(balise, nom) {
+  for (const correspondance of balise.matchAll(
+    /\b([a-z][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
+  )) {
+    if (correspondance[1].toLowerCase() === nom) {
+      return correspondance[2] ?? correspondance[3];
+    }
+  }
+  return null;
+}
+
+function scriptsDe(html) {
+  return [...html.matchAll(/<script\b[^>]*>/gi)]
+    .map(([balise]) => attributHtml(balise, 'src'))
+    .filter(Boolean)
+    .map(avecBarreInitiale);
+}
+
+function feuillesDe(html) {
+  return [...html.matchAll(/<link\b[^>]*>/gi)]
+    .filter(([balise]) => (attributHtml(balise, 'rel') || '')
+      .split(/\s+/).includes('stylesheet'))
+    .map(([balise]) => attributHtml(balise, 'href'))
+    .filter(Boolean)
+    .map(avecBarreInitiale);
+}
 
 /** Interpreteur Python disponible, ou `null`. */
 function trouverPython() {
@@ -51,6 +101,46 @@ function portLibre() {
   });
 }
 
+/**
+ * Interroge le serveur Python REEL via node:http, sans passer par le
+ * fetch/Undici embarque dans Node 24.19 sur Windows (assert(!this.paused)).
+ * La destination HTTP est toujours la boucle locale et le corps est draine.
+ * Les en-tetes et statuts restent ceux du vrai serveur, sans simulation.
+ */
+function requeteLocale(port, chemin, methode = 'GET') {
+  return new Promise((resolve, reject) => {
+    const req = request({
+      hostname: '127.0.0.1',
+      port,
+      path: chemin,
+      method: methode,
+      agent: false
+    }, (response) => {
+      response.once('error', reject);
+      response.resume();
+      response.once('end', () => {
+        const status = response.statusCode;
+        resolve({
+          status,
+          ok: status >= 200 && status < 300,
+          headers: {
+            get(name) {
+              const value = response.headers[name.toLowerCase()];
+              return Array.isArray(value) ? value.join(', ') : (value ?? null);
+            }
+          }
+        });
+      });
+    });
+    // Le serveur Python est volontairement mono-processus et Windows peut
+    // analyser les gros bundles a la premiere lecture. Trois secondes
+    // rendaient ce test de type MIME aleatoire sans renforcer sa securite.
+    req.setTimeout(10000, () => req.destroy(new Error('Requete locale expiree')));
+    req.once('error', reject);
+    req.end();
+  });
+}
+
 /** Demarre le vrai serveur du projet et attend qu'il reponde. */
 async function demarrerServeur(python) {
   const port = await portLibre();
@@ -62,7 +152,7 @@ async function demarrerServeur(python) {
   const echeance = Date.now() + 15000;
   while (Date.now() < echeance) {
     try {
-      const reponse = await fetch(`http://127.0.0.1:${port}/index.html`);
+      const reponse = await requeteLocale(port, '/index.html');
       if (reponse.ok) return { port, processus };
     } catch {
       await new Promise((r) => setTimeout(r, 150));
@@ -84,7 +174,9 @@ async function typeDe(chemin) {
   assert.match(chemin, /^\/[A-Za-z0-9._/-]+$/, 'Chemin de ressource locale requis');
   assert.ok(!chemin.startsWith('//') && !chemin.split('/').slice(1).some((p) => p === '.' || p === '..' || p === ''),
     'Les composants de chemin ambigus ou externes sont interdits');
-  const reponse = await fetch(`http://127.0.0.1:${serveur.port}${chemin}`);
+  // Seuls les en-têtes sont utiles ici. HEAD évite de transférer le bundle
+  // Chart de 207 Kio, qui peut être retenu par l'analyse antivirus Windows.
+  const reponse = await requeteLocale(serveur.port, chemin, 'HEAD');
   assert.equal(reponse.status, 200, `Ressource introuvable : ${chemin}`);
   return {
     type: (reponse.headers.get('content-type') || '').split(';')[0].trim(),
@@ -97,16 +189,8 @@ async function typeDe(chemin) {
 // ===========================================================================
 
 test('S1 - les quatre fichiers refusés par Chromium sont servis en text/javascript', async () => {
-  // Les quatre chemins cités dans le rapport d'erreur du navigateur.
-  const enCause = [
-    '/scripts/utils/theme-loader.js',
-    '/scripts/vendor/Chart.min.js',
-    '/scripts/app.js',
-    '/scripts/ui/security-report-init.js'
-  ];
-
   const fautifs = [];
-  for (const chemin of enCause) {
+  for (const chemin of SCRIPTS_INDEX_ATTENDUS) {
     const { type } = await typeDe(chemin);
     if (type !== 'text/javascript') fautifs.push(`${chemin} -> ${type}`);
   }
@@ -119,26 +203,28 @@ test('S1 - les quatre fichiers refusés par Chromium sont servis en text/javascr
 
 test('S2 - tout script chargé par index.html est exécutable', async () => {
   const html = lireFichier('index.html');
-  const scripts = [...html.matchAll(/<script[^>]*src="([^"?]+)/g)].map((m) => m[1]);
-  assert.ok(scripts.length >= 3, 'index.html doit charger plusieurs scripts');
+  const scriptsDecouverts = scriptsDe(html).map((src) => src.split('?', 1)[0]);
+  assert.deepEqual(tries(scriptsDecouverts), tries(SCRIPTS_INDEX_ATTENDUS),
+    'Toute référence script de index.html doit être revue dans le manifeste de test');
 
   const fautifs = [];
-  for (const src of scripts) {
-    const { type } = await typeDe(`/${src}`);
-    if (type !== 'text/javascript') fautifs.push(`${src} -> ${type}`);
+  for (const chemin of SCRIPTS_INDEX_ATTENDUS) {
+    const { type } = await typeDe(chemin);
+    if (type !== 'text/javascript') fautifs.push(`${chemin} -> ${type}`);
   }
   assert.deepEqual(fautifs, [], 'Chaque script de la page doit être exécutable.');
 });
 
 test('S3 - toute feuille de style de index.html est servie en text/css', async () => {
   const html = lireFichier('index.html');
-  const feuilles = [...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="([^"?]+)/g)]
-    .map((m) => m[1]).filter((h) => !h.startsWith('http'));
+  const feuillesDecouvertes = feuillesDe(html).map((href) => href.split('?', 1)[0]);
+  assert.deepEqual(tries(feuillesDecouvertes), tries(FEUILLES_INDEX_ATTENDUES),
+    'Toute feuille de index.html doit être revue dans le manifeste de test');
 
   const fautifs = [];
-  for (const href of feuilles) {
-    const { type } = await typeDe(`/${href}`);
-    if (type !== 'text/css') fautifs.push(`${href} -> ${type}`);
+  for (const chemin of FEUILLES_INDEX_ATTENDUES) {
+    const { type } = await typeDe(chemin);
+    if (type !== 'text/css') fautifs.push(`${chemin} -> ${type}`);
   }
   assert.deepEqual(fautifs, [],
     'Sous nosniff, une feuille annoncée en text/plain est ignorée : '

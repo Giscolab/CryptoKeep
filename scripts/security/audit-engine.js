@@ -176,7 +176,7 @@ export async function runSecurityAudit(entries, options = {}) {
   // `analyzeReuse` RETIENT les groupes : sans cela, l'action « Résoudre »
   // du rapport ne pourrait pas retrouver les entrees d'un groupe. Les groupes
   // retenus sont effaces au verrouillage (session-lock.js).
-  const groupes = await analyzeReuse(entries);
+  const groupes = await analyzeReuse(entries, options);
   const reusedIds = new Set();
   for (const groupe of groupes) {
     for (const membre of groupe.entries) reusedIds.add(membre.id);

@@ -20,12 +20,85 @@
  *      restauration : il n'existe pas de boucle possible.
  */
 
+import { publishVaultChange } from './vault-sync.js';
+
 export class VaultWriteError extends Error {
   constructor(code, message, details = {}) {
     super(message);
     this.name = 'VaultWriteError';
     this.code = code;
     this.details = details;
+  }
+}
+
+/**
+ * Conflit optimiste detecte DANS la transaction IndexedDB.
+ *
+ * Ce type est produit par StorageManager.putVaultRecord lorsque le record
+ * courant ne correspond plus au predecesseur attendu. Il ne contient aucune
+ * donnee de coffre et signifie qu'aucune ecriture n'a ete effectuee.
+ */
+export class VaultWriteConflictError extends Error {
+  constructor(message = 'Le coffre a change pendant l\'operation.') {
+    super(message);
+    this.name = 'VaultWriteConflictError';
+    this.code = 'write_conflict';
+    this.details = { written: false, restored: false, restoreNeeded: false };
+  }
+}
+
+/**
+ * Refus explicite plutot qu'une fausse exclusion mutuelle entre onglets.
+ * Le repli en memoire reste utile aux tests et aux outils hors navigateur,
+ * mais deux pages ne partagent pas cette file et ne doivent jamais la prendre
+ * pour un verrou inter-contexte.
+ */
+export class VaultWriteLockUnavailableError extends Error {
+  constructor() {
+    super('Ce navigateur ne fournit pas le verrou inter-onglets requis pour modifier le coffre.');
+    this.name = 'VaultWriteLockUnavailableError';
+    this.code = 'vault_write_lock_unavailable';
+  }
+}
+
+export const VAULT_WRITE_LOCK_NAME = 'cryptokeep-vault-write-v1';
+let fallbackWriteTail = Promise.resolve();
+
+/**
+ * Serialise une publication complete du coffre et de sa sauvegarde.
+ *
+ * `navigator.locks` fournit l'exclusion inter-onglets. Dans un vrai contexte
+ * navigateur son absence fait echouer l'ecriture de facon fermee : la file
+ * locale ci-dessous ne couvre qu'un contexte JavaScript et ne serait donc pas
+ * une garantie honnete. Elle reste reservee aux tests et outils Node, tandis
+ * que le CAS IndexedDB protege en plus le record principal dans tous les cas.
+ */
+export async function withVaultWriteLock(task, options = {}) {
+  if (typeof task !== 'function') throw new TypeError('vault_write_task_required');
+  const lockManager = options.lockManager
+    || (typeof navigator !== 'undefined' && navigator ? navigator.locks : null);
+
+  if (lockManager && typeof lockManager.request === 'function') {
+    return lockManager.request(
+      options.name || VAULT_WRITE_LOCK_NAME,
+      { mode: 'exclusive' },
+      () => task()
+    );
+  }
+
+  const isBrowserRealm = typeof window !== 'undefined'
+    && typeof document !== 'undefined'
+    && !globalThis.process?.versions?.node;
+  if (isBrowserRealm) throw new VaultWriteLockUnavailableError();
+
+  const previous = fallbackWriteTail;
+  let release;
+  fallbackWriteTail = new Promise((resolve) => { release = resolve; });
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
   }
 }
 
@@ -77,14 +150,14 @@ export function createEncryptedSnapshot(record) {
       : [],
     meta: {
       salt: meta.salt,
-      kdf: meta.kdf,
-      iterations: meta.iterations,
+      ...(meta.kdf !== undefined ? { kdf: meta.kdf } : {}),
+      ...(meta.iterations !== undefined ? { iterations: meta.iterations } : {}),
       created_at: meta.created_at,
       last_modified: meta.last_modified,
       version: meta.version,
-      validation: meta.validation
-        ? { iv: meta.validation.iv, ciphertext: meta.validation.ciphertext }
-        : undefined
+      ...(meta.validation
+        ? { validation: { iv: meta.validation.iv, ciphertext: meta.validation.ciphertext } }
+        : {})
     }
   };
 }
@@ -96,13 +169,35 @@ export function createEncryptedSnapshot(record) {
  * @param {object} storage doit exposer putVaultRecord(record) et loadVault()
  * @param {object} expectedRecord record normalise a ecrire
  * @param {object|null} snapshot instantane chiffre du coffre precedent
+ * @param {{assertBeforeWrite?: Function}} [options] garde synchrone evaluee
+ *        au dernier moment dans la transaction quand le stockage le permet
  * @returns {Promise<{written: true, verified: true}>}
  */
-export async function writeVaultRecordVerified(storage, expectedRecord, snapshot) {
+export async function writeVaultRecordVerified(storage, expectedRecord, snapshot, options = {}) {
   // --- Etape 1 : ecriture dans une transaction unique -------------------
   try {
-    await storage.putVaultRecord(expectedRecord);
+    // Le predecesseur est compare et le nouveau record est ecrit dans la
+    // MEME transaction readwrite. Deux auteurs partis du meme instantane ne
+    // peuvent donc plus valider tous les deux un remplacement complet.
+    if (typeof options.assertBeforeWrite === 'function') options.assertBeforeWrite();
+    await storage.putVaultRecord(expectedRecord, {
+      expectedCurrent: snapshot,
+      assertBeforeWrite: options.assertBeforeWrite
+    });
   } catch (error) {
+    if (error && error.name === 'VaultSessionError') throw error;
+    if (error instanceof VaultWriteError && error.code === 'snapshot_unavailable') {
+      throw error;
+    }
+
+    if (error && error.code === 'write_conflict') {
+      throw new VaultWriteError(
+        'write_conflict',
+        'Le coffre a change pendant l\'operation. Aucune modification obsolete n\'a ete ecrite.',
+        { written: false, restored: false, restoreNeeded: false }
+      );
+    }
+
     // Transaction annulee ou echouee : rien n'a ete ecrit, l'ancien record
     // est intact. Toute tentative de "restauration" serait une ecriture
     // supplementaire non justifiee.
@@ -123,7 +218,11 @@ export async function writeVaultRecordVerified(storage, expectedRecord, snapshot
   }
 
   if (!rereadFailed && recordsAreIdentical(reread, expectedRecord)) {
-    return { written: true, verified: true };
+    // Les autres onglets abandonnent immediatement leur cle et leurs
+    // plaintexts. Le message de synchronisation ne contient aucune donnee du
+    // coffre et n'est pas delivre au contexte emetteur.
+    const sync = publishVaultChange();
+    return { written: true, verified: true, sync };
   }
 
   // --- Etape 3 : ecriture validee mais divergente -> restauration -------
@@ -136,8 +235,18 @@ export async function writeVaultRecordVerified(storage, expectedRecord, snapshot
   }
 
   try {
-    await storage.putVaultRecord(snapshot);
+    // La restauration est elle aussi conditionnelle : elle n'est permise que
+    // si notre candidat est encore le record courant. Un auteur plus recent
+    // ne doit jamais etre ecrase par un rollback tardif.
+    await storage.putVaultRecord(snapshot, { expectedCurrent: expectedRecord });
   } catch (restoreError) {
+    if (restoreError && restoreError.code === 'write_conflict') {
+      // Notre ecriture a bien ete validee, puis un successeur a ete publie.
+      // La divergence n'est pas une corruption de notre transaction et il
+      // serait dangereux de restaurer l'ancien record par-dessus.
+      return { written: true, verified: true, superseded: true };
+    }
+
     throw new VaultWriteError(
       'restore_failed',
       'La verification apres ecriture a echoue et la restauration a echoue.',
@@ -178,5 +287,9 @@ export default {
   createEncryptedSnapshot,
   canonicalize,
   recordsAreIdentical,
-  VaultWriteError
+  withVaultWriteLock,
+  VAULT_WRITE_LOCK_NAME,
+  VaultWriteError,
+  VaultWriteConflictError,
+  VaultWriteLockUnavailableError
 };

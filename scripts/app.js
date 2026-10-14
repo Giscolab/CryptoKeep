@@ -416,6 +416,42 @@ const autoLock = new SessionAutoLock(async (reason) => {
 	clearMasterPasswordField();
 });
 
+// Un autre onglet a publie ou remplace le coffre. VaultManager a deja vide
+// sa cle et ses entrees avant cet evenement ; on purge maintenant tout le DOM
+// et on revient a l'ecran d'authentification.
+document.addEventListener('vault:external-change', () => {
+	void lockVaultSession(vaultManager, {
+		notify: true,
+		message: 'Le coffre a change dans un autre onglet. Reconnectez-vous.',
+		type: 'warning'
+	});
+	autoLock.disarm();
+});
+
+// Si les deux transports de notification sont indisponibles, l'onglet auteur
+// l'annonce sans exposer de donnee. Les autres onglets relisent le record
+// autoritatif lorsqu'ils reviennent au premier plan et se verrouillent s'il a
+// change, ce qui evite de conserver indefiniment une ancienne cle en memoire.
+document.addEventListener('vault:sync-warning', () => {
+	showToast(
+		'Le changement est enregistre, mais la notification des autres onglets a echoue. Fermez-les ou remettez-les au premier plan avant de continuer.',
+		'warning'
+	);
+});
+
+let reconciliationPromise = null;
+function reconcileVisibleVaultSession() {
+	if (document.hidden || !vaultManager.masterKey || reconciliationPromise) return;
+	reconciliationPromise = vaultManager.reconcileSessionWithStorage()
+		.catch(() => {
+			// Le gestionnaire verrouille deja la session quand l'etat autoritatif
+			// ne peut pas etre confirme. Aucun detail de coffre n'est affiche.
+		})
+		.finally(() => { reconciliationPromise = null; });
+}
+document.addEventListener('visibilitychange', reconcileVisibleVaultSession);
+window.addEventListener('focus', reconcileVisibleVaultSession);
+
 // === Deconnexion manuelle (Lot 1) ===
 // Le bouton existant dans la barre laterale n'etait raccorde a rien.
 document.addEventListener('DOMContentLoaded', () => {
@@ -572,8 +608,13 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 	if (!file) return;
 
 	try {
+		const sessionGuard = vaultManager.captureSessionGuard();
 		const report = await importVaultFile(file, {
 			storage: vaultManager.storage,
+			assertSessionCurrent: (record) => {
+				vaultManager.assertSessionCurrent(sessionGuard, record);
+			},
+			isSessionCurrent: () => vaultManager.isSessionGuardCurrent(sessionGuard),
 			requestPassword: requestPasswordDialog,
 			confirmImport: (summary) => confirmDialog({
 				title: 'Remplacer le coffre actuel ?',
@@ -591,12 +632,24 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 			localStorageRef: localStorage
 		});
 
-		// Le coffre a change : la session en cours ne correspond plus.
-		await lockVaultSession(vaultManager, { notify: false });
-		autoLock.disarm();
+		// Seule la session qui a lance l'import peut etre fermee par sa
+		// continuation. Une session verrouillee puis rouverte entre-temps ne
+		// doit jamais etre effacee par cette ancienne operation asynchrone.
+		if (!report.superseded && vaultManager.isSessionGuardCurrent(sessionGuard)) {
+			await lockVaultSession(vaultManager, { notify: false });
+			autoLock.disarm();
+		}
 
 		if (report.backup && !report.backup.written) {
 			showToast(report.backup.message, 'warning', 10000);
+		}
+		if (report.superseded) {
+			showToast(
+				'Le coffre a change pendant l\'import. Le remplacement obsolete n\'a pas ete conserve.',
+				'warning',
+				9000
+			);
+			return;
 		}
 		showToast(
 			`Coffre importe (${report.summary.entryCount} entrees). Deverrouillez-le avec son mot de passe.`,

@@ -8,6 +8,13 @@ let currentModal = null;
 let currentGroupData = null;
 let vaultEntries = [];
 let onSaveCallback = null;
+let resolverEpoch = 0;
+const workflowState = {
+  mode: 'manual',
+  currentIndex: 0,
+  completed: [],
+  generatedPasswords: []
+};
 
 function toText(value, fallback = '') {
   return value === null || value === undefined ? fallback : String(value);
@@ -52,7 +59,7 @@ function findAccountStatusBadge(modal, entryId) {
 function updateProgress() {
   if (!currentGroupData) return;
   const total = currentGroupData.entries.length;
-  const done = currentGroupData._completed?.length || 0;
+  const done = workflowState.completed.length;
 
   const progressText = document.getElementById('progress-text');
   const progressFill = document.getElementById('progress-fill');
@@ -85,8 +92,8 @@ function showEntryEditor(index) {
   }
 
   if (input) {
-    if (currentGroupData._mode === 'generated') {
-      input.value = currentGroupData._generatedPasswords[index];
+    if (workflowState.mode === 'generated') {
+      input.value = workflowState.generatedPasswords[index];
       input.type = 'text';
     } else {
       input.value = '';
@@ -98,9 +105,9 @@ function showEntryEditor(index) {
 }
 
 function moveToNext() {
-  currentGroupData._currentIndex += 1;
-  if (currentGroupData._currentIndex < currentGroupData.entries.length) {
-    showEntryEditor(currentGroupData._currentIndex);
+  workflowState.currentIndex += 1;
+  if (workflowState.currentIndex < currentGroupData.entries.length) {
+    showEntryEditor(workflowState.currentIndex);
     return;
   }
 
@@ -114,7 +121,7 @@ function moveToNext() {
   successMsg.append(
     strong,
     document.createElement('br'),
-    document.createTextNode(`${currentGroupData._completed.length} sur ${currentGroupData.entries.length} comptes mis à jour.`)
+    document.createTextNode(`${workflowState.completed.length} sur ${currentGroupData.entries.length} comptes mis à jour.`)
   );
 
   const body = currentModal?.querySelector('.modal-body');
@@ -303,6 +310,8 @@ function buildModal(group) {
 }
 
 export function openReuseResolver(group, allEntries, saveFn) {
+  closeReuseResolver();
+  const instanceEpoch = resolverEpoch;
   vaultEntries = allEntries;
   currentGroupData = group;
   onSaveCallback = saveFn;
@@ -328,30 +337,39 @@ export function openReuseResolver(group, allEntries, saveFn) {
       return;
     }
 
+    // Un noeud detache peut encore etre retenu par un appelant externe. Une
+    // fois la session du resolveur fermee, aucun ancien ecouteur ne doit
+    // pouvoir relire un secret ni invoquer l'ancien callback d'ecriture.
+    if (instanceEpoch !== resolverEpoch
+      || modal !== currentModal
+      || !currentGroupData
+      || !onSaveCallback) return;
+
     if (action === 'manual') {
       modal.querySelector('.option-cards')?.classList.add('hidden');
       modal.querySelector('#resolution-workflow')?.classList.remove('hidden');
-      currentGroupData._mode = 'manual';
-      currentGroupData._currentIndex = 0;
-      currentGroupData._completed = [];
+      workflowState.mode = 'manual';
+      workflowState.currentIndex = 0;
+      workflowState.completed = [];
       showEntryEditor(0);
       return;
     }
 
     if (action === 'generate') {
       const length = parseInt(document.getElementById('pwd-length')?.value || '20', 10);
-      currentGroupData._generatedPasswords = currentGroupData.entries.map(() => PasswordGenerator.generate({ length }));
+      workflowState.generatedPasswords = currentGroupData.entries
+        .map(() => PasswordGenerator.generate({ length }));
       modal.querySelector('.option-cards')?.classList.add('hidden');
       modal.querySelector('#resolution-workflow')?.classList.remove('hidden');
-      currentGroupData._mode = 'generated';
-      currentGroupData._currentIndex = 0;
-      currentGroupData._completed = [];
+      workflowState.mode = 'generated';
+      workflowState.currentIndex = 0;
+      workflowState.completed = [];
       showEntryEditor(0);
       return;
     }
 
     if (action === 'show-current') {
-      const currentEntry = currentGroupData.entries[currentGroupData._currentIndex];
+      const currentEntry = currentGroupData.entries[workflowState.currentIndex];
       const fullEntry = vaultEntries.find((entry) => entry.id === currentEntry.id);
       const display = document.getElementById('password-display');
       if (display) {
@@ -384,11 +402,11 @@ export function openReuseResolver(group, allEntries, saveFn) {
         return;
       }
 
-      const currentEntry = currentGroupData.entries[currentGroupData._currentIndex];
+      const currentEntry = currentGroupData.entries[workflowState.currentIndex];
       const fullEntry = vaultEntries.find((entry) => entry.id === currentEntry.id);
 
       const remainingPasswords = currentGroupData.entries
-        .slice(currentGroupData._currentIndex + 1)
+        .slice(workflowState.currentIndex + 1)
         .map((entry) => vaultEntries.find((candidate) => candidate.id === entry.id)?.password);
 
       if (remainingPasswords.includes(newPassword)) {
@@ -399,6 +417,15 @@ export function openReuseResolver(group, allEntries, saveFn) {
       const updatedEntry = { ...fullEntry, password: newPassword };
       try {
         await onSaveCallback(updatedEntry);
+        // Le callback peut inclure chiffrement et ecriture IndexedDB. Entre
+        // son depart et sa resolution, ce resolveur peut avoir ete ferme puis
+        // remplace. L'ancienne continuation ne doit jamais toucher les
+        // globals, les secrets ou le DOM de la nouvelle instance.
+        if (instanceEpoch !== resolverEpoch
+          || modal !== currentModal
+          || !currentGroupData
+          || !onSaveCallback) return;
+
         const item = findAccountStatusBadge(modal, currentEntry.id);
         if (item) {
           item.className = 'status-badge status-done';
@@ -408,19 +435,53 @@ export function openReuseResolver(group, allEntries, saveFn) {
         const cachedEntry = vaultEntries.find((entry) => entry.id === currentEntry.id);
         if (cachedEntry) cachedEntry.password = newPassword;
 
-        currentGroupData._completed.push(currentEntry.id);
+        workflowState.completed.push(currentEntry.id);
         moveToNext();
       } catch (error) {
-        window.alert(`Erreur de sauvegarde : ${error?.message || error}`);
+        if (instanceEpoch === resolverEpoch && modal === currentModal) {
+          window.alert(`Erreur de sauvegarde : ${error?.message || error}`);
+        }
       }
     }
   });
 }
 
 export function closeReuseResolver() {
-  if (!currentModal) return;
-  currentModal.remove();
+  resolverEpoch += 1;
+  if (currentModal && typeof currentModal.querySelectorAll === 'function') {
+    currentModal.querySelectorAll('input, textarea').forEach((field) => {
+      if ('value' in field) field.value = '';
+      if (field.classList?.contains('password-input') || field.id === 'new-password-input') {
+        field.type = 'password';
+      }
+    });
+    currentModal.querySelectorAll('.password-reveal, #password-display').forEach((node) => {
+      node.textContent = '';
+      node.classList?.add('hidden');
+    });
+    currentModal.querySelector('#current-entry-preview')?.replaceChildren();
+  }
+
+  if (currentModal && typeof currentModal.remove === 'function') currentModal.remove();
   currentModal = null;
   currentGroupData = null;
+  vaultEntries = [];
   onSaveCallback = null;
+  workflowState.generatedPasswords.fill('');
+  workflowState.generatedPasswords = [];
+  workflowState.completed = [];
+  workflowState.currentIndex = 0;
+  workflowState.mode = 'manual';
+}
+
+/** Resume non sensible destine aux tests de retention et au diagnostic. */
+export function getReuseResolverStateSummary() {
+  return Object.freeze({
+    modalRetained: currentModal !== null,
+    groupRetained: currentGroupData !== null,
+    entryCount: vaultEntries.length,
+    generatedPasswordCount: workflowState.generatedPasswords.length,
+    completedCount: workflowState.completed.length,
+    callbackRetained: typeof onSaveCallback === 'function'
+  });
 }

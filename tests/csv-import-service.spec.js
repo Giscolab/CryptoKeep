@@ -401,6 +401,33 @@ try {
     );
   }
 
+  // ============ 19. Successeur concurrent : backup et UI non obsoletes ===
+  {
+    const successor = await buildSyntheticVault({
+      password: 'mot-de-passe-successeur-csv',
+      entries: [{ id: 'csv-winner', title: 'Gagnant', password: 'CSV-Gagnant-2026!' }]
+    });
+    const storage = new FakeVaultStorage(coffre.record);
+    const localStorageRef = new FakeLocalStorage();
+    let successCalled = false;
+    storage.supersedeAfterNextWrite = successor.record;
+
+    const rapport = await importCsvFile(
+      makeCsvFile('name,username,password\nA,a,Secret-CSV-2026!\n'),
+      baseDeps(storage, {
+        localStorageRef,
+        onSuccess: async () => { successCalled = true; }
+      })
+    );
+
+    assert.equal(rapport.imported, false);
+    assert.equal(rapport.superseded, true);
+    assert.equal(rapport.sessionActive, false);
+    assert.equal(successCalled, false, 'Une continuation obsolete ne doit pas rafraichir l interface');
+    assert.equal(localStorageRef.getItem(BACKUP_KEY_V1), null);
+    assert.equal(canonicalize(storage.record), canonicalize(successor.record));
+  }
+
   console.log('CSV import service tests passed.');
 } catch (error) {
   console.error('CSV import service tests failed:', error);

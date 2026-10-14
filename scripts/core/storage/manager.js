@@ -5,14 +5,17 @@ import { validateVaultRecord } from './vault-format.js';
 // `readLocalBackup` n'est plus importe ici : la lecture de la sauvegarde
 // secondaire appartient desormais au seul service securise, qui la valide
 // et la dechiffre avant tout usage.
-import { writeLocalBackup } from './local-backup.js';
+import { writeLocalBackup, writeLocalBackupVerified } from './local-backup.js';
 import {
-	canonicalize,
 	createEncryptedSnapshot,
+	recordsAreIdentical,
 	writeVaultRecordVerified,
-	VaultWriteError
+	withVaultWriteLock,
+	VaultWriteError,
+	VaultWriteConflictError
 } from './vault-transaction.js';
 import { restoreBackupWhenPrimaryMissing } from './backup-restore-service.js';
+import { publishVaultChange } from './vault-sync.js';
 
 function waitForTransaction(transaction) {
 	return new Promise((resolve, reject) => {
@@ -53,7 +56,14 @@ export class StorageManager {
 	 * @param {Array} entries - Entrées chiffrées.
 	 * @param {Object} meta - Métadonnées.
 	 */
-	async saveVault(entries, meta) {
+	async saveVault(entries, meta, options = {}) {
+		return withVaultWriteLock(
+			() => this._saveVaultWithLockHeld(entries, meta, options),
+			{ lockManager: options.lockManager }
+		);
+	}
+
+	async _saveVaultWithLockHeld(entries, meta, options = {}) {
 		if (!this.db) this.db = await openDB();
 		const vaultRecord = validateVaultRecord({
 			id: 'current',
@@ -96,20 +106,23 @@ export class StorageManager {
 		//    enregistrement courant dont l'instantane ne peut pas etre
 		//    construit, interrompt l'operation AVANT toute ecriture : rien
 		//    n'est ecrit, le coffre existant reste exactement dans son etat.
-		let current = null;
-		try {
-			current = await this.loadVault();
-		} catch (error) {
-			throw new VaultWriteError(
-				'snapshot_unavailable',
-				'L\'etat actuel du coffre n\'a pas pu etre lu. Aucune modification n\'a ete ecrite.',
-				{
-					written: false,
-					restored: false,
-					restoreNeeded: false,
-					cause: error && error.name ? error.name : 'unknown'
-				}
-			);
+		const expectedProvided = Object.prototype.hasOwnProperty.call(options, 'expectedCurrent');
+		let current = expectedProvided ? options.expectedCurrent : null;
+		if (!expectedProvided) {
+			try {
+				current = await this.loadVault();
+			} catch (error) {
+				throw new VaultWriteError(
+					'snapshot_unavailable',
+					'L\'etat actuel du coffre n\'a pas pu etre lu. Aucune modification n\'a ete ecrite.',
+					{
+						written: false,
+						restored: false,
+						restoreNeeded: false,
+						cause: error && error.name ? error.name : 'unknown'
+					}
+				);
+			}
 		}
 
 		let snapshot = null;
@@ -140,10 +153,37 @@ export class StorageManager {
 		//    Apres une transaction ANNULEE, aucune restauration n'est tentee :
 		//    l'ancien record est intact par construction et une ecriture
 		//    supplementaire pourrait au contraire ecraser des donnees saines.
-		await writeVaultRecordVerified(this, vaultRecord, snapshot);
+		const writeResult = await writeVaultRecordVerified(this, vaultRecord, snapshot, {
+			assertBeforeWrite: options.assertBeforeWrite
+		});
 
 		// 5. seulement ensuite : sauvegarde secondaire VERSIONNEE.
-		this.lastBackupResult = this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
+		// Un auteur plus recent peut avoir valide un successeur entre notre
+		// commit et la sauvegarde secondaire. Ne jamais remplacer sa sauvegarde
+		// par une copie devenue obsolete.
+		let currentAfterWrite = null;
+		try {
+			currentAfterWrite = await this.loadVault();
+		} catch {
+			currentAfterWrite = null;
+		}
+
+		if (writeResult.superseded === true
+			|| !recordsAreIdentical(currentAfterWrite, vaultRecord)) {
+			this.lastBackupResult = {
+				written: false,
+				primarySuperseded: true,
+				reason: 'superseded',
+				message: 'Le coffre principal a deja un etat plus recent ; sa sauvegarde secondaire n\'a pas ete remplacee.',
+				sync: writeResult.sync
+			};
+			return this.lastBackupResult;
+		}
+
+		this.lastBackupResult = await writeLocalBackupVerified(vaultRecord, {
+			loadPrimary: () => this.loadVault()
+		});
+		this.lastBackupResult.sync = writeResult.sync;
 		return this.lastBackupResult;
 	}
 	/**
@@ -160,24 +200,118 @@ export class StorageManager {
 	 *
 	 * @param {Object} vaultRecord record deja valide et normalise
 	 */
-	async putVaultRecord(vaultRecord) {
+	async putVaultRecord(vaultRecord, options = {}) {
 		if (!this.db) this.db = await openDB();
 		const normalized = validateVaultRecord(vaultRecord);
+		const expectedProvided = Object.prototype.hasOwnProperty.call(options, 'expectedCurrent');
+		const expectedCurrent = options.expectedCurrent === null
+			? null
+			: (expectedProvided ? validateVaultRecord(options.expectedCurrent) : undefined);
 		const tx = this.db.transaction('vault', 'readwrite');
 		const store = tx.objectStore('vault');
-		store.put(normalized);
-		await waitForTransaction(tx);
-		return normalized;
+
+		if (!expectedProvided) {
+			store.put(normalized);
+			await waitForTransaction(tx);
+			return normalized;
+		}
+
+		return new Promise((resolve, reject) => {
+			let transactionFailure = null;
+			let settled = false;
+			const finishReject = (error) => {
+				if (settled) return;
+				settled = true;
+				reject(error);
+			};
+
+			tx.oncomplete = () => {
+				if (settled) return;
+				settled = true;
+				resolve(normalized);
+			};
+			tx.onabort = () => finishReject(
+				transactionFailure || tx.error || new Error('IndexedDB transaction aborted.')
+			);
+			tx.onerror = () => finishReject(
+				transactionFailure || tx.error || new Error('IndexedDB transaction failed.')
+			);
+
+			const request = store.get('current');
+			request.onerror = () => {
+				transactionFailure = new VaultWriteError(
+					'snapshot_unavailable',
+					'L\'etat actuel du coffre n\'a pas pu etre lu. Aucune modification n\'a ete ecrite.',
+					{ written: false, restored: false, restoreNeeded: false }
+				);
+				try { tx.abort(); } catch { /* la transaction peut deja etre annulee */ }
+				finishReject(transactionFailure);
+			};
+			request.onsuccess = (event) => {
+				const currentRecord = event.target.result || null;
+				try {
+					// Derniere barriere d'annulation, executee dans le meme tour de
+					// boucle que le put IndexedDB. Un verrouillage survenu pendant la
+					// preparation asynchrone ne peut donc plus publier le candidat.
+					if (typeof options.assertBeforeWrite === 'function') {
+						options.assertBeforeWrite();
+					}
+				} catch (error) {
+					transactionFailure = error;
+					try { tx.abort(); } catch { /* rejet ci-dessous */ }
+					finishReject(transactionFailure);
+					return;
+				}
+				let comparableCurrent = null;
+				try {
+					// IndexedDB peut encore contenir le record v1 brut (sans kdf,
+					// iterations ni version), tandis que l'appelant a necessairement
+					// obtenu sa vue normalisee par validateVaultRecord(). Comparer les
+					// deux representations brutes ferait echouer toute migration v1.
+					comparableCurrent = currentRecord ? validateVaultRecord(currentRecord) : null;
+				} catch {
+					transactionFailure = new VaultWriteError(
+						'snapshot_unusable',
+						'L\'etat actuel du coffre n\'a pas pu etre valide. Aucune modification n\'a ete ecrite.',
+						{ written: false, restored: false, restoreNeeded: false }
+					);
+					try { tx.abort(); } catch { /* rejet ci-dessous */ }
+					finishReject(transactionFailure);
+					return;
+				}
+
+				if (!recordsAreIdentical(comparableCurrent, expectedCurrent)) {
+					transactionFailure = new VaultWriteConflictError();
+					try { tx.abort(); } catch { finishReject(transactionFailure); }
+					return;
+				}
+
+				try {
+					store.put(normalized);
+				} catch (error) {
+					try { tx.abort(); } catch { /* rejet ci-dessous */ }
+					finishReject(error);
+				}
+			};
+		});
 	}
 	/**
 	 * Efface toutes les données du vault.
 	 */
-	async clearVault() {
+	async clearVault(options = {}) {
+		return withVaultWriteLock(
+			() => this._clearVaultWithLockHeld(),
+			{ lockManager: options.lockManager }
+		);
+	}
+
+	async _clearVaultWithLockHeld() {
 		if (!this.db) this.db = await openDB();
 		const tx = this.db.transaction('vault', 'readwrite');
 		const store = tx.objectStore('vault');
 		store.clear();
 		await waitForTransaction(tx);
+		return { cleared: true, sync: publishVaultChange() };
 	}
 	/**
 	 * Importe un fichier `.vault` complet dans la base de données.
@@ -186,20 +320,12 @@ export class StorageManager {
 	async importFullVault(vaultData) {
 		if (!this.db) this.db = await openDB();
 		const vaultRecord = validateVaultRecord(vaultData);
-		const tx = this.db.transaction('vault', 'readwrite');
-		const store = tx.objectStore('vault');
-		store.put(vaultRecord);
-		await waitForTransaction(tx);
-
-		// Meme discipline que saveVault : relecture et comparaison canonique
-		// AVANT toute mise a jour de la sauvegarde secondaire.
-		const reread = await this.loadVault();
-		if (canonicalize(reread) !== canonicalize(vaultRecord)) {
-			throw new Error('Vault import verification failed: re-read record differs.');
-		}
-
-		this.lastBackupResult = this.saveToLocalBackup(vaultRecord.entries, vaultRecord.meta);
-		return this.lastBackupResult;
+		const current = await this.loadVault();
+		return this.saveVault(
+			vaultRecord.entries,
+			vaultRecord.meta,
+			{ expectedCurrent: current }
+		);
 	}
 	/**
 	 * Restaure le vault à partir du backup local dans localStorage (si présent).

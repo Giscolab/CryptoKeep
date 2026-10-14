@@ -7,6 +7,32 @@
 
 ---
 
+## 🔐 Correctifs des constats moyens Codex Security – *14 octobre 2026*
+
+Les six constats moyens du rapport établi sur `bab4c4b` ont été revérifiés
+sur le code courant puis corrigés localement, sans modifier le format chiffré
+des coffres existants.
+
+- écritures complètes sérialisées par Web Locks et protégées par comparaison
+  conditionnelle dans la transaction IndexedDB ; un rollback tardif ne peut
+  plus écraser un successeur ;
+- sauvegarde secondaire mise à jour seulement après vérification du record
+  principal, migration historique incluse dans le même verrou ;
+- signal inter-onglets sans secret par `storage` et `BroadcastChannel` ; toute
+  session distante abandonne sa clé et ses entrées, avec réconciliation
+  IndexedDB au retour au premier plan si les transports ont échoué ;
+- opérations asynchrones liées à une époque de session : verrouiller ou ouvrir
+  une nouvelle session invalide les continuations anciennes ;
+- purge étendue aux champs de recherche, dialogues sécurisés, rapports,
+  cache HIBP et résolveur de réutilisation ;
+- parcours Edge synthétique porté à **17 étapes**, dont deux onglets réels sur
+  un profil jetable. Aucun coffre personnel n'est lu.
+
+Les navigateurs sans `navigator.locks` refusent désormais les écritures du
+coffre au lieu d'utiliser un faux verrou limité à un seul onglet.
+
+---
+
 ## 📚 [Lot 10] Documentation et cohérence – *4 septembre 2026*
 
 **Résumé :** aucune documentation supprimée. Les documents historiques sont

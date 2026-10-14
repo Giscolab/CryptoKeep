@@ -76,9 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!file) return;
 
     try {
+      const sessionGuard = vaultManager.captureSessionGuard();
       const report = await importCsvFile(file, {
         storage: vaultManager.storage,
-        masterKey: vaultManager.masterKey,
+        masterKey: sessionGuard.key,
+        assertSessionCurrent: (record) => {
+          vaultManager.assertSessionCurrent(sessionGuard, record);
+        },
+        isSessionCurrent: () => vaultManager.isSessionGuardCurrent(sessionGuard),
         confirmImport: (info) => confirmDialog({
           title: 'Importer ces mots de passe ?',
           message: 'Les entrees seront AJOUTEES au coffre. Aucune entree existante ne sera remplacee.',
@@ -99,6 +104,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (report.backup && !report.backup.written) {
         showToast(report.backup.message, 'warning', 10000);
+      }
+
+      if (report.superseded) {
+        showToast(
+          'Le coffre a change pendant l\'import. Le resultat obsolete n\'a pas ete affiche ; reconnectez-vous.',
+          'warning',
+          9000
+        );
+        return;
+      }
+
+      if (!report.sessionActive) {
+        showToast(
+          'Import termine, mais la session est verrouillee. Reconnectez-vous pour afficher les entrees.',
+          'warning',
+          9000
+        );
       }
 
       const details = [];

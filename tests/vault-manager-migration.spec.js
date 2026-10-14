@@ -3,6 +3,8 @@ import './webcrypto-setup.js';
 import { encryptData, decryptData } from '../scripts/core/crypto/aes-gcm.js';
 import { deriveMasterKey } from '../scripts/core/crypto/pbkdf2.js';
 import { VaultManager } from '../scripts/core/vault/manager.js';
+import { StorageManager } from '../scripts/core/storage/manager.js';
+import { FakeIDBDatabase } from './helpers/fake-indexeddb.js';
 import {
   CURRENT_PBKDF2_ITERATIONS,
   CURRENT_VAULT_FORMAT_VERSION,
@@ -47,7 +49,7 @@ try {
     { title: 'Legacy', username: 'alice', password: 'S3cret!' },
     legacyKey
   );
-  const storage = new MemoryStorage({
+  const legacyRecord = {
     id: 'current',
     entries: [{ id: 'legacy-entry', ...encryptedEntry }],
     meta: {
@@ -56,7 +58,8 @@ try {
       last_modified: '2026-01-01T00:00:00.000Z',
       validation
     }
-  });
+  };
+  const storage = new MemoryStorage(legacyRecord);
   const manager = new VaultManager({ storage });
 
   await manager.unlock(password);
@@ -71,6 +74,19 @@ try {
     { additionalData: entryAdditionalData('legacy-entry') }
   );
   assert(migrated.username === 'alice', 'Entree migree invalide');
+
+  // Le CAS reel compare la representation normalisee du v1 brut relu dans
+  // IndexedDB. Sans cette normalisation, la migration echouait toujours avec
+  // `write_conflict` alors qu'aucun autre auteur n'avait modifie le coffre.
+  const db = new FakeIDBDatabase(legacyRecord);
+  const realStorage = new StorageManager();
+  realStorage.db = db;
+  realStorage.initializeDB = async () => { realStorage.db = db; };
+  const realManager = new VaultManager({ storage: realStorage });
+  const migratedEntries = await realManager.unlock(password);
+  assert.equal(migratedEntries[0].password, 'S3cret!');
+  assert.equal(db.peek().meta.version, CURRENT_VAULT_FORMAT_VERSION);
+  assert.equal(db.peek().meta.iterations, CURRENT_PBKDF2_ITERATIONS);
 
   console.log('Vault migration tests passed.');
 } catch (error) {

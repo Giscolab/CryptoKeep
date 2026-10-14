@@ -241,6 +241,26 @@ try {
     assert.equal(rapport.reason, 'no_legacy_backup');
   }
 
+  // ===== 11b. Le verrou injecte traverse le service haut niveau ===========
+  {
+    const store = makeStore(coffre.record);
+    let demandes = 0;
+    const rapport = await migrateLegacyBackupVerified({
+      storage: store,
+      requestPassword: async () => MDP,
+      lockManager: {
+        request: async (_name, options, task) => {
+          demandes += 1;
+          assert.equal(options.mode, 'exclusive');
+          return task();
+        }
+      }
+    });
+    assert.equal(rapport.migrated, true);
+    assert.equal(demandes, 1,
+      'Le service complet doit transmettre le verrou inter-onglets a la migration');
+  }
+
   // ===== 12. La migration ne touche jamais IndexedDB ======================
   {
     // Le service ne recoit aucun stockage IndexedDB : il ne peut pas y ecrire.

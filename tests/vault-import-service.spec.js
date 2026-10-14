@@ -465,6 +465,55 @@ try {
     assert.equal(storage.writes, 1);
   }
 
+  // ============ 28. Lock pendant la transaction : aucune ecriture =========
+  {
+    const storage = new FakeVaultStorage(coffreCourant.record);
+    const avant = canonicalize(storage.record);
+    const localStorageRef = new FakeLocalStorage();
+    let sessionActive = true;
+    storage.beforeNextWrite = async () => { sessionActive = false; };
+
+    await assert.rejects(
+      importVaultFile(makeVaultFile(coffreImporte.record), deps(storage, {
+        localStorageRef,
+        assertSessionCurrent: () => {
+          if (sessionActive) return;
+          const error = new Error('session changed');
+          error.name = 'VaultSessionError';
+          error.code = 'session_changed';
+          throw error;
+        },
+        isSessionCurrent: () => sessionActive
+      })),
+      (error) => error?.name === 'VaultSessionError' && error?.code === 'session_changed'
+    );
+    assert.equal(storage.writes, 0, 'Le lock doit annuler avant le put');
+    assert.equal(canonicalize(storage.record), avant);
+    assert.equal(localStorageRef.getItem(BACKUP_KEY_V1), null);
+  }
+
+  // ============ 29. Successeur concurrent : aucun backup obsolete =========
+  {
+    const successor = await buildSyntheticVault({
+      password: 'mot-de-passe-successeur',
+      entries: [{ id: 'successeur', title: 'Gagnant', password: 'Successeur-2026!' }]
+    });
+    const storage = new FakeVaultStorage(coffreCourant.record);
+    const localStorageRef = new FakeLocalStorage();
+    storage.supersedeAfterNextWrite = successor.record;
+    const rapport = await importVaultFile(
+      makeVaultFile(coffreImporte.record),
+      deps(storage, { localStorageRef })
+    );
+
+    assert.equal(rapport.imported, false);
+    assert.equal(rapport.superseded, true);
+    assert.equal(rapport.backup.reason, 'superseded');
+    assert.equal(localStorageRef.getItem(BACKUP_KEY_V1), null,
+      'Le candidat remplace ne doit jamais devenir la sauvegarde secondaire');
+    assert.equal(canonicalize(storage.record), canonicalize(successor.record));
+  }
+
   console.log('Vault import service tests passed.');
 } catch (error) {
   console.error('Vault import service tests failed:', error);

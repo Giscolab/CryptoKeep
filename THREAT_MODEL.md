@@ -1,6 +1,6 @@
 # CryptoKeep Threat Model
 
-Last updated: 2026-09-01 (Lot 2)
+Last updated: 2026-10-14 (concurrency and session-lifecycle remediation)
 
 ## System Summary
 
@@ -59,6 +59,11 @@ CryptoKeep is a static browser application for storing password vault entries lo
   replacing it.
 - Automatic restoration paths that can silently overwrite a newer primary
   vault with an older secondary copy.
+- Concurrent whole-vault writers, stale rollbacks, and a tab continuing with
+  a key derived for a vault record that another tab has replaced.
+- Asynchronous work that completes after locking and republishes decrypted
+  entries, generated passwords, audit results, reuse groups, or HIBP cache
+  material into the new locked state.
 - CSP regressions that allow broader script execution than needed.
 - Remote dependency or CDN supply-chain risks.
 - Network leakage of passwords, full hashes, decrypted entries, metadata, or vault contents.
@@ -86,6 +91,15 @@ CryptoKeep is a static browser application for storing password vault entries lo
 - Sensitive vault objects are module-scoped. UI code imports the singleton `VaultManager` and must not expose it or decrypted entries on `window`.
 - HIBP is offline by default in `scripts/security/hibp-service.js`; enabling it must remain an explicit local opt-in.
 - `scripts/core/storage/manager.js` saves an encrypted backup to localStorage. The backup is base64-encoded, not additionally protected beyond the encrypted entries it contains.
+- Vault writes require `navigator.locks` in a real browser. The primary
+  IndexedDB record also uses an in-transaction compare-and-set guard. A
+  browser without Web Locks fails closed for writes instead of pretending
+  that an in-memory per-tab queue provides cross-tab exclusion.
+- Successful replacements emit a non-secret invalidation over `storage` and
+  `BroadcastChannel`. Each unlocked tab also fingerprints its encrypted
+  record and reconciles it with IndexedDB on focus/visibility return, so a
+  missed signal still locks a stale session. Transport delivery remains a
+  browser facility, not a cryptographic guarantee.
 - Clipboard exposure remains a real local risk. The app schedules a conditional cleanup after 30 seconds and will not overwrite clipboard content that has changed; browsers can deny clipboard reads, so cleanup remains best effort.
 - Node-based security tests require a working cryptographic random-number generator. A failure in `crypto.randomBytes` must be treated as a critical local toolchain blocker rather than a normal test failure. The current Linux validation baseline passes under Node.js v22.23.2.
 
@@ -144,6 +158,11 @@ CryptoKeep is a static browser application for storing password vault entries lo
   any transaction, so no partial import can be persisted.
 - Lot 2: `prompt()` is not used anywhere. Passwords are collected in a
   dedicated dialog with a real `type="password"` field cleared in a `finally`.
+
+- 2026-10-14: every asynchronous mutation captures a session epoch and key
+  identity before awaiting. Queued or resumed work from a locked/replaced
+  session is rejected; lock cleanup also invalidates in-flight audit, reuse
+  and HIBP publication paths and scrubs registered secure dialogs.
 
 ## Acceptance Criteria For Security Fixes
 

@@ -3,7 +3,9 @@ import { clearVaultListSession } from '../ui/vault-list/vault-list.js';
 import { showToast } from '../utils/toast.js';
 import { clearOwnedClipboard } from '../utils/clipboard.js';
 import { clearMasterPasswordField } from './master-password-field.js';
-import { closeAllModals } from '../ui/modal-cleanup.js';
+import { closeAllModals, purgeSensitiveModalState } from '../ui/modal-cleanup.js';
+import { closeReuseResolver } from '../ui/reuse-resolver-modal.js';
+import { closeSecureDialogs } from '../ui/secure-dialogs.js';
 import { clearReuseAnalysis } from './password-reuse.js';
 import { clearHibpCache } from './hibp-service.js';
 import { clearAuditReport } from '../ui/audit-report-view.js';
@@ -28,6 +30,8 @@ function clearRenderedSecrets() {
   clearInputValue('#entry-username');
   clearInputValue('#entry-url');
   clearInputValue('#website');
+  clearInputValue('#searchInput');
+  clearInputValue('#dashboardSearchInput');
 
   document.querySelectorAll('.toggle-password').forEach((button) => {
     setButtonIcon(button, 'fa-eye');
@@ -45,12 +49,16 @@ function clearRenderedSecrets() {
   });
 
   document.getElementById('current-entry-preview')?.replaceChildren();
-  document.getElementById('reuse-resolver-modal')?.remove();
 }
 
 function clearRenderedVaultDom() {
   // Lot 1 : toute modale visible est fermee, y compris celles injectees
   // dynamiquement, avant la purge des vues.
+  // Le resolveur possede aussi un etat de module : son nettoyage semantique
+  // doit preceder la fermeture generique du DOM.
+  closeReuseResolver();
+  closeSecureDialogs();
+  purgeSensitiveModalState();
   closeAllModals();
   clearRenderedSecrets();
   clearVaultListSession();

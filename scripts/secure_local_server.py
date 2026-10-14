@@ -94,6 +94,31 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
         self.send_error(HTTPStatus.FORBIDDEN, "Directory listing disabled")
         return None
 
+    @staticmethod
+    def _select_existing_child(directory: Path, name: str) -> Path | None:
+        """Return a filesystem-provided child whose name exactly matches.
+
+        The HTTP component is used only for equality. It is never combined
+        with the repository root to form a path expression. This keeps the
+        request outside the filesystem trust boundary while preserving the
+        case-sensitive application asset names on every platform.
+        """
+        try:
+            for child in directory.iterdir():
+                if child.name == name:
+                    return child
+        except OSError:
+            return None
+        return None
+
+    def translate_path(self, path):
+        """Give the standard transfer code only the already-approved target."""
+        del path
+        target = getattr(self, "_approved_target", None)
+        if target is None:
+            raise RuntimeError("No approved application asset")
+        return str(target)
+
     def send_head(self):
         # The server is a loopback-only vault: reject rebinding hostnames.
         port = self.server.server_port
@@ -128,13 +153,14 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
                 self.send_error(HTTPStatus.FORBIDDEN, "Forbidden path")
                 return None
 
-        relative = Path(*components)
+        filename = components[-1]
+        extension = f".{filename.rsplit('.', 1)[1].lower()}" if "." in filename else ""
         allowed = (
             (len(components) == 1 and components[0] in {"index.html", "404.html"})
             or (len(components) > 1 and components[0] == "scripts"
-                and relative.suffix.lower() in self._SCRIPT_EXTENSIONS)
+                and extension in self._SCRIPT_EXTENSIONS)
             or (len(components) > 1 and components[0] == "public"
-                and relative.suffix.lower() in self._PUBLIC_EXTENSIONS)
+                and extension in self._PUBLIC_EXTENSIONS)
         )
         if not allowed:
             self.send_error(HTTPStatus.FORBIDDEN, "Not an application asset")
@@ -143,31 +169,39 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
         root = Path(self.directory).resolve()
         candidate = root
         for item in components:
-            candidate = candidate / item
-            # Refuse to serve symlinks. Only check existing filesystem nodes so
-            # we don't accidentally create or follow symlinks during the check.
+            selected = self._select_existing_child(candidate, item)
+            if selected is None:
+                self.send_error(HTTPStatus.NOT_FOUND, "Application asset not found")
+                return None
+
+            # The selected Path comes from directory iteration, not from path
+            # composition with the HTTP request. Refuse symlinks before using
+            # it as the parent for the next component.
             try:
-                if candidate.exists() and candidate.is_symlink():
+                if selected.is_symlink():
                     self.send_error(HTTPStatus.FORBIDDEN, "Symlinks are not served")
                     return None
             except OSError:
-                # On some filesystems lstat/is_symlink can fail; treat that as
-                # non-servable to be safe.
                 self.send_error(HTTPStatus.FORBIDDEN, "Forbidden path")
                 return None
+            candidate = selected
         try:
-            target = candidate.resolve()
-        except OSError:
+            target = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
             self.send_error(HTTPStatus.FORBIDDEN, "Invalid application asset")
             return None
         if not target.is_relative_to(root) or not target.is_file():
             self.send_error(HTTPStatus.FORBIDDEN, "Invalid application asset")
             return None
 
-        # Delegate MIME types and transfer handling to the standard server,
-        # after checking the normalized path and asset allowlist.
-        self.path = path
-        return super().send_head()
+        # Keep the standard MIME, conditional-request and transfer behavior,
+        # but make it open the exact target selected above. `self.path` is not
+        # translated a second time after validation.
+        self._approved_target = target
+        try:
+            return super().send_head()
+        finally:
+            self._approved_target = None
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store, max-age=0")
