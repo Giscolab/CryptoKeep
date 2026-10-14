@@ -22,9 +22,10 @@ import { validateImportedVaultStructure } from '../core/storage/vault-import-val
 import { entryOptionsFor } from '../core/storage/vault-crypto-verify.js';
 import {
   createEncryptedSnapshot,
+  withVaultWriteLock,
   writeVaultRecordVerified
 } from '../core/storage/vault-transaction.js';
-import { writeLocalBackup } from '../core/storage/local-backup.js';
+import { writeLocalBackupVerified } from '../core/storage/local-backup.js';
 import { parseCsv, CsvParseError } from './csv-parser.js';
 
 export class CsvImportError extends Error {
@@ -244,7 +245,9 @@ export async function importCsvFile(file, deps = {}) {
     localStorageRef = typeof localStorage !== 'undefined' ? localStorage : null,
     generateId = () => crypto.randomUUID(),
     now = () => new Date().toISOString(),
-    onSuccess
+    onSuccess,
+    assertSessionCurrent,
+    isSessionCurrent
   } = deps;
 
   if (!storage) throw new CsvImportError('no_storage', 'Stockage indisponible.');
@@ -322,6 +325,10 @@ export async function importCsvFile(file, deps = {}) {
       throw new CsvImportError('no_vault', "Aucun coffre existant : creez-le avant d'importer un CSV.");
     }
 
+    if (typeof assertSessionCurrent === 'function') {
+      assertSessionCurrent(currentRecord);
+    }
+
     const validatedCurrent = validateImportedVaultStructure(currentRecord);
     const formatVersion = validatedCurrent.stats.formatVersion;
     const existingIds = new Set(validatedCurrent.entries.map((entry) => entry.id));
@@ -361,26 +368,69 @@ export async function importCsvFile(file, deps = {}) {
     // --- 6. instantane exclusivement chiffre ----------------------------
     const snapshot = createEncryptedSnapshot(currentRecord);
 
-    // --- 7. ecriture atomique puis verification -------------------------
-    await writeVaultRecordVerified(storage, validatedNext.normalized, snapshot);
+    // --- 7 et 8. publication principale + copie secondaire -------------
+    // Web Locks garde les deux stockages dans la meme section critique entre
+    // onglets. Le CAS IndexedDB reste la protection autoritative lorsque
+    // l'API Web Locks n'est pas disponible.
+    const persistence = await withVaultWriteLock(async () => {
+      if (typeof assertSessionCurrent === 'function') {
+        assertSessionCurrent(currentRecord);
+      }
+      const writeResult = await writeVaultRecordVerified(
+        storage,
+        validatedNext.normalized,
+        snapshot,
+        {
+          assertBeforeWrite: typeof assertSessionCurrent === 'function'
+            ? () => assertSessionCurrent(currentRecord)
+            : undefined
+        }
+      );
+      let superseded = writeResult.superseded === true;
 
-    // --- 8. sauvegarde secondaire, seulement ensuite --------------------
-    const backup = writeLocalBackup(validatedNext.normalized, { storage: localStorageRef });
+      const backup = superseded
+        ? {
+          written: false,
+          quotaExceeded: false,
+          reason: 'superseded',
+          message: 'Le coffre principal a deja un etat plus recent ; sa sauvegarde secondaire n\'a pas ete remplacee.'
+        }
+        : await writeLocalBackupVerified(validatedNext.normalized, {
+          storage: localStorageRef,
+          loadPrimary: () => storage.loadVault()
+        });
+      superseded = superseded || backup.primarySuperseded === true;
+      return { backup, superseded };
+    }, { lockManager: deps.lockManager });
+    const { backup, superseded } = persistence;
 
     // --- 9. etat en memoire et interface, seulement apres reussite ------
     const addedEntries = newEntries.map(({ id, payload }) => ({ ...payload, id }));
-    if (typeof onSuccess === 'function') {
-      await onSuccess(addedEntries);
+    let sessionActive = !superseded && (typeof isSessionCurrent === 'function'
+      ? isSessionCurrent()
+      : true);
+    if (sessionActive && typeof onSuccess === 'function') {
+      try {
+        await onSuccess(addedEntries);
+      } catch (error) {
+        if (error && error.name === 'VaultSessionError') {
+          sessionActive = false;
+        } else {
+          throw error;
+        }
+      }
     }
 
     return {
-      imported: true,
+      imported: !superseded,
+      superseded,
       addedCount: addedEntries.length,
       skippedCount: analysis.skippedCount,
       rejectedCount: analysis.rejectedCount,
       duplicateCount: analysis.duplicates.length,
       totalEntryCount: validatedNext.stats.entryCount,
       backup,
+      sessionActive,
       addedEntries
     };
   } finally {

@@ -45,6 +45,10 @@ function makeFakeDb(journal, options = {}) {
     // valide elle aussi, ce qui est normal et sans interet ici.
     transaction(_store, mode = 'readonly') {
       const tx = {
+        aborted: false,
+        abort() {
+          this.aborted = true;
+        },
         objectStore: () => ({
           put(record) {
             journal.push('idb:put');
@@ -72,15 +76,15 @@ function makeFakeDb(journal, options = {}) {
           }
         })
       };
-      queueMicrotask(() => {
-        if (options.abort && mode === 'readwrite') {
+      setTimeout(() => {
+        if (tx.aborted || (options.abort && mode === 'readwrite')) {
           journal.push('idb:abort');
           if (tx.onabort) tx.onabort();
         } else {
           if (mode === 'readwrite') journal.push('idb:commit');
           if (tx.oncomplete) tx.oncomplete();
         }
-      });
+      }, 0);
       return tx;
     }
   };
@@ -124,11 +128,21 @@ try {
 
     // LOT 3B : une lecture PREALABLE s'ajoute en tete. Elle construit
     // l'instantane chiffre du coffre courant, sans lequel une ecriture
-    // validee mais divergente ne pourrait pas etre annulee. Elle ne modifie
-    // rien et l'ordre des etapes suivantes est inchange.
+    // validee mais divergente ne pourrait pas etre annulee. La derniere
+    // relecture verifie que la copie secondaire correspond toujours au
+    // primaire apres son ecriture.
     assert.deepEqual(
       journal,
-      ['idb:read', 'idb:put', 'idb:commit', 'idb:read', `ls:write:${BACKUP_KEY_V1}`],
+      [
+        'idb:read',
+        'idb:read',
+        'idb:put',
+        'idb:commit',
+        'idb:read',
+        'idb:read',
+        `ls:write:${BACKUP_KEY_V1}`,
+        'idb:read'
+      ],
       'Ordre attendu : instantane, ecriture IndexedDB, validation, relecture, puis sauvegarde secondaire'
     );
     assert.equal(rapport.written, true, 'La sauvegarde secondaire doit reussir');

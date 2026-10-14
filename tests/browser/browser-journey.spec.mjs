@@ -29,19 +29,23 @@ const MDP = 'Parcours-Navigateur-Synthetique-2026!';
 const etapes = [];
 function etape(label, fn) { etapes.push({ label, fn }); }
 
-/** Contexte partage : navigateur, page, evaluation. */
+/** Contexte partage : navigateur, pages, evaluation. */
 const ctx = { logs: [], erreurs: [] };
 
-async function evaluer(expression) {
+async function evaluerDansSession(session, expression) {
   const resultat = await ctx.cdp.envoyer('Runtime.evaluate', {
     expression, awaitPromise: true, returnByValue: true
-  }, ctx.session);
+  }, session);
 
   if (resultat.exceptionDetails) {
     const d = resultat.exceptionDetails;
     throw new Error(`Exception dans la page : ${d.exception?.description || d.text}`);
   }
   return resultat.result.value;
+}
+
+async function evaluer(expression) {
+  return evaluerDansSession(ctx.session, expression);
 }
 
 async function naviguer() {
@@ -54,16 +58,24 @@ function patienter(ms) { return new Promise((res) => setTimeout(res, ms)); }
 
 /** Attend qu une condition devienne vraie DANS la page, sans delai fixe. */
 async function attendre(expression, quoi, limiteMs = 8000) {
+  return attendreDansSession(ctx.session, expression, quoi, limiteMs);
+}
+
+async function attendreDansSession(session, expression, quoi, limiteMs = 8000) {
   const echeance = Date.now() + limiteMs;
   while (Date.now() < echeance) {
-    if (await evaluer(expression)) return true;
+    if (await evaluerDansSession(session, expression)) return true;
     await patienter(100);
   }
   throw new Error(`Delai depasse : ${quoi} (condition « ${expression} »)`);
 }
 
 async function soumettreMotDePasse(motDePasse) {
-  await evaluer(`(() => {
+  return soumettreMotDePasseDansSession(ctx.session, motDePasse);
+}
+
+async function soumettreMotDePasseDansSession(session, motDePasse) {
+  await evaluerDansSession(session, `(() => {
     const champ = document.getElementById('master-password');
     champ.value = ${JSON.stringify(motDePasse)};
     champ.dispatchEvent(new Event('input', { bubbles: true }));
@@ -207,7 +219,52 @@ etape('B7 - DEVERROUILLAGE : l entree ajoutee est retrouvee, dechiffree', async 
     `L entree doit survivre au redemarrage. Recu : ${JSON.stringify(titres)}`);
 });
 
+etape('B7b - SECOND ONGLET : une seconde session ouvre le meme coffre synthetique', async () => {
+  const { targetId } = await ctx.cdp.envoyer('Target.createTarget', {
+    url: `${ctx.origin}/index.html`
+  });
+  await ctx.cdp.envoyer('Target.activateTarget', { targetId });
+  const { sessionId } = await ctx.cdp.envoyer('Target.attachToTarget', {
+    targetId,
+    flatten: true
+  });
+  ctx.secondarySession = sessionId;
+  await ctx.cdp.envoyer('Runtime.enable', {}, sessionId);
+  await ctx.cdp.envoyer('Page.enable', {}, sessionId);
+  await attendreDansSession(
+    sessionId,
+    `!!document.getElementById('auth-form')
+      && document.getElementById('unlock-vault').disabled === false
+      && document.getElementById('unlock-vault').textContent.includes('Déverrouiller')`,
+    'initialisation du stockage dans le second onglet'
+  );
+  // Cette etape cible le gestionnaire de session et le transport
+  // inter-onglets. Le parcours principal couvre deja le formulaire complet ;
+  // ici l'ouverture directe evite que la politique de mise en veille d'une
+  // cible CDP secondaire transforme le test de concurrence en test d'UI.
+  const etat = await evaluerDansSession(sessionId, `(async () => {
+    const { vaultManager } = await import('/scripts/core/vault/manager.js');
+    try {
+      await vaultManager.unlock(${JSON.stringify(MDP)});
+    } catch (error) {
+      return { erreur: error?.code || error?.name || 'unlock_failed' };
+    }
+    document.getElementById('auth-screen').hidden = true;
+    document.getElementById('vault-ui').hidden = false;
+    document.getElementById('searchInput').value = 'clair-temporaire-second-onglet';
+    return {
+      clePresente: vaultManager.masterKey !== null,
+      entrees: vaultManager.getEntries().length
+    };
+  })()`);
+  assert.equal(etat.erreur, undefined,
+    `Le second onglet doit pouvoir ouvrir le coffre : ${JSON.stringify(etat)}`);
+  assert.equal(etat.clePresente, true, 'Le second onglet doit posseder sa propre session');
+  assert.ok(etat.entrees >= 1, 'Le second onglet doit avoir dechiffre le coffre synthetique');
+});
+
 etape('B8 - MODIFICATION : le changement est chiffre et persiste', async () => {
+  await ctx.cdp.envoyer('Target.activateTarget', { targetId: ctx.primaryTarget });
   const resultat = await evaluer(`(async () => {
     const { vaultManager } = await import('/scripts/core/vault/manager.js');
     const entree = vaultManager.getEntries().find((e) => e.title === 'Service-Parcours-B4');
@@ -224,6 +281,24 @@ etape('B8 - MODIFICATION : le changement est chiffre et persiste', async () => {
   assert.ok(!persiste.includes('Service-Parcours-B8-Modifie'),
     'Le nouveau titre doit etre CHIFFRE dans le coffre persiste');
   assert.ok(!persiste.includes('MotDePasse-Modifie-B8!'));
+
+  await attendreDansSession(
+    ctx.secondarySession,
+    `(async () => {
+      const { vaultManager } = await import('/scripts/core/vault/manager.js');
+      return vaultManager.masterKey === null
+        && vaultManager.getEntries().length === 0
+        && document.getElementById('auth-screen').hidden === false;
+    })()`,
+    'invalidation inter-onglets apres remplacement du coffre'
+  );
+
+  const secondOnglet = await evaluerDansSession(ctx.secondarySession, `({
+    rechercheVide: document.getElementById('searchInput').value === '',
+    tableauVide: document.getElementById('dashboardSearchInput').value === ''
+  })`);
+  assert.deepEqual(secondOnglet, { rechercheVide: true, tableauVide: true },
+    'Le verrouillage distant doit aussi purger les champs en clair du second onglet');
 });
 
 etape('B9 - EXPORT : le fichier produit est chiffre, sans aucun clair', async () => {
@@ -388,6 +463,7 @@ if (!executable) {
     ctx.cdp = await ClientCdp.connecter(navigateur.wsUrl);
 
     const { targetId } = await ctx.cdp.envoyer('Target.createTarget', { url: 'about:blank' });
+    ctx.primaryTarget = targetId;
     const { sessionId } = await ctx.cdp.envoyer('Target.attachToTarget', { targetId, flatten: true });
     ctx.session = sessionId;
 

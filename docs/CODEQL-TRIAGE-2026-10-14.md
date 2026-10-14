@@ -43,10 +43,14 @@ triage decision. Do not disable the CodeQL query or suppress the rule.
 ## Unrelated Codex Security report
 
 The separate offline Codex scan at `bab4c4b` lists 6 medium and 8 low
-issues. In particular the 6 medium items concern whole-record concurrency,
-cross-tab key identity, re-lock races and plaintext lifetime.
-They have **not** been repaired by the seven targeted CodeQL changes.
-They require fresh verification against current HEAD and synthetic
-multi-tab/asynchronous reproductions before product changes.
+issues. The 6 medium items were reverified on the later local base `96ed684`
+and remediated in the current uncommitted worktree. The changes cover
+whole-record concurrency, cross-tab key identity, re-lock races and plaintext
+lifetime. Regression tests use only synthetic records, including a real
+two-tab Edge journey in a disposable browser profile.
+
+This local remediation does **not** close or reclassify the original scan,
+does not constitute a cryptographic audit, and has not been committed or
+pushed. A new scan against the eventual reviewed commit is still required.
 
 All tests must use synthetic entries. No personal vault or secrets.

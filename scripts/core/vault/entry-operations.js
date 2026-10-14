@@ -105,6 +105,7 @@ const WRITE_FAILURE_MESSAGES = Object.freeze({
   // ecrit ; le message doit le dire, sans laisser croire a une perte.
   snapshot_unavailable: "L'etat actuel du coffre n'a pas pu etre lu. Aucune modification n'a ete enregistree.",
   snapshot_unusable: "L'etat actuel du coffre n'a pas pu etre preserve. Aucune modification n'a ete enregistree.",
+  write_conflict: "Le coffre a change pendant l'operation. Aucune modification obsolete n'a ete enregistree ; rechargez puis reessayez.",
   transaction_aborted: "L'enregistrement a ete annule. Le coffre precedent est inchange.",
   verification_failed: "L'enregistrement n'a pas pu etre verifie.",
   restore_failed: "L'enregistrement n'a pas pu etre verifie et le coffre precedent n'a pas pu etre retabli.",
@@ -116,6 +117,15 @@ function toOperationError(error) {
     return new EntryOperationError(error.code, error.message, error.field);
   }
   if (error instanceof EntryOperationError) return error;
+
+  if (error && error.name === 'VaultSessionError') {
+    const operationError = new EntryOperationError(
+      error.code || 'session_changed',
+      error.message || 'La session a change. Reconnectez-vous.'
+    );
+    operationError.written = error.details?.written === true;
+    return operationError;
+  }
 
   // Lot 3b : un echec d'ecriture verifiee n'est plus aplati en un
   // `write_failed` muet. L'appelant doit pouvoir distinguer :

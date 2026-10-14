@@ -44,9 +44,10 @@ import {
 } from './vault-crypto-verify.js';
 import {
   createEncryptedSnapshot,
+  withVaultWriteLock,
   writeVaultRecordVerified
 } from './vault-transaction.js';
-import { writeLocalBackup } from './local-backup.js';
+import { writeLocalBackupVerified } from './local-backup.js';
 
 /**
  * Message unique pour tout echec cryptographique. Reexporte depuis
@@ -143,7 +144,9 @@ export async function importVaultFile(file, deps = {}) {
     derive = deriveMasterKey,
     decrypt = decryptData,
     localStorageRef = typeof localStorage !== 'undefined' ? localStorage : null,
-    now
+    now,
+    assertSessionCurrent,
+    isSessionCurrent
   } = deps;
 
   if (!storage) throw new VaultImportError('no_storage', 'Stockage indisponible.');
@@ -259,14 +262,44 @@ export async function importVaultFile(file, deps = {}) {
     }
     const snapshot = createEncryptedSnapshot(currentRecord);
 
-    // --- 14 a 16. ecriture atomique, verification, restauration ---------
-    await writeVaultRecordVerified(storage, normalized, snapshot);
+    const persistence = await withVaultWriteLock(async () => {
+      if (typeof assertSessionCurrent === 'function') {
+        assertSessionCurrent(currentRecord);
+      }
 
-    // --- 17. sauvegarde secondaire, apres verification seulement --------
-    const backupResult = writeLocalBackup(normalized, { storage: localStorageRef, now });
+      // --- 14 a 16. ecriture atomique, verification, restauration -------
+      const writeResult = await writeVaultRecordVerified(storage, normalized, snapshot, {
+        assertBeforeWrite: typeof assertSessionCurrent === 'function'
+          ? () => assertSessionCurrent(currentRecord)
+          : undefined
+      });
+      let superseded = writeResult.superseded === true;
+
+      // --- 17. sauvegarde secondaire, apres verification seulement -------
+      const backupResult = superseded
+        ? {
+          written: false,
+          quotaExceeded: false,
+          reason: 'superseded',
+          message: 'Le coffre principal a deja un etat plus recent ; sa sauvegarde secondaire n\'a pas ete remplacee.'
+        }
+        : await writeLocalBackupVerified(normalized, {
+          storage: localStorageRef,
+          now,
+          loadPrimary: () => storage.loadVault()
+        });
+      superseded = superseded || backupResult.primarySuperseded === true;
+      return { backupResult, superseded };
+    }, { lockManager: deps.lockManager });
+    const { backupResult, superseded } = persistence;
+    const sessionActive = !superseded && (typeof isSessionCurrent === 'function'
+      ? isSessionCurrent()
+      : true);
 
     return {
-      imported: true,
+      imported: !superseded,
+      superseded,
+      sessionActive,
       summary,
       backup: backupResult,
       replacedEntryCount: snapshot ? snapshot.entries.length : 0

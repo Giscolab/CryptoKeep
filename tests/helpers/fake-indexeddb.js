@@ -68,6 +68,7 @@ class FakeTransaction {
     this.onabort = null;
     this.onerror = null;
     this.error = null;
+    this._aborted = false;
     // La validation est asynchrone, comme dans IndexedDB : les handlers
     // installes juste apres `put()` sont donc bien en place.
     setTimeout(() => this._settle(), 0);
@@ -77,19 +78,15 @@ class FakeTransaction {
     return new FakeObjectStore(this);
   }
 
+  abort() {
+    if (this._aborted) return;
+    this._aborted = true;
+    const error = new Error('IndexedDB transaction aborted.');
+    error.name = 'AbortError';
+    this.error = error;
+  }
+
   _settle() {
-    const writing = this.pendingWrites.length > 0 || this.pendingClear;
-
-    if (writing && this.db.abortNextWrites > 0) {
-      this.db.abortNextWrites -= 1;
-      this.db.aborts += 1;
-      const error = new Error('IndexedDB transaction aborted.');
-      error.name = 'AbortError';
-      this.error = error;
-      if (typeof this.onabort === 'function') this.onabort();
-      return;
-    }
-
     // Lectures : servies au moment de la validation.
     for (const read of this.reads) {
       // Une base ILLISIBLE n'est pas une base vide : la requete echoue, elle
@@ -110,6 +107,27 @@ class FakeTransaction {
       if (typeof read.request.onsuccess === 'function') {
         read.request.onsuccess({ target: { result } });
       }
+    }
+
+    if (this._aborted) {
+      this.db.aborts += 1;
+      if (typeof this.onabort === 'function') this.onabort();
+      return;
+    }
+
+    // Un `put()` conditionnel peut etre programme par le gestionnaire
+    // `onsuccess` d'une lecture. Le caractere ecriture doit donc etre calcule
+    // APRES les lectures, comme le ferait une transaction IndexedDB active.
+    const writing = this.pendingWrites.length > 0 || this.pendingClear;
+
+    if (writing && this.db.abortNextWrites > 0) {
+      this.db.abortNextWrites -= 1;
+      this.db.aborts += 1;
+      const error = new Error('IndexedDB transaction aborted.');
+      error.name = 'AbortError';
+      this.error = error;
+      if (typeof this.onabort === 'function') this.onabort();
+      return;
     }
 
     if (this.pendingClear) {

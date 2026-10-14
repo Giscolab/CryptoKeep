@@ -41,6 +41,15 @@
 
 /** Groupes de la derniere analyse. Vidée par `clearReuseAnalysis()`. */
 let currentGroups = [];
+/**
+ * Generation des analyses en memoire.
+ *
+ * Un verrouillage peut survenir pendant un `await digestOf(...)`. Incrementer
+ * cette valeur invalide toute continuation plus ancienne : elle peut terminer
+ * son calcul local, mais ne peut plus republier de donnees issues de la
+ * session fermee.
+ */
+let reuseEpoch = 0;
 
 /** Identifiant de groupe aleatoire, sans aucun lien avec le mot de passe. */
 function randomGroupId() {
@@ -183,8 +192,11 @@ export async function findReuseGroups(entries = [], options = {}) {
  * titres, URL, noms d'utilisateur. Jamais un mot de passe, jamais un
  * condensat.
  */
-export async function analyzeReuse(entries = []) {
-  currentGroups = await findReuseGroups(entries);
+export async function analyzeReuse(entries = [], options = {}) {
+  const analysisEpoch = ++reuseEpoch;
+  const groups = await findReuseGroups(entries, options);
+  if (analysisEpoch !== reuseEpoch) return [];
+  currentGroups = groups;
   return currentGroups;
 }
 
@@ -214,6 +226,7 @@ export function getReuseGroupEntries(groupId, allEntries = []) {
  * @returns {{cleared: number}} nombre de groupes effaces, verifiable
  */
 export function clearReuseAnalysis() {
+  reuseEpoch += 1;
   const cleared = currentGroups.length;
   currentGroups = [];
   return { cleared };

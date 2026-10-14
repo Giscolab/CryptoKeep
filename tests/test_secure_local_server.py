@@ -44,7 +44,10 @@ class SecureServerBoundary(unittest.TestCase):
         self.tmp.cleanup()
 
     def request(self, path, host=None):
-        conn = HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
+        # Windows may scan the larger vendored bundle on first read. This is
+        # a MIME/boundary test, not a latency test; keep a bounded but stable
+        # timeout consistent with the Node local-server fixture.
+        conn = HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
         conn.request("GET", path, headers={
             "Host": host if host is not None else f"127.0.0.1:{self.server.server_port}"
         })
@@ -83,8 +86,12 @@ class SecureServerBoundary(unittest.TestCase):
         thread.start()
         try:
             for asset in sorted(paths):
-                conn = HTTPConnection("127.0.0.1", server.server_port, timeout=3)
-                conn.request("GET", f"/{asset}")
+                conn = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+                # This case verifies that every real index reference is
+                # admitted by the allowlist. Small synthetic GET bodies are
+                # exercised above; HEAD avoids a same-process Windows socket
+                # stall on the 207 KiB vendored Chart bundle.
+                conn.request("HEAD", f"/{asset}")
                 response = conn.getresponse()
                 status = response.status
                 response.read()

@@ -37,6 +37,9 @@
  * Le rapport dit ce qui a ete efface, pas que la donnee est irrecuperable.
  */
 
+import { withVaultWriteLock } from '../storage/vault-transaction.js';
+import { publishVaultChange } from '../storage/vault-sync.js';
+
 /**
  * Phrase que l'utilisateur doit saisir en toutes lettres.
  *
@@ -408,7 +411,7 @@ function rapportDeRefus(scope, reason) {
  * @param {Function} [options.restoreFirstUse] retour a l'etat initial
  * @returns {Promise<object>} rapport verifiable
  */
-export async function destroyVaultData(options = {}) {
+async function destroyVaultDataWithLockHeld(options = {}) {
   const {
     scope,
     confirmation,
@@ -418,7 +421,8 @@ export async function destroyVaultData(options = {}) {
     clearSession = null,
     clearClipboard = null,
     restoreFirstUse = null,
-    dropTimeoutMs = 2000
+    dropTimeoutMs = 2000,
+    publishChange = publishVaultChange
   } = options;
 
   // --- 1. Portee connue -------------------------------------------------
@@ -499,10 +503,35 @@ export async function destroyVaultData(options = {}) {
       ? descripteur.stores : cible.stores;
 
     let toutVide = true;
+    let coffreModifieOuAbsent = false;
     for (const storeName of stores) {
       const entree = await effacerStore(db, cible.name, storeName);
       rapport.targets.push(entree);
       if (entree.outcome === 'failed' || entree.outcome === 'unverified') toutVide = false;
+      if (cible.name === 'VaultDB' && entree.verified
+        && (entree.outcome === 'cleared' || entree.outcome === 'absent')) {
+        coffreModifieOuAbsent = true;
+      }
+    }
+
+    // Un onglet qui conserve encore la cle de l'ancien coffre doit etre
+    // verrouille AVANT la tentative de suppression de la base, laquelle peut
+    // justement etre bloquee par sa connexion IndexedDB. Le signal ne porte
+    // aucune donnee du coffre. Une erreur de transport ne transforme pas un
+    // vidage verifie en echec, mais le rapport la rend explicite.
+    if (coffreModifieOuAbsent && typeof publishChange === 'function') {
+      try {
+        const delivery = publishChange();
+        if (delivery && delivery.storageNotified === false
+          && delivery.broadcastNotified === false) {
+          rapport.notes.push(
+            'Le coffre a ete vide, mais aucun transport inter-onglets n\'a confirme le signal. '
+            + 'Les autres onglets verifieront IndexedDB a leur retour au premier plan.');
+        }
+      } catch {
+        rapport.notes.push(
+          'Le coffre a ete vide, mais le signal de verrouillage des autres onglets a echoue.');
+      }
     }
 
     // La base n'est supprimee que si TOUS ses stores sont verifies vides.
@@ -594,6 +623,24 @@ export async function destroyVaultData(options = {}) {
 
   rapport.finishedAt = new Date().toISOString();
   return rapport;
+}
+
+/**
+ * Execute la suppression sous le meme verrou inter-onglets que les autres
+ * remplacements complets du coffre. Les suppressions limitees au profil ne
+ * touchent pas le coffre et n'ont pas besoin de ce verrou.
+ */
+export async function destroyVaultData(options = {}) {
+  const scope = options.scope;
+  const touchesVault = scope === DESTRUCTION_SCOPES.VAULT
+    || scope === DESTRUCTION_SCOPES.ALL;
+
+  if (!touchesVault) return destroyVaultDataWithLockHeld(options);
+
+  return withVaultWriteLock(
+    () => destroyVaultDataWithLockHeld(options),
+    { lockManager: options.lockManager }
+  );
 }
 
 export default {

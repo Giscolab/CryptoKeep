@@ -78,7 +78,7 @@ pie
 
 ### Prérequis Système
 ```bash
-✅ Navigateur moderne (Chromium 90+, Firefox 87+, Safari 15+)
+✅ Navigateur moderne avec Web Crypto, IndexedDB et Web Locks (`navigator.locks`)
 ✅ 50MB d'espace de stockage
 ✅ Accès Web Crypto API activé
 ```

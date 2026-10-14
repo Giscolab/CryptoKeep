@@ -19,6 +19,8 @@ import { ensureChart, resolveChart } from './chart-loader.js';
 
 /** Dernier rapport, en memoire uniquement. Efface au verrouillage. */
 let lastReport = AUDIT_NOT_RUN;
+/** Generation d'affichage : invalide les audits encore en vol au lock. */
+let auditEpoch = 0;
 
 /** Libelles des constats. Decrivent la FORME, jamais le contenu. */
 const PROBLEM_LABELS = Object.freeze({
@@ -457,6 +459,7 @@ export function renderAuditReport(rapport, options = {}) {
 export async function runAndRenderAudit(options = {}) {
   const manager = options.vaultManager || vaultManager;
   const deverrouille = Boolean(manager && manager.masterKey);
+  const runEpoch = ++auditEpoch;
 
   if (!deverrouille) {
     lastReport = { ...AUDIT_NOT_RUN, message: 'Coffre verrouillé : déverrouillez-le pour lancer un audit.' };
@@ -464,8 +467,33 @@ export async function runAndRenderAudit(options = {}) {
     return lastReport;
   }
 
+  let sessionGuard = null;
+  if (typeof manager.captureSessionGuard === 'function') {
+    try {
+      sessionGuard = manager.captureSessionGuard();
+    } catch {
+      lastReport = { ...AUDIT_NOT_RUN, message: 'Coffre verrouillé : audit non exécuté.' };
+      renderAuditReport(lastReport, options);
+      return lastReport;
+    }
+  }
+
   const entries = manager.getEntries();
-  lastReport = await runSecurityAudit(entries, options.auditOptions || {});
+  const auditRunner = typeof options.runAudit === 'function'
+    ? options.runAudit
+    : runSecurityAudit;
+  const report = await auditRunner(entries, options.auditOptions || {});
+  const sessionStillCurrent = sessionGuard
+    ? (typeof manager.isSessionGuardCurrent === 'function'
+      && manager.isSessionGuardCurrent(sessionGuard))
+    : Boolean(manager.masterKey);
+
+  // Un lock, un nouvel audit ou une nouvelle session a invalide ce calcul.
+  // Le rapport local est abandonne : il ne doit ni remplacer l'etat vide ni
+  // repeupler le DOM avec des informations de l'ancienne session.
+  if (runEpoch !== auditEpoch || !sessionStillCurrent) return lastReport;
+
+  lastReport = report;
   renderAuditReport(lastReport, options);
   return lastReport;
 }
@@ -477,6 +505,7 @@ export function getLastAuditReport() {
 
 /** Efface le rapport. A APPELER AU VERROUILLAGE. */
 export function clearAuditReport(options = {}) {
+  auditEpoch += 1;
   const avait = lastReport.status === 'completed';
   lastReport = AUDIT_NOT_RUN;
   renderAuditReport(lastReport, options);

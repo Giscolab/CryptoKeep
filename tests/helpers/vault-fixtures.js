@@ -16,6 +16,11 @@ import {
   entryAdditionalData,
   validationAdditionalData
 } from '../../scripts/core/storage/vault-format.js';
+import {
+  recordsAreIdentical,
+  VaultWriteConflictError
+} from '../../scripts/core/storage/vault-transaction.js';
+import { validateVaultRecord } from '../../scripts/core/storage/vault-format.js';
 
 /** Stockage IndexedDB synthetique, avec transaction interruptible. */
 export class FakeVaultStorage {
@@ -30,6 +35,8 @@ export class FakeVaultStorage {
     this.corruptReadAfterWrite = false;
     this._corruptPending = false;
     this.failNextRead = false;
+    this.beforeNextWrite = null;
+    this.supersedeAfterNextWrite = null;
     this.history = [];
   }
 
@@ -54,13 +61,30 @@ export class FakeVaultStorage {
     return this.record ? structuredClone(this.record) : null;
   }
 
-  async putVaultRecord(record) {
+  async putVaultRecord(record, options = {}) {
     if (this.abortNextWrites > 0) {
       this.abortNextWrites -= 1;
       // La transaction est annulee : rien n'est ecrit, l'ancien record reste.
       const error = new Error('IndexedDB transaction aborted.');
       error.name = 'AbortError';
       throw error;
+    }
+    if (typeof this.beforeNextWrite === 'function') {
+      const beforeWrite = this.beforeNextWrite;
+      this.beforeNextWrite = null;
+      await beforeWrite();
+    }
+    if (typeof options.assertBeforeWrite === 'function') {
+      options.assertBeforeWrite();
+    }
+    if (Object.prototype.hasOwnProperty.call(options, 'expectedCurrent')) {
+      const comparableCurrent = this.record ? validateVaultRecord(this.record) : null;
+      const comparableExpected = options.expectedCurrent
+        ? validateVaultRecord(options.expectedCurrent)
+        : null;
+      if (!recordsAreIdentical(comparableCurrent, comparableExpected)) {
+        throw new VaultWriteConflictError();
+      }
     }
     if (this.corruptReadAfterWrite) {
       this.corruptReadAfterWrite = false;
@@ -69,6 +93,11 @@ export class FakeVaultStorage {
     this.writes += 1;
     this.record = structuredClone(record);
     this.history.push(structuredClone(record));
+    if (this.supersedeAfterNextWrite) {
+      this.record = structuredClone(this.supersedeAfterNextWrite);
+      this.history.push(structuredClone(this.supersedeAfterNextWrite));
+      this.supersedeAfterNextWrite = null;
+    }
     return this.record;
   }
 }

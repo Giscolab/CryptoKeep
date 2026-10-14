@@ -105,7 +105,8 @@ export async function migrateLegacyBackupVerified(deps = {}) {
     requestPassword,
     derive,
     decrypt,
-    now
+    now,
+    lockManager
   } = deps;
 
   if (!storage) {
@@ -154,6 +155,7 @@ export async function migrateLegacyBackupVerified(deps = {}) {
     const report = await migrateLegacyBackup({
       storage,
       now,
+      lockManager,
       verifyRecord: async (record) => {
         const validated = validateImportedVaultStructure(record);
         // Bloc de validation, puis TOUTES les entrees, puis plaintext.

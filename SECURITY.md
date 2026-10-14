@@ -41,6 +41,9 @@ de journal personnel dans un rapport.** Fabriquez un coffre de démonstration.
 | Aucun clair persisté | Ni mot de passe, ni clé, ni entrée déchiffrée dans IndexedDB, `localStorage`, `sessionStorage` ou un journal | `L2`, `L12`, `B14`, `B15` |
 | Verrouillage automatique | Inactivité configurable ; onglet masqué | `tests/autolock-controller.spec.js` |
 | Purge de session | Clé, sel, entrées déchiffrées, groupes de réutilisation, cache HIBP, rapport d'audit | `L14` à `L17`, `B12` |
+| Écritures concurrentes | Verrou Web Locks inter-onglets, comparaison conditionnelle dans la transaction IndexedDB, rollback conditionnel | `tests/medium-security-regressions.spec.js` (`M1`, `M2`) |
+| Remplacement inter-onglets | Signal sans secret, purge immédiate, puis réconciliation IndexedDB au retour au premier plan | `M3` à `M3c`, parcours navigateur `B7b`–`B8` |
+| Continuités asynchrones | Époque de session vérifiée avant écriture ou publication de plaintext | `M4` à `M5c`, `M7b`, `M8` |
 | Import hostile | Validation structurelle **puis** cryptographique, limites de taille, refus des propriétés inattendues | `tests/vault-import-*.spec.js`, `B10` |
 | CSP | Aucune directive `unsafe-inline`, aucune `unsafe-eval` | `index.html` |
 | Dépendances | **Aucune** : `dependencies: null`, aucun CDN | `package.json` |
@@ -92,6 +95,15 @@ ou par consommation. Web Crypto fournit ce qu'il fournit.
 
 Il n'est stocké nulle part, sous aucune forme. Il n'existe ni récupération, ni
 question de secours, ni porte dérobée. **Exportez votre coffre régulièrement.**
+
+### 4.8 Les écritures exigent Web Locks
+
+CryptoKeep refuse une écriture du coffre dans un navigateur qui n'expose pas
+`navigator.locks`. IndexedDB sait protéger atomiquement le record principal,
+mais `localStorage` ne fournit aucun compare-and-swap : continuer avec un
+simple verrou en mémoire créerait une fausse garantie entre onglets. La lecture
+et la compatibilité d'un navigateur doivent donc être distinguées de sa
+capacité à modifier le coffre en sécurité.
 
 ## 5. Hors périmètre
 

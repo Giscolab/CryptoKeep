@@ -442,6 +442,31 @@ test('8.20 - purge memoire en echec : le stockage est traite quand meme', async 
   assert.ok(rapport.notes.some((n) => n.includes('purge memoire')));
 });
 
+test('8.20b - suppression du coffre verrouille les auteurs et invalide les autres onglets', async () => {
+  const registre = registreComplet();
+  const storage = stockageComplet();
+  let demandesDeVerrou = 0;
+  let publications = 0;
+
+  const rapport = await destroyVaultData(optionsDeBase(registre, storage, {
+    scope: DESTRUCTION_SCOPES.VAULT,
+    lockManager: {
+      request: async (_name, options, task) => {
+        demandesDeVerrou += 1;
+        assert.equal(options.mode, 'exclusive');
+        return task();
+      }
+    },
+    publishChange: () => { publications += 1; }
+  }));
+
+  assert.equal(rapport.status, 'completed');
+  assert.equal(demandesDeVerrou, 1,
+    'Le vidage complet doit partager le verrou de toutes les ecritures du coffre');
+  assert.equal(publications, 1,
+    'Le vidage verifie doit demander aux autres onglets de purger leur session');
+});
+
 test('8.21 - presse-papiers : tentative rapportee, jamais promise', async () => {
   const registre = registreComplet();
   const storage = stockageComplet();

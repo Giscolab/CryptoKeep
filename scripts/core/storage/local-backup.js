@@ -24,7 +24,11 @@
  */
 
 import { validateImportedVaultStructure } from './vault-import-validator.js';
-import { canonicalize } from './vault-transaction.js';
+import {
+  canonicalize,
+  recordsAreIdentical,
+  withVaultWriteLock
+} from './vault-transaction.js';
 
 /** Cle versionnee de la nouvelle enveloppe. */
 export const BACKUP_KEY_V1 = 'cryptokeep.backup.v1';
@@ -119,8 +123,10 @@ export function parseBackupEnvelope(raw) {
 }
 
 /**
- * Ecrit la sauvegarde secondaire. A n'appeler QU'APRES verification de
- * l'ecriture IndexedDB principale.
+ * Ecrit la sauvegarde secondaire. API de compatibilite BAS NIVEAU : les flux
+ * de production qui publient aussi le coffre principal utilisent
+ * `writeLocalBackupVerified` sous `withVaultWriteLock`. Un appel direct doit
+ * deja detenir ce verrou, car localStorage n'offre aucun CAS atomique.
  *
  * @returns {{written: boolean, quotaExceeded: boolean, message: string}}
  */
@@ -161,6 +167,128 @@ export function writeLocalBackup(vaultRecord, options = {}) {
       message: 'La sauvegarde secondaire n\'a pas pu etre ecrite. Le coffre principal reste intact.'
     };
   }
+}
+
+/**
+ * Ecrit la sauvegarde puis verifie que le record principal vise est toujours
+ * courant. IndexedDB et localStorage ne partagent pas de transaction : cette
+ * seconde verification empeche donc un auteur devenu obsolete de retrograder
+ * uniquement la copie secondaire apres qu'un autre onglet a publie le
+ * successeur et sa sauvegarde.
+ *
+ * Cette fonction est appelee dans `withVaultWriteLock`, qui fournit
+ * l'exclusion inter-onglets avec Web Locks. Dans un vrai navigateur sans
+ * cette API, l'ecriture est refusee : localStorage ne possede pas lui-meme de
+ * compare-and-swap atomique et un repli par onglet serait trompeur.
+ */
+export async function writeLocalBackupVerified(vaultRecord, options = {}) {
+  const storage = resolveStorage(options.storage);
+  if (!storage) {
+    return { written: false, quotaExceeded: false, message: 'Stockage local indisponible.' };
+  }
+
+  let payload;
+  try {
+    payload = JSON.stringify(buildBackupEnvelope(vaultRecord, options));
+  } catch (error) {
+    return {
+      written: false,
+      quotaExceeded: false,
+      message: `Sauvegarde secondaire refusee : ${error.code || 'structure invalide'}.`
+    };
+  }
+
+  let previousRaw = null;
+  let previousReadable = true;
+  try {
+    previousRaw = storage.getItem(BACKUP_KEY_V1);
+  } catch {
+    previousReadable = false;
+  }
+
+  let writeResult;
+  try {
+    storage.setItem(BACKUP_KEY_V1, payload);
+    writeResult = { written: true, quotaExceeded: false, message: 'Sauvegarde secondaire mise a jour.' };
+  } catch (error) {
+    if (isQuotaError(error)) {
+      return {
+        written: false,
+        quotaExceeded: true,
+        message: 'Quota du stockage local depasse : la sauvegarde secondaire n\'a pas ete mise a jour. Le coffre principal reste intact.'
+      };
+    }
+    return {
+      written: false,
+      quotaExceeded: false,
+      message: 'La sauvegarde secondaire n\'a pas pu etre ecrite. Le coffre principal reste intact.'
+    };
+  }
+
+  if (typeof options.loadPrimary !== 'function') return writeResult;
+
+  const rollbackCandidate = () => {
+    let backupReverted = false;
+    let concurrentBackupPreserved = false;
+    try {
+      const currentRaw = storage.getItem(BACKUP_KEY_V1);
+      if (currentRaw !== payload) {
+        concurrentBackupPreserved = true;
+      } else if (previousReadable && previousRaw !== null && previousRaw !== payload) {
+        storage.setItem(BACKUP_KEY_V1, previousRaw);
+        backupReverted = true;
+      } else {
+        storage.removeItem(BACKUP_KEY_V1);
+        backupReverted = true;
+      }
+    } catch {
+      // Dernier recours : retirer uniquement NOTRE valeur devenue obsolete.
+      try {
+        if (storage.getItem(BACKUP_KEY_V1) === payload) {
+          storage.removeItem(BACKUP_KEY_V1);
+          backupReverted = true;
+        }
+      } catch {
+        /* nettoyage best-effort, signale par backupReverted=false */
+      }
+    }
+    return { backupReverted, concurrentBackupPreserved };
+  };
+
+  let primary;
+  try {
+    primary = await options.loadPrimary();
+  } catch {
+    const cleanup = rollbackCandidate();
+    return {
+      written: false,
+      quotaExceeded: false,
+      reason: 'primary_unverified',
+      primaryVerified: false,
+      ...cleanup,
+      message: cleanup.backupReverted || cleanup.concurrentBackupPreserved
+        ? 'Le coffre principal n\'a pas pu etre relu ; la nouvelle copie secondaire non verifiee n\'a pas ete conservee.'
+        : 'Le coffre principal n\'a pas pu etre relu et la copie secondaire non verifiee n\'a pas pu etre retiree automatiquement.'
+    };
+  }
+
+  if (recordsAreIdentical(primary, vaultRecord)) {
+    return { ...writeResult, primaryVerified: true, primarySuperseded: false };
+  }
+
+  const { backupReverted, concurrentBackupPreserved } = rollbackCandidate();
+
+  return {
+    written: false,
+    quotaExceeded: false,
+    reason: 'superseded',
+    primarySuperseded: true,
+    backupReverted,
+    concurrentBackupPreserved,
+    message: backupReverted || concurrentBackupPreserved
+      ? 'Le coffre principal a deja un etat plus recent ; sa sauvegarde secondaire obsolete n\'a pas ete conservee.'
+      : 'Le coffre principal a deja un etat plus recent et la copie secondaire obsolete n\'a pas pu etre retiree automatiquement.'
+  };
 }
 
 /** Relit et valide la sauvegarde secondaire versionnee. */
@@ -318,37 +446,59 @@ export async function migrateLegacyBackup(options = {}) {
     };
   }
 
-  const envelope = buildBackupEnvelope(legacy.record, { now: options.now });
-  try {
-    storage.setItem(BACKUP_KEY_V1, JSON.stringify(envelope));
-  } catch (error) {
-    return {
-      migrated: false,
-      reason: isQuotaError(error) ? 'quota_exceeded' : 'write_failed',
-      legacyPreserved: true
-    };
-  }
+  return withVaultWriteLock(async () => {
+    // La decision prise avant la verification portait sur CETTE valeur
+    // historique. Une autre migration/modification gagne si elle l'a changee.
+    if (storage.getItem(LEGACY_BACKUP_KEY) !== legacyRaw) {
+      return { migrated: false, reason: 'legacy_changed', legacyPreserved: true };
+    }
 
-  // Relecture et verification avant toute suppression.
-  let reread;
-  try {
-    reread = parseBackupEnvelope(storage.getItem(BACKUP_KEY_V1));
-  } catch {
-    return { migrated: false, reason: 'reread_failed', legacyPreserved: true };
-  }
+    // Une enveloppe versionnee valide a priorite. Elle peut avoir ete publiee
+    // par un autre onglet pendant la verification cryptographique.
+    const existingVersioned = storage.getItem(BACKUP_KEY_V1);
+    if (existingVersioned) {
+      try {
+        parseBackupEnvelope(existingVersioned);
+        return { migrated: false, reason: 'versioned_backup_exists', legacyPreserved: true };
+      } catch {
+        // Une enveloppe illisible ne bloque pas la migration verifiee.
+      }
+    }
 
-  if (canonicalize(reread.record) !== canonicalize(envelope.record)) {
-    return { migrated: false, reason: 'verification_mismatch', legacyPreserved: true };
-  }
+    const envelope = buildBackupEnvelope(legacy.record, { now: options.now });
+    try {
+      storage.setItem(BACKUP_KEY_V1, JSON.stringify(envelope));
+    } catch (error) {
+      return {
+        migrated: false,
+        reason: isQuotaError(error) ? 'quota_exceeded' : 'write_failed',
+        legacyPreserved: true
+      };
+    }
 
-  // Toutes les etapes ont reussi : l'ancienne cle peut disparaitre.
-  try {
-    storage.removeItem(LEGACY_BACKUP_KEY);
-  } catch {
-    return { migrated: true, sourceFormat: legacy.format, legacyPreserved: true };
-  }
+    // Relecture et verification avant toute suppression.
+    let reread;
+    try {
+      reread = parseBackupEnvelope(storage.getItem(BACKUP_KEY_V1));
+    } catch {
+      return { migrated: false, reason: 'reread_failed', legacyPreserved: true };
+    }
 
-  return { migrated: true, sourceFormat: legacy.format, legacyPreserved: false };
+    if (canonicalize(reread.record) !== canonicalize(envelope.record)) {
+      return { migrated: false, reason: 'verification_mismatch', legacyPreserved: true };
+    }
+
+    // Toutes les etapes ont reussi : l'ancienne cle peut disparaitre.
+    try {
+      if (storage.getItem(LEGACY_BACKUP_KEY) === legacyRaw) {
+        storage.removeItem(LEGACY_BACKUP_KEY);
+      }
+    } catch {
+      return { migrated: true, sourceFormat: legacy.format, legacyPreserved: true };
+    }
+
+    return { migrated: true, sourceFormat: legacy.format, legacyPreserved: false };
+  }, { lockManager: options.lockManager });
 }
 
 /**
@@ -380,6 +530,7 @@ export default {
   buildBackupEnvelope,
   parseBackupEnvelope,
   writeLocalBackup,
+  writeLocalBackupVerified,
   readLocalBackup,
   clearLocalBackup,
   readLegacyBackup,

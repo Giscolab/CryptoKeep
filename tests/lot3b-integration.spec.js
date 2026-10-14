@@ -524,8 +524,12 @@ check('D1 - une mutation reussie met a jour le DOM, les compteurs et les statist
   assert.equal(textOf(document.getElementById('vault-count')), '1/1');
 
   await createEntry(vaultManager, { title: 'Beta', password: 'MotDePasse-Beta-2!' });
-  // L'abonnement centralise est asynchrone : on attend son tour de boucle.
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  // L'audit utilise Web Crypto de maniere asynchrone : un seul tour de
+  // boucle ne garantit pas que les statistiques soient deja publiees.
+  await attendreQue(
+    () => textOf(document.getElementById('stats-total')) === '2',
+    'les statistiques doivent refleter les deux entrees'
+  );
 
   assert.deepEqual(renderedTitles('entries').sort(), ['Alpha', 'Beta'],
     'Le conteneur #entries doit contenir la nouvelle entree');

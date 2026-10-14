@@ -24,6 +24,7 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
+import { request } from 'node:http';
 import { lireFichier } from './helpers/repo-files.js';
 
 const cas = [];
@@ -51,6 +52,46 @@ function portLibre() {
   });
 }
 
+/**
+ * Interroge le serveur Python REEL via node:http, sans passer par le
+ * fetch/Undici embarque dans Node 24.19 sur Windows (assert(!this.paused)).
+ * La destination HTTP est toujours la boucle locale et le corps est draine.
+ * Les en-tetes et statuts restent ceux du vrai serveur, sans simulation.
+ */
+function requeteLocale(port, chemin) {
+  return new Promise((resolve, reject) => {
+    const req = request({
+      hostname: '127.0.0.1',
+      port,
+      path: chemin,
+      method: 'GET',
+      agent: false
+    }, (response) => {
+      response.once('error', reject);
+      response.resume();
+      response.once('end', () => {
+        const status = response.statusCode;
+        resolve({
+          status,
+          ok: status >= 200 && status < 300,
+          headers: {
+            get(name) {
+              const value = response.headers[name.toLowerCase()];
+              return Array.isArray(value) ? value.join(', ') : (value ?? null);
+            }
+          }
+        });
+      });
+    });
+    // Le serveur Python est volontairement mono-processus et Windows peut
+    // analyser les gros bundles a la premiere lecture. Trois secondes
+    // rendaient ce test de type MIME aleatoire sans renforcer sa securite.
+    req.setTimeout(10000, () => req.destroy(new Error('Requete locale expiree')));
+    req.once('error', reject);
+    req.end();
+  });
+}
+
 /** Demarre le vrai serveur du projet et attend qu'il reponde. */
 async function demarrerServeur(python) {
   const port = await portLibre();
@@ -62,7 +103,7 @@ async function demarrerServeur(python) {
   const echeance = Date.now() + 15000;
   while (Date.now() < echeance) {
     try {
-      const reponse = await fetch(`http://127.0.0.1:${port}/index.html`);
+      const reponse = await requeteLocale(port, '/index.html');
       if (reponse.ok) return { port, processus };
     } catch {
       await new Promise((r) => setTimeout(r, 150));
@@ -84,7 +125,7 @@ async function typeDe(chemin) {
   assert.match(chemin, /^\/[A-Za-z0-9._/-]+$/, 'Chemin de ressource locale requis');
   assert.ok(!chemin.startsWith('//') && !chemin.split('/').slice(1).some((p) => p === '.' || p === '..' || p === ''),
     'Les composants de chemin ambigus ou externes sont interdits');
-  const reponse = await fetch(`http://127.0.0.1:${serveur.port}${chemin}`);
+  const reponse = await requeteLocale(serveur.port, chemin);
   assert.equal(reponse.status, 200, `Ressource introuvable : ${chemin}`);
   return {
     type: (reponse.headers.get('content-type') || '').split(';')[0].trim(),

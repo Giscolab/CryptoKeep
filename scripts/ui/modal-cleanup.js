@@ -17,6 +17,71 @@ export const MODAL_SELECTORS = [
   'dialog[open]'
 ];
 
+const SENSITIVE_FIELD_IDS = Object.freeze([
+  'entry-title',
+  'entry-username',
+  'password',
+  'website',
+  'entry-notes',
+  'entry-tags',
+  'currentPassword',
+  'newPassword',
+  'confirmPassword',
+  'secure-dialog-password',
+  'new-password-input'
+]);
+
+/**
+ * Purge best-effort des valeurs sensibles portees par les formulaires.
+ *
+ * Cette fonction ne promet aucune zeroisation des chaines JavaScript. Elle
+ * supprime les references DOM evitables et retablit le masquage avant que les
+ * modales ne soient cachees ou detachees.
+ */
+export function purgeSensitiveModalState(
+  doc = typeof document !== 'undefined' ? document : null
+) {
+  const report = { cleared: 0, remasked: 0, categoryReset: false };
+  if (!doc || typeof doc.getElementById !== 'function') return report;
+
+  SENSITIVE_FIELD_IDS.forEach((id) => {
+    const field = doc.getElementById(id);
+    if (!field) return;
+    if ('value' in field) {
+      field.value = '';
+      report.cleared += 1;
+    }
+    if (id === 'password'
+      || id === 'currentPassword'
+      || id === 'newPassword'
+      || id === 'confirmPassword'
+      || id === 'secure-dialog-password'
+      || id === 'new-password-input') {
+      field.type = 'password';
+      report.remasked += 1;
+    }
+  });
+
+  const category = doc.getElementById('category');
+  if (category) {
+    if ('value' in category) category.value = '';
+    if ('selectedIndex' in category) category.selectedIndex = 0;
+    if (typeof category.querySelectorAll === 'function') {
+      category.querySelectorAll('option[data-entry-category-added="true"]')
+        .forEach((option) => option.remove());
+    }
+    report.categoryReset = true;
+  }
+
+  if (typeof doc.querySelectorAll === 'function') {
+    doc.querySelectorAll('.toggle-password i').forEach((icon) => {
+      icon.className = 'fas fa-eye';
+    });
+  }
+
+  return report;
+}
+
 /**
  * Ferme toutes les modales visibles et retire l'etat `modal-open` du body.
  *
@@ -62,4 +127,4 @@ export function closeAllModals(doc = typeof document !== 'undefined' ? document 
   return report;
 }
 
-export default { closeAllModals, MODAL_SELECTORS };
+export default { closeAllModals, purgeSensitiveModalState, MODAL_SELECTORS };

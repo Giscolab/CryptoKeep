@@ -71,9 +71,10 @@ import {
 import {
   createEncryptedSnapshot,
   writeVaultRecordVerified,
-  recordsAreIdentical
+  recordsAreIdentical,
+  withVaultWriteLock
 } from '../storage/vault-transaction.js';
-import { writeLocalBackup } from '../storage/local-backup.js';
+import { writeLocalBackupVerified } from '../storage/local-backup.js';
 import { validateNewMasterPassword } from '../../security/master-password-policy.js';
 
 /** Refus generique commun a toutes les causes cryptographiques. */
@@ -290,12 +291,15 @@ async function assertVaultReadable(record, key) {
  * La restauration est elle-meme relue et verifiee. Aucune restauration n'est
  * declenchee apres une restauration : la chaine s'arrete ici.
  */
-async function restorePreviousVault(storage, snapshot) {
+async function restorePreviousVault(storage, snapshot, failedCandidate) {
   if (!snapshot) return { restored: false, verifiedRestore: false };
 
   try {
-    await storage.putVaultRecord(snapshot);
-  } catch {
+    await storage.putVaultRecord(snapshot, { expectedCurrent: failedCandidate });
+  } catch (error) {
+    if (error && error.code === 'write_conflict') {
+      return { restored: false, verifiedRestore: false, superseded: true };
+    }
     return { restored: false, verifiedRestore: false };
   }
 
@@ -333,6 +337,17 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
   // --- 1, 3, 4, 5 : saisie et politique, avant toute cryptographie -------
   const policyReport = validateChangeRequest(input);
 
+  let sessionGuard;
+  try {
+    sessionGuard = vaultManager.captureSessionGuard();
+  } catch {
+    fail(
+      'session_required',
+      'Le coffre doit rester deverrouille pendant le changement de mot de passe.',
+      { written: false }
+    );
+  }
+
   // --- lecture du coffre actuel -----------------------------------------
   // LOT 3C : une lecture qui ECHOUE n'est pas un coffre absent.
   let currentRecord = null;
@@ -349,8 +364,22 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
     fail('no_vault', 'Aucun coffre n\'existe. Aucune modification n\'a ete effectuee.', { written: false });
   }
 
+  let sessionMismatch = false;
+  try {
+    vaultManager.assertSessionCurrent(sessionGuard, currentRecord);
+  } catch {
+    sessionMismatch = true;
+  }
+
   // --- 2 et 6 : verification reelle puis dechiffrement en memoire --------
   const opened = await openCurrentVault(currentRecord, input.currentPassword);
+  if (sessionMismatch) {
+    fail(
+      'session_changed',
+      'La session ne correspond plus au coffre actuel. Reconnectez-vous.',
+      { written: false }
+    );
+  }
 
   // --- instantane chiffre du coffre actuel (etape 14, prepare avant) -----
   let snapshot = null;
@@ -379,10 +408,37 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
     );
   }
 
-  // --- 12 : ecriture atomique verifiee ----------------------------------
-  try {
+  const persistence = await withVaultWriteLock(async () => {
+    // --- 12 : ecriture atomique verifiee --------------------------------
+    try {
+    vaultManager.assertSessionCurrent(sessionGuard, currentRecord);
     await writeVaultRecordVerified(storage, rebuilt.record, snapshot);
   } catch (error) {
+    if (error && error.name === 'VaultSessionError') {
+      if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
+      fail(
+        'session_changed',
+        'La session a ete verrouillee. Aucune modification n\'a ete effectuee.',
+        { written: false }
+      );
+    }
+
+    if (error && error.code === 'write_conflict') {
+      try {
+        const latest = await storage.loadVault();
+        vaultManager.assertSessionCurrent(sessionGuard, latest);
+      } catch (sessionError) {
+        if (sessionError && sessionError.name === 'VaultSessionError') {
+          if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
+          fail(
+            'session_changed',
+            'Le coffre a ete remplace pendant l\'operation. Reconnectez-vous.',
+            { written: false }
+          );
+        }
+      }
+    }
+
     const details = (error && error.details) || {};
     fail('write_failed', 'Le nouveau coffre n\'a pas pu etre enregistre.', {
       written: details.restored === true,
@@ -390,54 +446,95 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
       verifiedRestore: details.verifiedRestore === true,
       cause: error && error.code ? error.code : 'unknown'
     });
-  }
+    }
 
-  // --- 13 : le coffre ecrit est-il reellement relisible ? ----------------
-  let readable = false;
-  try {
+    // --- 13 : le coffre ecrit est-il reellement relisible ? --------------
+    let readable = false;
+    let verifiedRecord = null;
+    try {
     const reread = await storage.loadVault();
     readable = await assertVaultReadable(reread, rebuilt.key);
+    if (readable) verifiedRecord = reread;
   } catch {
     readable = false;
-  }
+    }
 
-  if (!readable) {
+    if (!readable) {
     // --- 14 : restauration temporaire de l'ancien coffre ----------------
-    const restoration = await restorePreviousVault(storage, snapshot);
+    const restoration = await restorePreviousVault(storage, snapshot, rebuilt.record);
     if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
+    opened.entries.length = 0;
+
+    // L'ancienne session n'est encore coherente que si son record a ete
+    // effectivement restaure ET relu. Un successeur concurrent, un echec de
+    // restauration ou une restauration non verifiable imposent le lock : le
+    // message ne doit jamais dire "session verrouillee" tout en conservant
+    // l'ancienne cle et les anciens plaintexts.
+    const previousSessionStillValid = restoration.restored === true
+      && restoration.verifiedRestore === true;
+    const operationSessionStillCurrent = vaultManager.isSessionGuardCurrent(sessionGuard);
+    if (!previousSessionStillValid
+      && operationSessionStillCurrent
+      && typeof vaultManager.clearSession === 'function') {
+      vaultManager.clearSession();
+    }
+
+    const failureMessage = !operationSessionStillCurrent
+      ? 'Le coffre n\'a pas pu etre verifie, mais la session utilisee par cette operation n\'est plus active. La session actuelle n\'a pas ete effacee.'
+      : (previousSessionStillValid
+      ? 'Le nouveau coffre n\'a pas pu etre verifie. L\'ancien mot de passe reste valable.'
+      : (restoration.superseded
+        ? 'Le coffre a change pendant la verification. La session a ete verrouillee ; reconnectez-vous.'
+        : 'Le nouveau coffre n\'a pas pu etre verifie ni retabli avec certitude. La session a ete verrouillee.'));
     fail(
       'verification_failed',
-      'Le nouveau coffre n\'a pas pu etre verifie. L\'ancien mot de passe reste valable.',
+      failureMessage,
       { written: true, ...restoration }
     );
-  }
+    }
 
-  // --- 15 : sauvegarde secondaire chiffree, APRES verification seulement -
-  let backup = { written: false, reason: 'no_storage' };
-  if (localStorageRef) {
-    try {
-      backup = writeLocalBackup(rebuilt.record, { storage: localStorageRef, now });
-    } catch {
+    // --- 15 : sauvegarde secondaire, dans la meme section inter-onglets --
+    let backup = { written: false, reason: 'no_storage' };
+    if (localStorageRef) {
+      try {
+      backup = await writeLocalBackupVerified(verifiedRecord, {
+        storage: localStorageRef,
+        now,
+        loadPrimary: () => storage.loadVault()
+      });
+      } catch {
       // Un echec de sauvegarde secondaire ne remet pas en cause le coffre
       // principal, deja ecrit ET verifie. Il est signale, jamais masque.
-      backup = { written: false, reason: 'backup_failed' };
+        backup = { written: false, reason: 'backup_failed' };
+      }
     }
-  }
+    return { verifiedRecord, backup };
+  }, { lockManager: deps.lockManager });
+  const { verifiedRecord, backup } = persistence;
 
   // --- 16 : nettoyage des anciennes references --------------------------
   // Les Uint8Array sont remis a zero. Les CHAINES (mots de passe) ne peuvent
   // pas etre effacees de facon fiable en JavaScript : ce module ne le promet
   // pas. Les entrees dechiffrees locales sont liberees.
   const previousSalt = vaultManager.salt;
-  if (previousSalt instanceof Uint8Array) previousSalt.fill(0);
+  if (vaultManager.isSessionGuardCurrent(sessionGuard)
+    && previousSalt instanceof Uint8Array) previousSalt.fill(0);
   opened.entries.length = 0;
 
   // --- 17 : session verrouillee, ou renouvelee proprement ---------------
   let session;
   if (lockAfterChange) {
-    if (typeof vaultManager.clearSession === 'function') vaultManager.clearSession();
+    const operationSessionStillCurrent = vaultManager.isSessionGuardCurrent(sessionGuard);
+    if (operationSessionStillCurrent && typeof vaultManager.clearSession === 'function') {
+      vaultManager.clearSession();
+    }
     if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
-    session = { renewed: false, locked: true };
+    const anotherSessionActive = !operationSessionStillCurrent && Boolean(vaultManager.masterKey);
+    session = {
+      renewed: false,
+      locked: !anotherSessionActive,
+      ...(anotherSessionActive ? { reason: 'session_changed' } : {})
+    };
   } else {
     // LOT 7B - RESERVE LEVEE. Cette etape n'etait pas protegee. A ce point, le
     // coffre a DEJA ete ecrit, verifie par dechiffrement reel, et la sauvegarde
@@ -449,7 +546,33 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
     // En cas d'echec ici, le changement reste donc un SUCCES, et la session est
     // verrouillee : l'utilisateur se reconnecte avec son NOUVEAU mot de passe.
     try {
-      const decrypted = await Promise.all(rebuilt.record.entries.map(async (stored) => {
+      if (!vaultManager.isSessionGuardCurrent(sessionGuard)) {
+        if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
+        const anotherSessionActive = Boolean(vaultManager.masterKey);
+        session = {
+          renewed: false,
+          locked: !anotherSessionActive,
+          reason: 'session_changed',
+          message: anotherSessionActive
+            ? 'Le mot de passe a bien ete change. Une autre session est active et n\'a pas ete modifiee par cette ancienne operation.'
+            : 'Le mot de passe a bien ete change. La session a ete verrouillee pendant l\'operation ; reconnectez-vous avec le NOUVEAU mot de passe.'
+        };
+        return {
+          changed: true,
+          entryCount: verifiedRecord.entries.length,
+          formatVersion: CURRENT_VAULT_FORMAT_VERSION,
+          iterations: CURRENT_PBKDF2_ITERATIONS,
+          saltRenewed: true,
+          validationRenewed: true,
+          entropyBits: policyReport.entropyBits,
+          backup,
+          session
+        };
+      }
+
+      const latestRecord = await storage.loadVault();
+      await assertVaultReadable(latestRecord, rebuilt.key);
+      const decrypted = await Promise.all(latestRecord.entries.map(async (stored) => {
         const data = await decryptData(
           stored,
           rebuilt.key,
@@ -462,20 +585,28 @@ export async function changeMasterPassword(vaultManager, input, deps = {}) {
         rebuilt.key,
         rebuilt.salt,
         decrypted,
-        CURRENT_VAULT_FORMAT_VERSION
+        CURRENT_VAULT_FORMAT_VERSION,
+        latestRecord,
+        sessionGuard.epoch
       );
       session = { renewed: true, locked: false };
     } catch {
-      if (typeof vaultManager.clearSession === 'function') vaultManager.clearSession();
+      const operationSessionStillCurrent = vaultManager.isSessionGuardCurrent(sessionGuard);
+      if (operationSessionStillCurrent && typeof vaultManager.clearSession === 'function') {
+        vaultManager.clearSession();
+      }
       if (rebuilt.salt instanceof Uint8Array) rebuilt.salt.fill(0);
+      const anotherSessionActive = !operationSessionStillCurrent && Boolean(vaultManager.masterKey);
       session = {
         renewed: false,
-        locked: true,
-        reason: 'session_renewal_failed',
+        locked: !anotherSessionActive,
+        reason: anotherSessionActive ? 'session_changed' : 'session_renewal_failed',
         // Message destine a l'interface. Il affirme le fait essentiel : le
         // mot de passe a bien change.
-        message: 'Le mot de passe a bien ete change. La session n\'a pas pu etre '
-          + 'renouvelee : reconnectez-vous avec votre NOUVEAU mot de passe.'
+        message: anotherSessionActive
+          ? 'Le mot de passe a bien ete change. Une autre session est active et n\'a pas ete effacee par cette ancienne operation.'
+          : 'Le mot de passe a bien ete change. La session n\'a pas pu etre '
+            + 'renouvelee : reconnectez-vous avec votre NOUVEAU mot de passe.'
       };
     }
   }

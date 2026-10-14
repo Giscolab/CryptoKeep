@@ -16,6 +16,43 @@
  * peut pas etre effacee de la memoire de facon fiable.
  */
 
+const activeSecureDialogs = new Set();
+
+function registerSecureDialog(doc, cancel) {
+  const registration = { doc, cancel };
+  activeSecureDialogs.add(registration);
+  return registration;
+}
+
+function unregisterSecureDialog(registration) {
+  if (registration) activeSecureDialogs.delete(registration);
+}
+
+/**
+ * Annule et detache tous les dialogues encore en attente.
+ *
+ * Le verrouillage appelle cette fonction avant la fermeture generique des
+ * modales : une promesse d'import ne doit pas rester suspendue avec son champ
+ * mot de passe et ses ecouteurs toujours references.
+ */
+export function closeSecureDialogs(doc = null) {
+  let closed = 0;
+  Array.from(activeSecureDialogs).forEach((registration) => {
+    if (doc && registration.doc !== doc) return;
+    try {
+      registration.cancel();
+      closed += 1;
+    } catch {
+      /* fermeture best-effort */
+    }
+  });
+  return { closed };
+}
+
+export function getActiveSecureDialogCount() {
+  return activeSecureDialogs.size;
+}
+
 function createElement(doc, tag, className, text) {
   const node = doc.createElement(tag);
   if (className) node.className = className;
@@ -87,10 +124,12 @@ export function requestPasswordDialog(options = {}) {
 
   return new Promise((resolve) => {
     let settled = false;
+    let registration = null;
 
     const finish = (value) => {
       if (settled) return;
       settled = true;
+      unregisterSecureDialog(registration);
       try {
         resolve(value);
       } finally {
@@ -105,6 +144,8 @@ export function requestPasswordDialog(options = {}) {
         if (typeof overlay.remove === 'function') overlay.remove();
       }
     };
+
+    registration = registerSecureDialog(doc, () => finish(null));
 
     submit.addEventListener('click', () => {
       const value = input.value;
@@ -184,15 +225,19 @@ export function confirmDialog(options = {}) {
 
   return new Promise((resolve) => {
     let settled = false;
+    let registration = null;
     const finish = (value) => {
       if (settled) return;
       settled = true;
+      unregisterSecureDialog(registration);
       try {
         resolve(value);
       } finally {
         if (typeof overlay.remove === 'function') overlay.remove();
       }
     };
+
+    registration = registerSecureDialog(doc, () => finish(false));
 
     confirm.addEventListener('click', () => finish(true));
     cancel.addEventListener('click', () => finish(false));
@@ -205,4 +250,9 @@ export function confirmDialog(options = {}) {
   });
 }
 
-export default { requestPasswordDialog, confirmDialog };
+export default {
+  requestPasswordDialog,
+  confirmDialog,
+  closeSecureDialogs,
+  getActiveSecureDialogCount
+};

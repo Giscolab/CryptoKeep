@@ -52,10 +52,11 @@ le test, distinct de `%LOCALAPPDATA%\CryptoKeep\browser-profile` qui
 contient le coffre réel. Le mot de passe maître et les entrées sont
 fabriqués dans le test. Aucun `.vault` réel n'est lu.
 
-## Parcours couvert (16 étapes)
+## Parcours couvert (17 étapes)
 
 première ouverture → création du coffre → ajout d'une entrée → fermeture →
-redémarrage → mauvais mot de passe → déverrouillage → modification →
+redémarrage → mauvais mot de passe → déverrouillage → ouverture du même coffre
+dans un second onglet → modification et invalidation de cet onglet →
 export → import contrôlé (hostile puis valide) → verrouillage →
 déconnexion, plus trois contrôles transverses : aucun secret dans
 `localStorage`/`sessionStorage`, aucun secret journalisé, aucune exception

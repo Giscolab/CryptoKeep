@@ -33,6 +33,7 @@ import { verifyAndDecryptVault } from './vault-crypto-verify.js';
 import {
   canonicalize,
   createEncryptedSnapshot,
+  withVaultWriteLock,
   writeVaultRecordVerified
 } from './vault-transaction.js';
 
@@ -213,16 +214,17 @@ async function performRestore(envelope, deps, options) {
     // LOT 3C : meme regle qu'a l'empreinte initiale. Un echec de lecture
     // juste avant l'ecriture rend l'instantane impossible : ecrire ici
     // detruirait un coffre dont l'etat n'a pas pu etre constate.
-    let currentRecord = null;
-    try {
-      currentRecord = await storage.loadVault();
-    } catch (error) {
-      throw new BackupRestoreError(
-        'primary_vault_unreadable',
-        'Le coffre principal n\'a pas pu etre relu avant l\'ecriture. Restauration abandonnee, rien n\'a ete ecrit.',
-        { wrote: false, cause: error && error.name ? error.name : 'unknown' }
-      );
-    }
+    await withVaultWriteLock(async () => {
+      let currentRecord = null;
+      try {
+        currentRecord = await storage.loadVault();
+      } catch (error) {
+        throw new BackupRestoreError(
+          'primary_vault_unreadable',
+          'Le coffre principal n\'a pas pu etre relu avant l\'ecriture. Restauration abandonnee, rien n\'a ete ecrit.',
+          { wrote: false, cause: error && error.name ? error.name : 'unknown' }
+        );
+      }
 
     if (!primaryWasUsable && isUsablePrimaryVault(currentRecord)) {
       // Un coffre principal valide est apparu pendant l'attente utilisateur.
@@ -248,7 +250,8 @@ async function performRestore(envelope, deps, options) {
     // --- 7 et 8. ecriture atomique puis verification -------------------
     const snapshot = createEncryptedSnapshot(currentRecord);
 
-    await writeVaultRecordVerified(storage, validated.normalized, snapshot);
+      await writeVaultRecordVerified(storage, validated.normalized, snapshot);
+    }, { lockManager: deps.lockManager });
 
     return {
       restored: true,

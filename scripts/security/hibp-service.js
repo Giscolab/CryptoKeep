@@ -79,6 +79,12 @@ export const HIBP_NOTICE = Object.freeze({
  * Jamais ecrit sur disque. Vide par `clearHibpCache()`.
  */
 const rangeCache = new Map();
+/** Generation du cache : le verrouillage invalide aussi les requetes en vol. */
+let cacheEpoch = 0;
+
+function abortedResult() {
+  return { checked: false, pwned: null, count: 0, reason: 'aborted', source: 'local' };
+}
 
 function storage(ref) {
   if (ref) return ref;
@@ -253,6 +259,7 @@ async function fetchRange(prefix, options) {
  * Aucun mot de passe, aucun condensat complet n'est journalise ni retourne.
  */
 export async function isPasswordPwned(password, options = {}) {
+  const requestEpoch = cacheEpoch;
   if (typeof password !== 'string' || password.length === 0) {
     return { checked: false, pwned: null, count: 0, reason: 'skipped', source: 'local' };
   }
@@ -264,6 +271,7 @@ export async function isPasswordPwned(password, options = {}) {
   }
 
   const digest = await sha1Hex(password);
+  if (requestEpoch !== cacheEpoch) return abortedResult();
   const prefix = digest.slice(0, 5);
   const suffix = digest.slice(5);
 
@@ -284,8 +292,10 @@ export async function isPasswordPwned(password, options = {}) {
 
     try {
       corps = await fetchRange(prefix, options);
+      if (requestEpoch !== cacheEpoch) return abortedResult();
       rangeCache.set(prefix, { body: corps, timestamp: now });
     } catch (error) {
+      if (requestEpoch !== cacheEpoch) return abortedResult();
       const nom = error && error.name ? error.name : '';
       const message = error && error.message ? error.message : '';
       const reason = nom === 'AbortError'
@@ -321,6 +331,7 @@ export async function isPasswordPwned(password, options = {}) {
  * @returns {{cleared: number}} nombre de plages effacees, verifiable
  */
 export function clearHibpCache() {
+  cacheEpoch += 1;
   const cleared = rangeCache.size;
   rangeCache.clear();
   return { cleared };

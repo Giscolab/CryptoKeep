@@ -10,6 +10,7 @@ import {
   BACKUP_ENVELOPE_VERSION,
   buildBackupEnvelope,
   writeLocalBackup,
+  writeLocalBackupVerified,
   readLocalBackup,
   clearLocalBackup,
   readLegacyBackup,
@@ -482,6 +483,58 @@ try {
     assert.equal(isUsablePrimaryVault(null), false);
     assert.equal(isUsablePrimaryVault({ entries: [], meta: {} }), false);
     assert.equal(isUsablePrimaryVault(coffre.record), true);
+  }
+
+  // ============ 22. Relecture primaire en echec : backup restaure =========
+  {
+    const store = new FakeLocalStorage();
+    writeLocalBackup(coffre.record, {
+      storage: store,
+      now: '2026-10-14T20:00:00.000Z'
+    });
+    const previousRaw = store.getItem(BACKUP_KEY_V1);
+    const candidate = structuredClone(coffre.record);
+    candidate.meta.last_modified = '2026-10-14T20:01:00.000Z';
+
+    const report = await writeLocalBackupVerified(candidate, {
+      storage: store,
+      now: '2026-10-14T20:01:00.000Z',
+      loadPrimary: async () => { throw new Error('lecture impossible'); }
+    });
+
+    assert.equal(report.written, false);
+    assert.equal(report.reason, 'primary_unverified');
+    assert.equal(report.backupReverted, true);
+    assert.equal(store.getItem(BACKUP_KEY_V1), previousRaw,
+      'Une copie non verifiee ne doit pas masquer la sauvegarde precedente');
+  }
+
+  // ============ 23. Backup concurrent preserve apres changement primaire ===
+  {
+    const store = new FakeLocalStorage();
+    const candidate = structuredClone(coffre.record);
+    candidate.meta.last_modified = '2026-10-14T20:02:00.000Z';
+    const successor = await buildSyntheticVault({
+      password: 'backup-concurrent-synthetique',
+      entries: [{ id: 'winner', title: 'Winner', password: 'Winner-2026!' }]
+    });
+
+    const report = await writeLocalBackupVerified(candidate, {
+      storage: store,
+      now: '2026-10-14T20:02:00.000Z',
+      loadPrimary: async () => {
+        writeLocalBackup(successor.record, {
+          storage: store,
+          now: '2026-10-14T20:03:00.000Z'
+        });
+        return successor.record;
+      }
+    });
+
+    assert.equal(report.primarySuperseded, true);
+    assert.equal(report.concurrentBackupPreserved, true);
+    assert.equal(canonicalize(readLocalBackup({ storage: store }).record),
+      canonicalize(successor.record));
   }
 
   console.log('Local backup tests passed.');
