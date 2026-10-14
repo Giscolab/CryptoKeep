@@ -100,11 +100,22 @@ export async function lancerNavigateur(options = {}) {
     '--disable-gpu',
     '--no-sandbox',
     'about:blank'
-  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+  // Always drain Chromium stderr; otherwise a full pipe can block startup.
+  let stderrTail = '';
+  let exitDetails = '';
+  processus.stderr.on('data', (chunk) => {
+    stderrTail = (stderrTail + chunk.toString()).slice(-3000);
+  });
+  processus.on('error', (error) => { exitDetails = `spawn: ${error.message}`; });
+  processus.on('exit', (code, signal) => {
+    exitDetails = `exit code=${code}, signal=${signal || 'none'}`;
+  });
 
   const echeance = Date.now() + (options.timeoutMs || 30000);
   let wsUrl = null;
-  while (!wsUrl && Date.now() < echeance) {
+  while (!wsUrl && !exitDetails && Date.now() < echeance) {
     try {
       const r = await fetch(`http://127.0.0.1:${port}/json/version`);
       wsUrl = (await r.json()).webSocketDebuggerUrl;
@@ -116,7 +127,11 @@ export async function lancerNavigateur(options = {}) {
   if (!wsUrl) {
     processus.kill();
     rmSync(profil, { recursive: true, force: true });
-    return { ok: false, reason: 'debugger_unreachable' };
+    return {
+      ok: false,
+      reason: 'debugger_unreachable',
+      details: [exitDetails, stderrTail.trim()].filter(Boolean).join(' | ').slice(-3000)
+    };
   }
 
   return {

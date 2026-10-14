@@ -41,7 +41,15 @@ jobs:
         run: npm run fuzz:properties
       - name: Replay synthetic coverage-guided fuzz corpus
         run: npm run fuzz:regression
+      - name: Install known Chrome for Testing on runner
+        id: chrome
+        uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
+        with:
+          chrome-version: stable
+          install-dependencies: true
       - name: Isolated browser end-to-end journey
+        env:
+          CRYPTOKEEP_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
         run: npm run test:browser
 
   semgrep:

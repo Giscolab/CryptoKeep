@@ -380,6 +380,7 @@ if (!executable) {
 
   if (!navigateur.ok) {
     console.error(`  ECHEC   Navigateur injoignable (${navigateur.reason}).`);
+    if (navigateur.details) console.error(`  Diagnostic Chrome : ${navigateur.details}`);
     process.exitCode = 1;
     await serveur.close();
   } else {
