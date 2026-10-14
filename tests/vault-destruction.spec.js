@@ -561,18 +561,19 @@ test('8.25 - aucune cle ecrite par l application n est oubliee', async () => {
 // ===========================================================================
 
 test('8.26 - aucun module ne declenche la suppression a l import', async () => {
-  const { readFileSync, readdirSync, statSync } = await import('node:fs');
+  const { readFileSync, readdirSync } = await import('node:fs');
   const { join } = await import('node:path');
 
   const appelants = [];
   (function parcourir(dossier) {
-    for (const nom of readdirSync(dossier)) {
-      const chemin = join(dossier, nom);
-      if (statSync(chemin).isDirectory()) {
-        if (nom !== 'vendor' && nom !== '__pycache__') parcourir(chemin);
-      } else if (nom.endsWith('.js') && !chemin.endsWith('vault-destruction.js')) {
+    for (const entree of readdirSync(dossier, { withFileTypes: true })) {
+      const chemin = join(dossier, entree.name);
+      if (entree.isDirectory()) {
+        if (entree.name !== 'vendor' && entree.name !== '__pycache__') parcourir(chemin);
+      } else if (entree.isFile() && entree.name.endsWith('.js') && entree.name !== 'vault-destruction.js') {
+        // Use the directory entry type instead of a separate stat() before read().
         const source = readFileSync(chemin, 'utf8');
-        if (/\bdestroyVaultData\s*\(/.test(source)) appelants.push(chemin);
+        if (/\bdestroyVaultData\s*\(/.test(source)) appelants.push(chemin.replaceAll('\\', '/'));
       }
     }
   }('scripts'));

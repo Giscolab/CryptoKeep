@@ -75,8 +75,15 @@ async function demarrerServeur(python) {
 const python = trouverPython();
 let serveur = null;
 
-/** Type MIME renvoye pour une ressource, sans le parametre de charset. */
+/** Type MIME d'une ressource du serveur de test local, jamais d'une URL externe. */
 async function typeDe(chemin) {
+  // CodeQL js/file-access-to-http: the file-derived value is ONLY a path;
+  // the destination is always our ephemeral 127.0.0.1 test server. Reject
+  // protocols, authorities, traversal and unsafe characters explicitly.
+  assert.equal(typeof chemin, 'string');
+  assert.match(chemin, /^\/[A-Za-z0-9._/-]+$/, 'Chemin de ressource locale requis');
+  assert.ok(!chemin.startsWith('//') && !chemin.split('/').slice(1).some((p) => p === '.' || p === '..' || p === ''),
+    'Les composants de chemin ambigus ou externes sont interdits');
   const reponse = await fetch(`http://127.0.0.1:${serveur.port}${chemin}`);
   assert.equal(reponse.status, 200, `Ressource introuvable : ${chemin}`);
   return {
