@@ -10,12 +10,17 @@
     "test:browser": "node tests/browser/browser-journey.spec.mjs",
     "test:syntax": "node tests/syntax-all-files.spec.js",
     "test:python": "python -m compileall -q scripts export_log.py",
-    "test:server": "node tests/local-server.spec.js"
+    "test:server": "node tests/local-server.spec.js",
+    "fuzz:properties": "node tests/fuzz/vault-properties.mjs",
+    "fuzz:regression": "jazzer tests/fuzz/vault-format.fuzz.mjs --sync --mode=regression tests/fuzz/corpus/vault-format",
+    "fuzz:jazzer": "jazzer tests/fuzz/vault-format.fuzz.mjs --sync -- -max_total_time=120 -timeout=5 -rss_limit_mb=1024"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
+    "@jazzer.js/core": "4.0.0",
     "eslint": "^9.29.0",
     "eslint-plugin-security": "^3.0.1",
+    "fast-check": "4.10.2",
     "globals": "^16.2.0",
     "purgecss": "^7.0.2"
   }

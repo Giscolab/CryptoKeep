@@ -35,7 +35,10 @@ export function listerFichiers(racine, extensions = ['.js', '.mjs']) {
       if (DOSSIERS_EXCLUS.includes(entree.name)) continue;
       const chemin = join(dossier, entree.name);
       if (entree.isDirectory()) parcourir(chemin);
-      else if (extensions.some((ext) => entree.name.endsWith(ext))) resultat.push(chemin);
+      else if (extensions.some((ext) => entree.name.endsWith(ext))) {
+        // Keep a platform-independent path for comparisons in tests.
+        resultat.push(chemin.replaceAll('\\', '/'));
+      }
     }
   };
 

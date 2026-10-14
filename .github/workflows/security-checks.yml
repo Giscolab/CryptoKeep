@@ -1,0 +1,80 @@
+name: Security checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Lint, crypto, regression, browser, property fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked development dependencies
+        run: npm ci
+      - name: Verify the cryptographic random source
+        run: node -e "require('node:crypto').randomBytes(16); console.log('CSPRNG OK')"
+      - name: Static JavaScript security lint
+        run: npm run lint:security
+      - name: Existing regression suite
+        run: npm test
+      - name: Existing security regression suite
+        run: npm run test:security
+      - name: Synthetic property-based security fuzzing
+        run: npm run fuzz:properties
+      - name: Replay synthetic coverage-guided fuzz corpus
+        run: npm run fuzz:regression
+      - name: Isolated browser end-to-end journey
+        run: npm run test:browser
+
+  semgrep:
+    name: Semgrep Community Edition
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Semgrep (pinned)
+        run: pipx install semgrep==1.180.0
+      - name: Scan first-party JavaScript and Python
+        run: >-
+          semgrep scan
+          --config p/javascript
+          --config p/python
+          --metrics=off
+          --error
+          --exclude node_modules
+          --exclude scripts/vendor
+          --exclude docs/assets
+          scripts tests
+
+  gitleaks:
+    name: Gitleaks history scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
