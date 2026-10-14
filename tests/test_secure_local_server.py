@@ -32,6 +32,14 @@ class SecureServerBoundary(unittest.TestCase):
         }
         for path, value in files.items():
             (root / path).write_text(value, encoding="utf-8")
+        self.symlink_available = False
+        try:
+            (root / "scripts" / "escape.js").symlink_to(root / "logs" / "private.log")
+            self.symlink_available = True
+        except (NotImplementedError, OSError):
+            # Windows can require an elevated developer-mode permission for
+            # symlink creation. The rest of this boundary test still runs.
+            pass
         handler = partial(module.SecureStaticHandler, directory=str(root))
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.worker = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -43,12 +51,12 @@ class SecureServerBoundary(unittest.TestCase):
         self.worker.join(timeout=5)
         self.tmp.cleanup()
 
-    def request(self, path, host=None):
+    def request(self, path, host=None, method="GET"):
         # Windows may scan the larger vendored bundle on first read. This is
         # a MIME/boundary test, not a latency test; keep a bounded but stable
         # timeout consistent with the Node local-server fixture.
         conn = HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
-        conn.request("GET", path, headers={
+        conn.request(method, path, headers={
             "Host": host if host is not None else f"127.0.0.1:{self.server.server_port}"
         })
         response = conn.getresponse()
@@ -59,20 +67,37 @@ class SecureServerBoundary(unittest.TestCase):
         return code, headers, body
 
     def test_only_application_assets_are_served(self):
-        for path in ("/", "/index.html", "/scripts/app.js", "/public/main.css"):
+        for path in (
+            "/", "/index.html", "/scripts/app.js?cache=synthetic",
+            "/scripts/%61pp.js", "/public/main.css"
+        ):
             status, headers, body = self.request(path)
             self.assertEqual(status, 200, path)
             self.assertIn("frame-ancestors 'none'", headers.get("Content-Security-Policy", ""))
             self.assertTrue(body, path)
 
+        status, _, body = self.request("/scripts/app.js", method="HEAD")
+        self.assertEqual(status, 200)
+        self.assertEqual(body, "")
+
         for path in (
             "/.git/config", "/.env", "/logs/private.log", "/reports/report.html",
             "/scripts/", "/public/", "/%2eenv",
-            "/scripts/%2e%2e/logs/private.log", "/../logs/private.log"
+            "/scripts/%2e%2e/logs/private.log", "/../logs/private.log",
+            "/scripts/%252e%252e/logs/private.log", "/scripts/%5cprivate.js",
+            "/scripts/app.js%3Astream", "/scripts/app.js%00",
+            "/scripts//app.js", "/scripts/missing.js"
         ):
             status, _, body = self.request(path)
             self.assertIn(status, (403, 404), path)
             self.assertNotIn("synthetic-secret-must-not-leak", body)
+
+    def test_symlink_escape_is_rejected(self):
+        if not self.symlink_available:
+            self.skipTest("symlink creation is unavailable on this platform")
+        status, _, body = self.request("/scripts/escape.js")
+        self.assertIn(status, (403, 404))
+        self.assertNotIn("synthetic-secret-must-not-leak", body)
 
     def test_real_index_asset_references_are_served(self):
         # Only public runtime assets are requested: no user profile or vault.
