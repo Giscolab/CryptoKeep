@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -84,6 +85,11 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
         ".gif", ".webp", ".ico", ".woff", ".woff2", ".ttf", ".webmanifest"
     })
 
+    # Strict filename component whitelist used to validate each path segment
+    # before it's combined with the repository root. This prevents path
+    # traversal and rejects characters that could lead to ambiguous paths.
+    _VALID_COMPONENT = re.compile(r"^[A-Za-z0-9._-]+$")
+
     def list_directory(self, path):
         self.send_error(HTTPStatus.FORBIDDEN, "Directory listing disabled")
         return None
@@ -114,12 +120,13 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
             self.send_error(HTTPStatus.FORBIDDEN, "Invalid path")
             return None
         components = path[1:].split("/")
-        if any(
-            not item or item.startswith(".") or "\\" in item or ":" in item
-            or "%" in item for item in components
-        ):
-            self.send_error(HTTPStatus.FORBIDDEN, "Forbidden path")
-            return None
+
+        # Validate each path component aggressively using a whitelist of
+        # allowed characters. Reject empty or hidden components.
+        for item in components:
+            if not item or item.startswith(".") or not self._VALID_COMPONENT.match(item):
+                self.send_error(HTTPStatus.FORBIDDEN, "Forbidden path")
+                return None
 
         relative = Path(*components)
         allowed = (
@@ -137,10 +144,22 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
         candidate = root
         for item in components:
             candidate = candidate / item
-            if candidate.is_symlink():
-                self.send_error(HTTPStatus.FORBIDDEN, "Symlinks are not served")
+            # Refuse to serve symlinks. Only check existing filesystem nodes so
+            # we don't accidentally create or follow symlinks during the check.
+            try:
+                if candidate.exists() and candidate.is_symlink():
+                    self.send_error(HTTPStatus.FORBIDDEN, "Symlinks are not served")
+                    return None
+            except OSError:
+                # On some filesystems lstat/is_symlink can fail; treat that as
+                # non-servable to be safe.
+                self.send_error(HTTPStatus.FORBIDDEN, "Forbidden path")
                 return None
-        target = candidate.resolve()
+        try:
+            target = candidate.resolve()
+        except OSError:
+            self.send_error(HTTPStatus.FORBIDDEN, "Invalid application asset")
+            return None
         if not target.is_relative_to(root) or not target.is_file():
             self.send_error(HTTPStatus.FORBIDDEN, "Invalid application asset")
             return None
