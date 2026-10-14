@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, html
+import os, html, base64, hashlib
 from datetime import datetime
 
 # ——— Chemins ———
@@ -40,7 +40,7 @@ header = """<!DOCTYPE html>
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg); color: var(--text); line-height: 1.6;
       padding-bottom: 2rem;
       background-image: radial-gradient(circle at 1px 1px, rgba(56, 189, 248, 0.05) 1px, transparent 0);
@@ -101,7 +101,7 @@ header = """<!DOCTYPE html>
       box-shadow:0 10px 30px rgba(0,0,0,0.3); border:1px solid var(--border);
     }
     .logline {
-      font-family:'JetBrains Mono','Fira Code',monospace;
+      font-family:ui-monospace,'Consolas',monospace;
       padding:0.9rem 1.5rem; border-bottom:1px solid var(--border);
       font-size:0.92rem; display:flex; transition:all 0.2s ease;
     }
@@ -149,7 +149,6 @@ header = """<!DOCTYPE html>
       .timestamp { margin-right:0; }
     }
   </style>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 </head>
 <body>
   <header>
@@ -178,6 +177,22 @@ header = """<!DOCTYPE html>
 
   <div class="logbox">
 """
+
+# No remote styles, scripts or images may be loaded when the report is opened.
+# Hash the actual inline CSS so the generated file needs no unsafe-inline CSP.
+css = header.split('<style>', 1)[1].split('</style>', 1)[0]
+style_hash = base64.b64encode(hashlib.sha256(css.encode('utf-8')).digest()).decode('ascii')
+policy = (
+    "default-src 'none'; "
+    f"style-src 'sha256-{style_hash}'; "
+    "script-src 'none'; img-src 'none'; font-src 'none'; connect-src 'none'; "
+    "object-src 'none'; base-uri 'none'; form-action 'none'"
+)
+header = header.replace(
+    '  <style>',
+    f'  <meta http-equiv="Content-Security-Policy" content="{policy}">\n  <style>',
+    1
+)
 
 # ——— 2) Injection « manuelle » des compteurs ———
 header = header \

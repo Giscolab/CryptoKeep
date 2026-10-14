@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 from functools import partial
+from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 
 CONTENT_SECURITY_POLICY = "; ".join(
@@ -72,6 +75,80 @@ class SecureStaticHandler(SimpleHTTPRequestHandler):
         ".ico": "image/x-icon",
         ".woff2": "font/woff2",
     }
+
+    # Only the static app bundle is reachable. Never serve Git metadata,
+    # private logs, exports or any other material under the repository root.
+    _SCRIPT_EXTENSIONS = frozenset({".js", ".mjs", ".json"})
+    _PUBLIC_EXTENSIONS = frozenset({
+        ".css", ".js", ".mjs", ".json", ".svg", ".png", ".jpg", ".jpeg",
+        ".gif", ".webp", ".ico", ".woff", ".woff2", ".ttf", ".webmanifest"
+    })
+
+    def list_directory(self, path):
+        self.send_error(HTTPStatus.FORBIDDEN, "Directory listing disabled")
+        return None
+
+    def send_head(self):
+        # The server is a loopback-only vault: reject rebinding hostnames.
+        port = self.server.server_port
+        allowed_hosts = {
+            "127.0.0.1", "localhost",
+            f"127.0.0.1:{port}", f"localhost:{port}"
+        }
+        if self.headers.get("Host", "") not in allowed_hosts:
+            self.send_error(HTTPStatus.MISDIRECTED_REQUEST, "Unexpected Host")
+            return None
+
+        try:
+            path = unquote(urlsplit(self.path).path, errors="strict")
+        except (UnicodeError, ValueError):
+            self.send_error(HTTPStatus.BAD_REQUEST, "Invalid request path")
+            return None
+
+        if path == "/":
+            path = "/index.html"
+
+        # Fail closed on traversal, dotfiles, double-decoding and Windows
+        # alternate streams. This also rejects path-less directory requests.
+        if not path.startswith("/") or path.startswith("//"):
+            self.send_error(HTTPStatus.FORBIDDEN, "Invalid path")
+            return None
+        components = path[1:].split("/")
+        if any(
+            not item or item.startswith(".") or "\\" in item or ":" in item
+            or "%" in item for item in components
+        ):
+            self.send_error(HTTPStatus.FORBIDDEN, "Forbidden path")
+            return None
+
+        relative = Path(*components)
+        allowed = (
+            (len(components) == 1 and components[0] in {"index.html", "404.html"})
+            or (len(components) > 1 and components[0] == "scripts"
+                and relative.suffix.lower() in self._SCRIPT_EXTENSIONS)
+            or (len(components) > 1 and components[0] == "public"
+                and relative.suffix.lower() in self._PUBLIC_EXTENSIONS)
+        )
+        if not allowed:
+            self.send_error(HTTPStatus.FORBIDDEN, "Not an application asset")
+            return None
+
+        root = Path(self.directory).resolve()
+        candidate = root
+        for item in components:
+            candidate = candidate / item
+            if candidate.is_symlink():
+                self.send_error(HTTPStatus.FORBIDDEN, "Symlinks are not served")
+                return None
+        target = candidate.resolve()
+        if not target.is_relative_to(root) or not target.is_file():
+            self.send_error(HTTPStatus.FORBIDDEN, "Invalid application asset")
+            return None
+
+        # Delegate MIME types and transfer handling to the standard server,
+        # after checking the normalized path and asset allowlist.
+        self.path = path
+        return super().send_head()
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store, max-age=0")

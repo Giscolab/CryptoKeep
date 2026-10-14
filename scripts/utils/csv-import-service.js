@@ -81,10 +81,12 @@ export function detectColumnMapping(normalizedHeaders) {
   return { mapping, missing };
 }
 
-function cellAt(values, index) {
+function cellAt(values, index, trim = true) {
   if (index < 0 || index >= values.length) return '';
   const raw = values.at(index);
-  return typeof raw === 'string' ? raw.trim() : '';
+  if (typeof raw !== 'string') return '';
+  // A password is opaque data: its boundary whitespace is significant.
+  return trim ? raw.trim() : raw;
 }
 
 function firstOverlongField(entry) {
@@ -133,7 +135,7 @@ export function analyzeCsvRows(parsed, options = {}) {
       title: cellAt(row.values, mapping.title),
       url: cellAt(row.values, mapping.url),
       username: cellAt(row.values, mapping.username),
-      password: cellAt(row.values, mapping.password),
+      password: cellAt(row.values, mapping.password, false),
       notes: cellAt(row.values, mapping.notes),
       category: cellAt(row.values, mapping.category)
     };

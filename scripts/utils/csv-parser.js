@@ -22,7 +22,12 @@
  * memoire avant d'etre refuse.
  */
 
-import { MAX_CSV_ROWS } from '../core/storage/import-limits.js';
+import {
+  MAX_CSV_ROWS,
+  MAX_CSV_COLUMNS,
+  MAX_CSV_TOTAL_CELLS,
+  MAX_NOTES_LENGTH
+} from '../core/storage/import-limits.js';
 
 export class CsvParseError extends Error {
   constructor(code, message, line = null) {
@@ -42,11 +47,14 @@ export function stripBom(text) {
  * Decoupe un texte CSV en tableau de tableaux.
  *
  * @param {string} text
- * @param {{maxRows?: number}} options
+ * @param {{maxRows?: number,maxColumns?: number,maxCells?: number,maxFieldLength?: number}} options
  * @returns {string[][]} lignes brutes, en-tete compris
  */
 export function parseCsvRows(text, options = {}) {
   const maxRows = options.maxRows ?? MAX_CSV_ROWS;
+  const maxColumns = options.maxColumns ?? MAX_CSV_COLUMNS;
+  const maxCells = options.maxCells ?? MAX_CSV_TOTAL_CELLS;
+  const maxFieldLength = options.maxFieldLength ?? MAX_NOTES_LENGTH;
 
   if (typeof text !== 'string') {
     throw new CsvParseError('invalid_input', 'Le contenu CSV doit etre une chaine.');
@@ -61,17 +69,30 @@ export function parseCsvRows(text, options = {}) {
   let line = 1;
   let fieldWasQuoted = false;
   let sawAnyChar = false;
+  let cellCount = 0;
+
+  const appendField = (character) => {
+    if (field.length + character.length > maxFieldLength) {
+      throw new CsvParseError('field_too_long', 'Champ CSV trop long.', rowStartLine);
+    }
+    field += character;
+  };
 
   const pushField = () => {
+    if (row.length >= maxColumns) {
+      throw new CsvParseError('too_many_columns', 'Trop de colonnes dans une ligne CSV.', rowStartLine);
+    }
+    if (cellCount >= maxCells) {
+      throw new CsvParseError('too_many_cells', 'Trop de cellules CSV.', rowStartLine);
+    }
     row.push(field);
+    cellCount += 1;
     field = '';
     fieldWasQuoted = false;
   };
 
   const pushRow = () => {
-    row.push(field);
-    field = '';
-    fieldWasQuoted = false;
+    pushField();
     rows.push({ cells: row, line: rowStartLine });
     row = [];
     // +1 pour l'en-tete : la limite porte sur les lignes de DONNEES.
@@ -96,7 +117,7 @@ export function parseCsvRows(text, options = {}) {
     if (inQuotes) {
       if (character === '"') {
         if (source.charAt(index + 1) === '"') {
-          field += '"';
+          appendField('"');
           index += 1;
         } else {
           inQuotes = false;
@@ -104,7 +125,7 @@ export function parseCsvRows(text, options = {}) {
         continue;
       }
       if (character === '\n') line += 1;
-      field += character;
+      appendField(character);
       continue;
     }
 
@@ -139,7 +160,7 @@ export function parseCsvRows(text, options = {}) {
       continue;
     }
 
-    field += character;
+    appendField(character);
   }
 
   if (inQuotes) {

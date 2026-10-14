@@ -173,6 +173,16 @@ test('D7 - l accès local n est JAMAIS présenté comme HTTPS', () => {
   }
 });
 
+test('D17 - tous les lanceurs documentes gardent les en-tetes de securite', () => {
+  for (const doc of ['README.md', 'docs/LANCEMENT-SECURISE.md']) {
+    const source = lireFichier(doc);
+    assert.ok(source.includes('python3 scripts/secure_local_server.py'),
+      `${doc} doit recommander le serveur securise sur macOS et Linux`);
+    assert.ok(!source.includes('python3 -m http.server'),
+      `${doc} ne doit pas proposer un serveur sans anti-framing`);
+  }
+});
+
 // ===========================================================================
 // 3. Les valeurs techniques citées correspondent au code
 // ===========================================================================

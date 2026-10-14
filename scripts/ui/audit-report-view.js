@@ -486,8 +486,9 @@ export function clearAuditReport(options = {}) {
 /**
  * Export du rapport au format JSON.
  *
- * Contient les CONSTATS, jamais les mots de passe : le moteur n'en
- * transporte aucun. Le fichier est produit localement, sans reseau.
+ * Exporte les constats ANONYMES : ni mots de passe, ni titres de comptes,
+ * ni identifiants. Les donnees sensibles restent dans la session chiffree.
+ * Le fichier est produit localement, sans reseau.
  */
 export function buildAuditExport(rapport) {
   if (!rapport || rapport.status !== 'completed') return null;
@@ -498,9 +499,8 @@ export function buildAuditExport(rapport) {
     score: rapport.score,
     scoreModel: SCORE_MODEL,
     breachCheck: rapport.breachCheck,
-    findings: rapport.findings.map((item) => ({
-      title: item.title,
-      username: item.username,
+    findings: rapport.findings.map((item, index) => ({
+      findingNumber: index + 1,
       effectiveBits: item.effectiveBits,
       naiveBits: item.naiveBits,
       patterns: item.patterns,
@@ -548,7 +548,7 @@ export function initAuditReport(options = {}) {
         lien.download = `cryptokeep-audit-${lastReport.generatedAt.slice(0, 10)}.json`;
         lien.click();
         URL.revokeObjectURL(lien.href);
-        showToast('Rapport exporté.', 'success');
+        showToast('Rapport anonymisé exporté (sans titres ni identifiants).', 'success');
       } catch {
         showToast('Export impossible dans ce navigateur.', 'error');
       }

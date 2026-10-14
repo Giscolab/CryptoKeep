@@ -214,6 +214,41 @@ test('7.12 - le delai regle est REELLEMENT celui applique', async () => {
   } finally { module.cancelClipboardClear(); nettoyer(); }
 });
 
+test('7.14 - une nouvelle copie simultanee survit a l effacement ancien', async () => {
+  const presse = fauxPressePapiers();
+  const store = new FakeLocalStorage();
+  const { module } = await chargerClipboard(presse, store);
+  const originalWrite = presse.api.writeText;
+  let clearStarted;
+  let unblockClear;
+  const clearEntered = new Promise((resolve) => { clearStarted = resolve; });
+  const clearGate = new Promise((resolve) => { unblockClear = resolve; });
+  presse.api.writeText = async (value) => {
+    if (value === '') {
+      clearStarted();
+      await clearGate;
+    }
+    await originalWrite(value);
+  };
+
+  try {
+    assert.equal(await module.copyToClipboard(SECRET), true);
+    const clearing = module.clearOwnedClipboard();
+    await clearEntered;
+    const newer = module.copyToClipboard('nouvelle-copie-synthetique');
+    unblockClear();
+    const [first, copied] = await Promise.all([clearing, newer]);
+    assert.equal(first.succeeded, true);
+    assert.equal(copied, true);
+    assert.equal(presse.contenu, 'nouvelle-copie-synthetique',
+      'La copie plus recente doit terminer APRES l ancien effacement');
+  } finally {
+    unblockClear();
+    module.cancelClipboardClear();
+    nettoyer();
+  }
+});
+
 test('7.13 - aucun effacement n est annonce comme garanti', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../scripts/utils/clipboard.js', import.meta.url), 'utf8');

@@ -78,20 +78,17 @@ préalable.** Un « nettoyage » de profil équivaut à une suppression définit
 
 ## 7. macOS et Linux
 
-Aucun lanceur n'est fourni. Servez le dépôt vous-même :
+Aucun lanceur n'est fourni. Utilisez impérativement le serveur CryptoKeep,
+qui applique les en-têtes CSP et anti-framing sur toutes les plateformes :
 
 ```bash
-python3 -m http.server 8000 --bind 127.0.0.1 --directory .
+python3 scripts/secure_local_server.py --bind 127.0.0.1 --port 8000 --directory .
 ```
 
 Puis ouvrez `http://127.0.0.1:8000/index.html` dans une fenêtre **normale**.
 
-`http.server` ne pose pas les en-têtes de sécurité de
-`scripts/secure_local_server.py`. Pour un usage régulier, préférez :
-
-```bash
-python3 scripts/secure_local_server.py
-```
+Le serveur Python générique sans en-têtes de sécurité ne doit pas servir
+l'interface de production : il laisse notamment la page intégrable dans une iframe.
 
 ## 8. Développement local
 

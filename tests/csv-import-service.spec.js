@@ -116,6 +116,27 @@ try {
     assert.equal(analyse.acceptedCount, 1, 'URL seule suffit a identifier');
   }
 
+  // ============ 2b. Integrite des secrets avec espaces de bord =============
+  {
+    const original = '  mot-de-passe-avec-espaces  ';
+    const analyse = analyzeCsvRows(parseCsv(`name,password\nSite,"  mot-de-passe-avec-espaces  "\n`));
+    assert.equal(analyse.acceptedCount, 1);
+    assert.equal(analyse.accepted[0].entry.password, original,
+      'Un password doit rester identique octet par octet apres decodage CSV');
+    assert.ok(!JSON.stringify(analyse.preview).includes(original),
+      'L apercu ne doit jamais divulguer le secret');
+    const storage = new FakeVaultStorage(coffre.record);
+    await importCsvFile(
+      makeCsvFile(`name,password\nSite,"  mot-de-passe-avec-espaces  "\n`),
+      baseDeps(storage)
+    );
+    const added = storage.record.entries.find((entry) => entry.id !== 'existant-1');
+    const data = await decryptData(added, masterKey, {
+      additionalData: entryAdditionalData(added.id, 2)
+    });
+    assert.equal(data.password, original, 'Le secret chiffre importe doit preserver ses espaces');
+  }
+
   // ============ 3. Lignes vides, acceptees et rejetees =====================
   {
     const csv = [

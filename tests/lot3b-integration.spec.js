@@ -1598,8 +1598,14 @@ check('M7 - HIBP : desactive par defaut, consentement affiche', async () => {
   assert.match(notice, /jamais envoye/i);
   assert.match(notice, /5 premiers caracteres/i);
   assert.match(notice, /adresse IP/i);
-  // This is display copy, not a URL allowlist: require the literal HIBP host.
-  assert.ok(notice.includes('api.pwnedpasswords.com'), 'Le nom exact du service HIBP doit etre affiche');
+  // Compare the actual rendered endpoint and its complete trusted URL, not
+  // a host substring that could also match an attacker-controlled domain.
+  assert.equal(hibp.HIBP_NOTICE.endpoint, 'https://api.pwnedpasswords.com/range/');
+  assert.equal(
+    document.querySelector('#hibp-notice-body .setting-endpoint')?.textContent,
+    `Seul destinataire contacté : ${hibp.HIBP_NOTICE.endpoint}`,
+    'Le destinataire HIBP exact doit etre affiche dans la notice'
+  );
 });
 
 check('M8 - activer HIBP exige une action explicite et le dit', async () => {

@@ -131,6 +131,20 @@ try {
     assert.deepEqual(parsed.normalizedHeaders, ['password', 'url', 'name']);
   }
 
+  // --- Allocation bornee pendant la tokenisation (input hostile) -----------
+  expectCode(
+    () => parseCsvRows('name,password\n' + ','.repeat(2048)),
+    'too_many_columns', 'Colonnes excessives rejetees avant allocation'
+  );
+  expectCode(
+    () => parseCsvRows('name,password\n"' + 'x'.repeat(20000) + '",pass'),
+    'field_too_long', 'Champ long rejete pendant construction'
+  );
+  expectCode(
+    () => parseCsvRows('name,password\nA,s\nB,s\n', { maxCells: 4 }),
+    'too_many_cells', 'Nombre cumule de cellules borne'
+  );
+
   console.log('CSV parser tests passed.');
 } catch (error) {
   console.error('CSV parser tests failed:', error);

@@ -25,6 +25,10 @@ export const MAX_VAULT_ENTRIES = 5000;
 /** Nombre maximal de lignes de donnees acceptees dans un CSV. */
 export const MAX_CSV_ROWS = 5000;
 
+/** Limites imposees PENDANT la tokenisation CSV, avant toute allocation de cellule. */
+export const MAX_CSV_COLUMNS = 128;
+export const MAX_CSV_TOTAL_CELLS = 250000;
+
 /** Taille maximale d'un ciphertext base64 d'une entree, en octets decodes. */
 export const MAX_ENTRY_CIPHERTEXT_BYTES = 1024 * 1024; // 1 Mio
 

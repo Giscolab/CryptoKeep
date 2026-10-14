@@ -77,6 +77,9 @@ ne dit pas `ok` est refusé.
 | Ciphertext par entrée | 1 Mio | `MAX_ENTRY_CIPHERTEXT_BYTES` |
 | Fichier `.vault` importé | 10 Mio | `MAX_VAULT_FILE_BYTES` |
 | Fichier CSV importé | 10 Mio, 5 000 lignes | `MAX_CSV_FILE_BYTES`, `MAX_CSV_ROWS` |
+| CSV : colonnes par ligne | 128 | `MAX_CSV_COLUMNS` |
+| CSV : cellules totales | 250 000 | `MAX_CSV_TOTAL_CELLS` |
+| Champ CSV pendant la lecture | 16 384 caractères maximum, notes incluses | `MAX_NOTES_LENGTH` |
 | Champ texte | 4 096 caractères | `MAX_FIELD_LENGTH` |
 | Notes | 16 384 caractères | `MAX_NOTES_LENGTH` |
 

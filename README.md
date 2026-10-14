@@ -95,8 +95,8 @@ start_vault_secure.bat
 # Windows - lanceur historique, conserve
 start_vault_local.bat
 
-# macOS/Linux
-python3 -m http.server 8000 --bind 127.0.0.1 --directory .
+# macOS/Linux — serveur CryptoKeep avec en-tetes de securite (CSP, anti-framing)
+python3 scripts/secure_local_server.py --bind 127.0.0.1 --port 8000 --directory .
 ```
 
 > **Accès local** : http://127.0.0.1:8000/index.html

@@ -43,6 +43,16 @@ let activeCopy = null;
 let clearTimer = null;
 let countdownTimer = null;
 let countdownToast = null;
+let clipboardOperations = Promise.resolve();
+let clipboardEpoch = 0;
+
+// Queue only our own Clipboard API operations. External OS copies cannot be
+// serialized by a web page and remain outside this best-effort guarantee.
+function enqueueClipboardOperation(operation) {
+  const result = clipboardOperations.then(operation, operation);
+  clipboardOperations = result.then(() => undefined, () => undefined);
+  return result;
+}
 
 function clearTimers() {
   if (clearTimer) clearTimeout(clearTimer);
@@ -93,7 +103,11 @@ function scheduleClipboardClear(text, ttlMs) {
   }, ttlMs);
 }
 
-export async function copyToClipboard(text, options = {}) {
+export function copyToClipboard(text, options = {}) {
+  return enqueueClipboardOperation(() => copyToClipboardInternal(text, options));
+}
+
+async function copyToClipboardInternal(text, options = {}) {
   const ttlMs = resolveClipboardTtl(options);
 
   if (typeof text !== 'string' || text.length === 0) {
@@ -112,6 +126,8 @@ export async function copyToClipboard(text, options = {}) {
 
   try {
     await navigator.clipboard.writeText(text);
+    // A new copy supersedes the previous countdown even when clearing is off.
+    cancelClipboardClear();
     // Un delai nul signifie que l'effacement automatique est DESACTIVE dans
     // les reglages : aucune minuterie n'est armee, et rien n'est promis.
     if (ttlMs > 0) scheduleClipboardClear(text, ttlMs);
@@ -139,6 +155,7 @@ export async function copyToClipboard(text, options = {}) {
  * @returns {{cancelled: boolean}} vrai si une tentative etait programmee
  */
 export function cancelClipboardClear() {
+  clipboardEpoch += 1;
   const programmee = Boolean(activeCopy || clearTimer || countdownTimer);
   clearTimers();
   clearCountdownToast();
@@ -146,8 +163,13 @@ export function cancelClipboardClear() {
   return { cancelled: programmee };
 }
 
-export async function clearOwnedClipboard() {
+export function clearOwnedClipboard() {
+  return enqueueClipboardOperation(clearOwnedClipboardInternal);
+}
+
+async function clearOwnedClipboardInternal() {
   const copy = activeCopy;
+  const epoch = clipboardEpoch;
   if (!copy) {
     return { attempted: false, succeeded: false, unchanged: false, reason: 'nothing_to_clear' };
   }
@@ -174,7 +196,7 @@ export async function clearOwnedClipboard() {
   try {
     const currentValue = await navigator.clipboard.readText();
 
-    if (activeCopy && activeCopy.token !== copy.token) {
+    if (epoch !== clipboardEpoch || (activeCopy && activeCopy.token !== copy.token)) {
       return { attempted: true, succeeded: false, unchanged: false, reason: 'superseded' };
     }
 

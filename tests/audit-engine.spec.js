@@ -12,6 +12,7 @@ import {
   AUDIT_NOT_RUN
 } from '../scripts/security/audit-engine.js';
 import { setHibpConsent } from '../scripts/security/hibp-service.js';
+import { buildAuditExport } from '../scripts/ui/audit-report-view.js';
 import { FakeLocalStorage } from './helpers/vault-fixtures.js';
 
 const cas = [];
@@ -190,6 +191,23 @@ test('6.11 - AUCUN mot de passe dans le rapport', async () => {
   }
   for (const constat of r.findings) {
     assert.ok(!('password' in constat), 'Aucun constat ne porte de champ password');
+  }
+});
+
+test('6.14 - export JSON anonyme sans titres ni identifiants de comptes', async () => {
+  const report = await runSecurityAudit(COFFRE, { now: MAINTENANT });
+  const serialized = buildAuditExport(report);
+  assert.ok(serialized, 'Un audit termine doit produire un export');
+  const exported = JSON.parse(serialized);
+  assert.equal(exported.findings.length, report.findings.length);
+  for (const finding of exported.findings) {
+    assert.ok(!Object.hasOwn(finding, 'title'));
+    assert.ok(!Object.hasOwn(finding, 'username'));
+    assert.ok(!Object.hasOwn(finding, 'id'));
+  }
+  for (const entry of COFFRE) {
+    if (entry.username) assert.ok(!serialized.includes(entry.username), 'Un identifiant ne doit pas sortir en clair');
+    if (entry.title) assert.ok(!serialized.includes(`"title": "${entry.title}"`), 'Le titre du coffre ne doit pas sortir en clair');
   }
 });
 
