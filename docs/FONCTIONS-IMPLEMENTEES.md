@@ -68,11 +68,19 @@ Statuts employés :
 | Fonction | Statut | Implémentation | Test |
 |---|---|---|---|
 | Export `.vault` chiffré | Disponible | `core/vault/manager.js` → `exportVaultRecord` | `B9` |
+| Export CSV Chrome/Edge, confirmation du clair et nombre d'entrées ignorées | Disponible | `core/storage/vault-export-service.js` | `tests/vault-export-service.spec.js` |
+| Export JSON complet en clair, confirmé et versionné (sans import JSON) | Disponible | idem | idem |
 | Import `.vault` validé puis confirmé | Disponible | `core/storage/vault-import-service.js` | `tests/vault-import-service.spec.js` |
 | Validation structurelle stricte | Disponible | `core/storage/vault-import-validator.js` | `tests/vault-import-validator.spec.js`, `B10`, `B11` |
 | Limites de taille centralisées | Disponible | `core/storage/import-limits.js` | `tests/vault-import-*`, `tests/csv-import-service.spec.js` |
 | Import CSV | Disponible | `core/storage/csv-import-service.js`, `utils/csv-parser.js` | `tests/csv-parser.spec.js`, `tests/csv-import-service.spec.js` |
 | Synchronisation entre appareils | **Absent** | — | — |
+
+VAULT reste le format d'export par défaut et de restauration complète.
+Le CSV ne garde que `name,url,username,password` avec URL HTTP/HTTPS valide et
+mot de passe non vide. Les notes, catégories, étiquettes et horodatages sont
+omis ; JSON conserve les champs des entrées. CSV et JSON sont des fichiers en
+clair à supprimer après usage. Voir [le guide d'export](EXPORTS.md).
 
 ## 5. Analyse de sécurité
 

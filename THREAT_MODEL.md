@@ -1,6 +1,6 @@
 # CryptoKeep Threat Model
 
-Last updated: 2026-10-14 (concurrency and session-lifecycle remediation)
+Last updated: 2026-10-24 (explicitly consented plaintext exports)
 
 ## System Summary
 
@@ -15,6 +15,7 @@ CryptoKeep is a static browser application for storing password vault entries lo
 - Encrypted backup record in localStorage.
 - Vault metadata, including salt, KDF algorithm, iteration count, creation time, and version.
 - Clipboard contents after copy actions.
+- Plaintext CSV/JSON files deliberately downloaded by the user after confirmation.
 
 ## Trust Boundaries
 
@@ -23,6 +24,9 @@ CryptoKeep is a static browser application for storing password vault entries lo
 - Untrusted: vault entry fields such as title, username, URL, category, tags, notes, and passwords when rendered in the DOM.
 - Untrusted: imported vault files, CSV input, browser extensions, copied clipboard content, local logs, generated exports, and remote resources.
 - Browser storage is not a confidentiality boundary. IndexedDB and localStorage are readable by any script executing in this origin.
+- A confirmed CSV/JSON download intentionally crosses from unlocked memory to
+  a plaintext file controlled by the user and OS. The application cannot erase
+  that file after download. VAULT remains the default encrypted export.
 - Local development safeguards are operator guardrails only. They are not a sandbox boundary for secrets or exploit execution.
 - Conditionally trusted: HIBP k-anonymity endpoint if enabled. Only SHA-1 prefixes may be sent.
 
@@ -45,13 +49,19 @@ CryptoKeep is a static browser application for storing password vault entries lo
 
 ## In Scope Vulnerability Classes
 
-- Plaintext persistence of secrets in IndexedDB, localStorage, logs, exports, or tests.
+- Plaintext persistence of secrets in IndexedDB, localStorage, sessionStorage,
+  logs or tests; exports without explicit consent or outside the requested
+  CSV/JSON download. Consented plaintext files are an accepted exposure, not
+  an exception for application storage, logging or network transmission.
 - XSS or DOM injection through rendered vault entry fields. In a browser JavaScript vault, XSS while unlocked is total compromise of decrypted entries and usable key material.
 - Exposure of sensitive objects or decrypted vault data through the global `window` scope. This is a first-class vulnerability distinct from XSS: XSS is one execution vector, while a global reference amplifies any same-origin script or browser-extension access into direct vault access.
 - Weak or inconsistent cryptographic parameters.
 - AES-GCM IV reuse or malformed ciphertext handling.
 - Any unauthenticated encryption path or nonce reuse with the same key.
 - Missing authentication checks before decrypting, rendering, exporting, or editing entries.
+- Missing CSV/JSON plaintext consent, a stale session after confirmation, or
+  downloading after lock/cancellation. CSV spreadsheet-formula interpretation
+  is a documented risk: exported credentials preserve their actual characters.
 - Session-lock bypasses, incomplete memory cleanup, and clipboard cleanup failures.
 - Import parsing bugs that can corrupt vault state or inject UI content.
 - Partial-write states: an import or restore that fails midway and leaves
@@ -164,11 +174,23 @@ CryptoKeep is a static browser application for storing password vault entries lo
   session is rejected; lock cleanup also invalidates in-flight audit, reuse
   and HIBP publication paths and scrubs registered secure dialogs.
 
+- 2026-10-24 (export): CSV and JSON require explicit plaintext confirmation
+  and a current unlocked session, checked again after confirmation. Locking
+  cancels the dialog. Plaintext is prepared in memory only for the intentional
+  download, never persisted in application storage, logged or transmitted.
+  CSV includes only valid HTTP/HTTPS URLs with nonempty passwords and reports
+  skipped counts before and after export; JSON preserves all entry fields,
+  without master secrets or vault cryptographic metadata. JSON import is not
+  implemented. See [the export guide](docs/EXPORTS.md).
+
 ## Acceptance Criteria For Security Fixes
 
 - Existing tests pass, including `npm test` and `npm run test:security`.
 - A CSPRNG preflight passes before tests: `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"`.
-- No plaintext vault secrets are added to persistent storage, logs, exports, fixtures, or docs.
+- No plaintext vault secrets are added to application persistent storage, logs,
+  fixtures or docs. CSV/JSON plaintext downloads are permitted only after
+  explicit consent from a still-current unlocked session; cancellation or
+  locking must prevent the download. VAULT exports remain encrypted.
 - New DOM rendering of vault data uses DOM APIs or explicit sanitization.
 - Crypto changes include a migration or compatibility plan for existing vault metadata.
 - AES-GCM v2 entries authenticate their entry identifier and format version as additional authenticated data.

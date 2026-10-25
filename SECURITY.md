@@ -38,7 +38,7 @@ de journal personnel dans un rapport.** Fabriquez un coffre de démonstration.
 | Intégrité | Toute altération du ciphertext, du tag, de l'IV ou de l'AAD fait échouer l'ouverture | `C4` à `C7` |
 | Authenticité du coffre | Bloc de validation chiffré, vérifié pour son **contenu** | `L18`, `L19` |
 | Aucune source aléatoire faible | `crypto.getRandomValues` exclusivement ; aucun `Math.random` pour du matériel de sécurité | `tests/security-no-plaintext.spec.js` |
-| Aucun clair persisté | Ni mot de passe, ni clé, ni entrée déchiffrée dans IndexedDB, `localStorage`, `sessionStorage` ou un journal | `L2`, `L12`, `B14`, `B15` |
+| Aucun clair dans le stockage applicatif | Ni mot de passe, ni clé, ni entrée déchiffrée dans IndexedDB, `localStorage`, `sessionStorage` ou un journal ; exception volontaire : fichier CSV/JSON téléchargé après confirmation (§4.9) | `L2`, `L12`, `B14`, `B15` |
 | Verrouillage automatique | Inactivité configurable ; onglet masqué | `tests/autolock-controller.spec.js` |
 | Purge de session | Clé, sel, entrées déchiffrées, groupes de réutilisation, cache HIBP, rapport d'audit | `L14` à `L17`, `B12` |
 | Écritures concurrentes | Verrou Web Locks inter-onglets, comparaison conditionnelle dans la transaction IndexedDB, rollback conditionnel | `tests/medium-security-regressions.spec.js` (`M1`, `M2`) |
@@ -105,6 +105,22 @@ simple verrou en mémoire créerait une fausse garantie entre onglets. La lectur
 et la compatibilité d'un navigateur doivent donc être distinguées de sa
 capacité à modifier le coffre en sécurité.
 
+### 4.9 Les exports CSV et JSON sont des fichiers en clair
+
+Le format VAULT chiffré reste le choix par défaut. CSV et JSON exigent une
+confirmation explicite depuis une session déverrouillée toujours valide,
+revérifiée après confirmation ; un verrouillage annule le dialogue. Le clair
+est préparé en mémoire pour le seul fichier téléchargé : il n'est ni enregistré
+dans le stockage applicatif, ni journalisé, ni envoyé sur le réseau.
+
+Toute personne ayant accès au fichier CSV/JSON peut lire les mots de passe.
+Supprimez-le après utilisation : l'application ne peut pas effacer un fichier
+déjà téléchargé. Le CSV préserve les caractères réels, y compris les débuts de
+cellule `=`, `+`, `-` et `@` ; **ne l'ouvrez pas dans un tableur**, qui pourrait
+les interpréter comme des formules. Le CSV omet certains champs et certaines
+entrées : conservez un VAULT pour restaurer le coffre complet, ou un JSON pour
+tous les champs en clair. Voir [`docs/EXPORTS.md`](docs/EXPORTS.md).
+
 ## 5. Hors périmètre
 
 - Le navigateur, le système d'exploitation et leurs extensions.
@@ -135,6 +151,7 @@ Ces règles sont vérifiées par les tests, pas seulement écrites ici :
 - [`docs/LANCEMENT-SECURISE.md`](docs/LANCEMENT-SECURISE.md) — lancement sous Windows
 - [`docs/FORMATS-DE-COFFRE.md`](docs/FORMATS-DE-COFFRE.md) — formats v1 et v2
 - [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) — migrations et sauvegarde/restauration
+- [`docs/EXPORTS.md`](docs/EXPORTS.md) — exports VAULT, CSV Chrome/Edge et JSON
 - [`docs/FONCTIONS-IMPLEMENTEES.md`](docs/FONCTIONS-IMPLEMENTEES.md) — inventaire vérifié
 - [`docs/2FA-WEBAUTHN-AUTOFILL.md`](docs/2FA-WEBAUTHN-AUTOFILL.md) — pourquoi 2FA et
   remplissage automatique restent désactivés

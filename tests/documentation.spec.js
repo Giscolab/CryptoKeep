@@ -29,6 +29,7 @@ const DOCS_EN_VIGUEUR = [
   'docs/LANCEMENT-SECURISE.md', 'docs/FONCTIONS-IMPLEMENTEES.md',
   'docs/FONCTIONS-PREVUES.md', 'docs/FORMATS-DE-COFFRE.md',
   'docs/MIGRATIONS.md', 'docs/DECISION-APPLICATION-DESKTOP.md',
+  'docs/EXPORTS.md',
   'docs/MODULES-HISTORIQUES.md', 'docs/SITE-HISTORIQUE.md',
   'docs/launcher.md', 'docs/2FA-WEBAUTHN-AUTOFILL.md',
   'tests/browser/README.md'

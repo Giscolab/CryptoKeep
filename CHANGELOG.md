@@ -7,6 +7,24 @@
 
 ---
 
+## 📤 Exports VAULT, CSV Chrome/Edge et JSON – *24 octobre 2026*
+
+- Choix du format dans les paramètres ; VAULT chiffré reste la valeur par défaut
+  et le format de restauration complète.
+- CSV UTF-8 avec colonnes `name,url,username,password`, virgules et CRLF selon
+  RFC 4180 ; seuls les identifiants avec URL HTTP/HTTPS valide et mot de passe
+  non vide sont inclus, avec nombre d'entrées ignorées annoncé avant et après.
+- JSON en clair versionné conservant tous les champs des entrées, sans mot de
+  passe maître, clé ni métadonnées cryptographiques du coffre ; aucun import
+  JSON ajouté.
+- Confirmation explicite des formats en clair, contrôle de la session avant
+  téléchargement et annulation au verrouillage. Aucun clair dans le stockage
+  applicatif, les journaux ou le réseau.
+- Guide [`docs/EXPORTS.md`](docs/EXPORTS.md) : import natif Google/Edge, limites
+  du CSV, caractères préservés, risque des tableurs et suppression après usage.
+
+---
+
 ## 🔐 Correctifs des constats moyens Codex Security – *14 octobre 2026*
 
 Les six constats moyens du rapport établi sur `bab4c4b` ont été revérifiés

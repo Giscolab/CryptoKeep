@@ -336,6 +336,11 @@
 								<div class="score-label">Mots de passe anciens</div>
 								<p class="score-description">Mots de passe inchangés depuis plus d'un an</p>
 							</div>
+						</div>
+						<!-- Les quatre premieres cartes forment la ligne historique (mars 2026).
+						     Les trois controles ajoutes en septembre gardent leur propre rangee. -->
+						<h3 class="score-overview-heading">Contrôles complémentaires</h3>
+						<div class="score-overview score-overview--secondary">
 							<div class="score-card score-incomplete">
 								<div class="score-value" id="report-no-url">—</div>
 								<div class="score-label">Entrées sans URL</div>
@@ -819,9 +824,16 @@
 									<div class="setting-info">
 										<div class="setting-label">Exporter les données</div>
 										<div class="setting-description">Exportez vos mots de passe et données au format VAULT, CSV ou JSON</div>
+										<p class="setting-description" id="export-format-help">VAULT : sauvegarde complète chiffrée, à réimporter dans CryptoKeep avec votre mot de passe maître.</p>
 									</div>
-									<div class="setting-control">
-										<button class="btn btn-secondary" id="btn-export">Exporter</button>
+									<div class="setting-control export-controls">
+										<label class="sr-only" for="export-format">Format d’export</label>
+										<select class="select-control" id="export-format" aria-describedby="export-format-help">
+											<option value="vault" selected>VAULT — chiffré</option>
+											<option value="csv">CSV — Chrome / Edge</option>
+											<option value="json">JSON — données complètes</option>
+										</select>
+										<button type="button" class="btn btn-secondary" id="btn-export">Exporter</button>
 									</div>
 								</div>
 								<div class="setting-item">

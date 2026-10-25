@@ -48,10 +48,19 @@ graph TD
 |----------|-------------|--------------|
 | **🔍 Audit de sécurité** | Analyse en temps réel des vulnérabilités | Détection des mots de passe faibles/réutilisés |
 | **🗂️ Organisation** | Catégories déduites, recherche et tris | Retrouver une entrée vite |
-| **🔄 Export chiffré** | Fichier .vault (AES-GCM 256) | Sauvegarde et transfert manuel |
+| **🔄 Export chiffré** | Fichier .vault (AES-GCM 256), choix par défaut | Sauvegarde complète et restauration |
+| **📤 Export CSV / JSON** | CSV Chrome/Edge ou JSON complet, en clair après confirmation | Transfert volontaire vers un autre gestionnaire |
 | **⌛ Presse-papiers** | Effacement conditionnel apres 30 s | N'ecrase pas une copie plus recente |
 
 </div>
+
+Dans **Paramètres → Exporter les données**, choisissez VAULT, CSV ou JSON.
+Le CSV conserve seulement les identifiants avec URL HTTP/HTTPS valide et mot
+de passe non vide ; le nombre d'entrées ignorées est annoncé avant et après
+l'export. CSV et JSON contiennent les mots de passe en clair : ne les ouvrez
+pas dans un tableur et supprimez-les après usage. Le format `.vault` reste le
+choix pour une sauvegarde complète chiffrée. Voir le [guide d'export et d'import
+Chrome/Edge](docs/EXPORTS.md).
 
 ### ✨ Expérience Utilisiteur Premium
 - **Thèmes dynamiques** : Dark Mode certifié WCAG AA+ et Light Mode

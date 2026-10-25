@@ -22,9 +22,19 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { startStaticServer } from './static-server.mjs';
 import { lancerNavigateur, ClientCdp, trouverNavigateur } from './cdp-client.mjs';
+import { parseCsvRows } from '../../scripts/utils/csv-parser.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MDP = 'Parcours-Navigateur-Synthetique-2026!';
+const ENTREE_EXPORT = Object.freeze({
+  title: 'Service export, "été"',
+  url: 'https://export.invalid/connexion',
+  username: 'utilisateur,"été"',
+  password: '  =Secret-export,"été"\r\nligne suivante  ',
+  notes: 'Note synthétique, "privée"\nDeuxième ligne',
+  category: 'personal',
+  tags: ['export', 'été']
+});
 
 const etapes = [];
 function etape(label, fn) { etapes.push({ label, fn }); }
@@ -99,6 +109,89 @@ function lireCoffrePersiste() {
   })`);
 }
 
+/** Intercepte uniquement le telechargement : le vrai Blob reste en memoire. */
+async function avecCapturesExport(action) {
+  await evaluer(`(() => {
+    const original = {
+      create: URL.createObjectURL,
+      revoke: URL.revokeObjectURL,
+      click: HTMLAnchorElement.prototype.click
+    };
+    const capture = { original, blobs: [], downloads: [] };
+    globalThis.__exportJourneyCapture = capture;
+    URL.createObjectURL = function(blob) {
+      const url = original.create.call(URL, blob);
+      capture.blobs.push({ url, blob });
+      return url;
+    };
+    HTMLAnchorElement.prototype.click = function() {
+      if (this.download) {
+        capture.downloads.push({ filename: this.download, url: this.href });
+        return;
+      }
+      return original.click.call(this);
+    };
+    return true;
+  })()`);
+
+  try {
+    return await action();
+  } finally {
+    await evaluer(`(async () => {
+      const { closeSecureDialogs } = await import('/scripts/ui/secure-dialogs.js');
+      closeSecureDialogs(document);
+      const capture = globalThis.__exportJourneyCapture;
+      URL.createObjectURL = capture.original.create;
+      URL.revokeObjectURL = capture.original.revoke;
+      HTMLAnchorElement.prototype.click = capture.original.click;
+      capture.blobs.forEach(({ url }) => URL.revokeObjectURL(url));
+      capture.blobs.length = 0;
+      capture.downloads.length = 0;
+      delete globalThis.__exportJourneyCapture;
+      return true;
+    })()`);
+  }
+}
+
+async function lancerExportUi(format) {
+  await evaluer(`(() => {
+    document.getElementById('nav-settings').click();
+    const format = document.getElementById('export-format');
+    format.value = ${JSON.stringify(format)};
+    format.dispatchEvent(new Event('change', { bubbles: true }));
+    document.getElementById('btn-export').click();
+    return true;
+  })()`);
+}
+
+async function terminerConfirmationExport(accepter) {
+  await attendre(`!!document.querySelector('.secure-dialog')`, 'avertissement avant export en clair');
+  await evaluer(`(() => {
+    const dialogue = document.querySelector('.secure-dialog');
+    const bouton = [...dialogue.querySelectorAll('button')]
+      .find((element) => element.textContent.trim() === ${JSON.stringify(accepter ? 'Exporter en clair' : 'Annuler')});
+    if (!bouton) throw new Error('Action de confirmation export absente');
+    bouton.click();
+    return true;
+  })()`);
+  await attendre(`!document.querySelector('.secure-dialog')
+    && !document.getElementById('btn-export').disabled`, 'fin de la confirmation export');
+}
+
+async function lireExportCapture() {
+  await attendre(`globalThis.__exportJourneyCapture.downloads.length === 1`, 'telechargement export intercepte');
+  return evaluer(`(async () => {
+    const capture = globalThis.__exportJourneyCapture;
+    const download = capture.downloads[0];
+    const source = capture.blobs.find(({ url }) => url === download.url);
+    return {
+      filename: download.filename,
+      type: source.blob.type,
+      text: await source.blob.text()
+    };
+  })()`);
+}
+
 // ===========================================================================
 // LE PARCOURS
 // ===========================================================================
@@ -154,6 +247,61 @@ etape('B2 - CREATION DU COFFRE : le coffre chiffre est ecrit', async () => {
     `Le coffre doit etre reellement ecrit dans IndexedDB. Recu : ${persiste}`);
   assert.ok(!persiste.includes(MDP),
     'Le mot de passe maitre ne doit apparaitre nulle part dans le coffre persiste');
+});
+
+etape('B2a - rapport de securite : sept cartes lisibles aux differentes largeurs', async () => {
+  await evaluer("document.getElementById('nav-security').click()");
+  await attendre("!document.getElementById('security-report-view').hidden",
+    'ouverture du rapport de securite');
+
+  // Le coffre est exclusivement synthetique et le rapport n'a pas ete lance.
+  // On inspecte uniquement des rectangles de layout, jamais les entrees.
+  try {
+    for (const largeur of [375, 768, 1215, 1600]) {
+      await ctx.cdp.envoyer('Emulation.setDeviceMetricsOverride', {
+        width: largeur, height: 900, deviceScaleFactor: 1, mobile: false
+      }, ctx.session);
+
+      const layout = await evaluer(`(() => {
+        const groupes = [...document.querySelectorAll('#security-report-view .score-overview')];
+        const cartes = groupes.flatMap((groupe) => [...groupe.querySelectorAll('.score-card')]);
+        const rectangles = cartes.map((carte) => carte.getBoundingClientRect());
+        return {
+          nombre: cartes.length,
+          groupes: groupes.map((groupe) => groupe.querySelectorAll('.score-card').length),
+          lignes: groupes.map((groupe) => new Set(
+            [...groupe.querySelectorAll('.score-card')].map(
+              (carte) => Math.round(carte.getBoundingClientRect().top))
+          ).size),
+          largeurMin: Math.min(...rectangles.map((rect) => rect.width)),
+          dansConteneur: groupes.every((groupe) => {
+            const borne = groupe.getBoundingClientRect();
+            return [...groupe.querySelectorAll('.score-card')].every((carte) => {
+              const rect = carte.getBoundingClientRect();
+              return rect.left >= borne.left - 1 && rect.right <= borne.right + 1;
+            });
+          }),
+          sansDebordement: cartes.every((carte) =>
+            carte.scrollWidth <= carte.clientWidth + 1)
+        };
+      })()`);
+
+      assert.equal(layout.nombre, 7, 'Les sept indicateurs doivent rester presents');
+      assert.deepEqual(layout.groupes, [4, 3],
+        'Restaurer la composition historique : quatre indicateurs principaux, trois complementaires');
+      assert.ok(layout.dansConteneur && layout.sansDebordement,
+        `Cartes coupees a ${largeur}px : ${JSON.stringify(layout)}`);
+      assert.ok(layout.largeurMin >= 180,
+        `Cartes trop etroites a ${largeur}px : ${JSON.stringify(layout)}`);
+      if (largeur >= 1215) {
+        assert.deepEqual(layout.lignes, [1, 1],
+          `Retrouver quatre cartes puis trois sur deux rangees a ${largeur}px : ${JSON.stringify(layout)}`);
+      }
+    }
+  } finally {
+    await ctx.cdp.envoyer('Emulation.clearDeviceMetricsOverride', {}, ctx.session);
+    await evaluer("document.getElementById('nav-dashboard').click()");
+  }
 });
 
 etape('B3 - le champ du mot de passe maitre est vide apres usage', async () => {
@@ -317,6 +465,129 @@ etape('B9 - EXPORT : le fichier produit est chiffre, sans aucun clair', async ()
   ctx.exportChiffre = exporte;
 });
 
+etape('B9a - EXPORT UI : VAULT reste le choix chiffre par defaut', async () => {
+  assert.equal(await evaluer(`document.getElementById('export-format')?.value`), 'vault',
+    'Le format chiffre doit etre propose par defaut');
+  const avant = await lireCoffrePersiste();
+
+  await avecCapturesExport(async () => {
+    await lancerExportUi('vault');
+    const fichier = await lireExportCapture();
+    assert.match(fichier.filename, /\.vault$/);
+    assert.equal(await evaluer(`!!document.querySelector('.secure-dialog')`), false,
+      'La sauvegarde chiffree doit garder son parcours direct');
+    for (const secret of [MDP, 'Service-Parcours-B8-Modifie', 'MotDePasse-Modifie-B8!']) {
+      assert.ok(!fichier.text.includes(secret), 'La sauvegarde VAULT ne doit contenir aucun secret en clair');
+    }
+    const contenu = JSON.parse(fichier.text);
+    assert.ok(Array.isArray(contenu.entries) && contenu.meta,
+      'Le fichier VAULT doit conserver sa structure de sauvegarde');
+  });
+
+  assert.equal(await lireCoffrePersiste(), avant, 'Exporter ne doit pas modifier le coffre');
+});
+
+etape('B9b - EXPORT CSV : annulation sans fichier puis transfert exact des identifiants', async () => {
+  await evaluer(`(async () => {
+    const { vaultManager } = await import('/scripts/core/vault/manager.js');
+    await vaultManager.addEntry(${JSON.stringify(ENTREE_EXPORT)});
+    await vaultManager.addEntry({
+      title: 'Entree sans site pour export', password: 'Secret-sans-site-B9!', url: ''
+    });
+    return true;
+  })()`);
+  const avant = await lireCoffrePersiste();
+
+  await avecCapturesExport(async () => {
+    await lancerExportUi('csv');
+    await attendre(`!!document.querySelector('.secure-dialog')`, 'confirmation CSV');
+    assert.deepEqual(await evaluer(`({
+      blobs: globalThis.__exportJourneyCapture.blobs.length,
+      downloads: globalThis.__exportJourneyCapture.downloads.length
+    })`), { blobs: 0, downloads: 0 }, 'Aucun fichier ne doit exister avant consentement');
+    await terminerConfirmationExport(false);
+    assert.deepEqual(await evaluer(`({
+      blobs: globalThis.__exportJourneyCapture.blobs.length,
+      downloads: globalThis.__exportJourneyCapture.downloads.length
+    })`), { blobs: 0, downloads: 0 }, 'Annuler doit empecher toute creation de fichier');
+
+    await lancerExportUi('csv');
+    await terminerConfirmationExport(true);
+    const fichier = await lireExportCapture();
+    assert.match(fichier.filename, /\.csv$/);
+    assert.match(fichier.type, /^text\/csv/);
+    assert.ok(fichier.text.includes('\r\n'), 'Le CSV doit employer les fins de ligne des navigateurs');
+    const lignes = parseCsvRows(fichier.text).map((ligne) => ligne.cells);
+    assert.deepEqual(lignes[0], ['name', 'url', 'username', 'password']);
+    assert.equal(lignes.length, 3, 'Les deux identifiants web doivent etre exportes');
+    assert.deepEqual(lignes.find((ligne) => ligne[0] === ENTREE_EXPORT.title), [
+      ENTREE_EXPORT.title, ENTREE_EXPORT.url, ENTREE_EXPORT.username, ENTREE_EXPORT.password
+    ], 'L export doit conserver les virgules, guillemets, Unicode, lignes et espaces du mot de passe');
+    assert.ok(!fichier.text.includes('Secret-sans-site-B9!'), 'Le CSV navigateur doit omettre une entree sans site');
+    assert.ok(!fichier.text.includes(ENTREE_EXPORT.notes), 'Le CSV navigateur doit rester limite aux identifiants');
+  });
+
+  assert.equal(await lireCoffrePersiste(), avant, 'L export CSV ne doit rien reecrire');
+});
+
+etape('B9c - EXPORT JSON : les donnees completes sont preservees apres consentement', async () => {
+  const avant = await lireCoffrePersiste();
+  await avecCapturesExport(async () => {
+    await lancerExportUi('json');
+    await attendre(`!!document.querySelector('.secure-dialog')`, 'confirmation JSON');
+    assert.equal(await evaluer(`globalThis.__exportJourneyCapture.blobs.length`), 0,
+      'Le JSON en clair ne doit pas etre construit avant consentement');
+    await terminerConfirmationExport(true);
+    const fichier = await lireExportCapture();
+    assert.match(fichier.filename, /\.json$/);
+    assert.match(fichier.type, /^application\/json/);
+    const contenu = JSON.parse(fichier.text);
+    assert.equal(contenu.format, 'cryptokeep-plaintext');
+    assert.equal(contenu.version, 1);
+    assert.equal(contenu.entries.length, 3, 'Le JSON doit aussi conserver les entrees sans URL');
+    const entree = contenu.entries.find((element) => element.title === ENTREE_EXPORT.title);
+    assert.ok(entree, 'L entree complete doit etre presente dans le JSON');
+    for (const [champ, valeur] of Object.entries(ENTREE_EXPORT)) {
+      assert.deepEqual(entree[champ], valeur, `Le champ ${champ} doit etre preserve dans le JSON`);
+    }
+    assert.ok(entree.id && entree.created_at && entree.last_modified,
+      'Le JSON doit conserver les identifiants et dates des entrees');
+    assert.ok(!Object.hasOwn(contenu, 'meta'), 'Un export en clair ne doit pas inclure les metadonnees cryptographiques');
+    assert.ok(!fichier.text.includes(MDP), 'Le mot de passe maitre ne doit jamais etre exporte');
+  });
+  assert.equal(await lireCoffrePersiste(), avant, 'L export JSON ne doit rien reecrire');
+});
+
+etape('B9d - EXPORT SUSPENDU : verrouiller annule la confirmation sans fichier', async () => {
+  const avant = await lireCoffrePersiste();
+  try {
+    await avecCapturesExport(async () => {
+      await lancerExportUi('json');
+      await attendre(`!!document.querySelector('.secure-dialog')`, 'confirmation avant verrouillage');
+      await evaluer(`(async () => {
+        const { vaultManager } = await import('/scripts/core/vault/manager.js');
+        const { lockVaultSession } = await import('/scripts/security/session-lock.js');
+        await lockVaultSession(vaultManager, { notify: false });
+        return true;
+      })()`);
+      await attendre(`!document.querySelector('.secure-dialog')
+        && !document.getElementById('btn-export').disabled`, 'annulation de l export au verrouillage');
+      assert.deepEqual(await evaluer(`({
+        blobs: globalThis.__exportJourneyCapture.blobs.length,
+        downloads: globalThis.__exportJourneyCapture.downloads.length
+      })`), { blobs: 0, downloads: 0 }, 'Une session verrouillee ne doit produire aucun export en clair');
+      assert.equal(await evaluer(`document.getElementById('auth-screen').hidden`), false);
+    });
+    assert.equal(await lireCoffrePersiste(), avant, 'Annuler l export ne doit pas modifier le coffre');
+  } finally {
+    if (!await evaluer(`document.getElementById('auth-screen').hidden`)) {
+      await soumettreMotDePasse(MDP);
+      await attendre(`document.getElementById('auth-screen').hidden === true`, 'reouverture apres export annule');
+    }
+    await evaluer(`document.getElementById('nav-dashboard').click()`);
+  }
+});
+
 etape('B10 - IMPORT CONTROLE : un fichier hostile est REFUSE', async () => {
   const avant = await lireCoffrePersiste();
 
@@ -396,7 +667,8 @@ etape('B13 - DECONNEXION : rien de sensible ne reste dans le document', async ()
   assert.equal(r.entrees, 0);
   assert.equal(r.champVide, true, 'Le champ maitre doit etre vide apres deconnexion');
 
-  for (const secret of [MDP, 'MotDePasse-Modifie-B8!', 'Service-Parcours-B8-Modifie']) {
+  for (const secret of [MDP, 'MotDePasse-Modifie-B8!', 'Service-Parcours-B8-Modifie',
+    ENTREE_EXPORT.password, ENTREE_EXPORT.title, ENTREE_EXPORT.username, ENTREE_EXPORT.notes]) {
     assert.ok(!r.texteDocument.includes(secret),
       `Donnee sensible encore affichee apres deconnexion : « ${secret} »`);
   }
@@ -410,7 +682,9 @@ etape('B14 - AUCUN SECRET dans localStorage ni sessionStorage', async () => {
 
   const s = JSON.parse(stockages);
   for (const secret of [MDP, 'MotDePasse-Entree-B4!', 'MotDePasse-Modifie-B8!',
-    'Service-Parcours-B8-Modifie', 'utilisateur-b4']) {
+    'Service-Parcours-B8-Modifie', 'utilisateur-b4', ENTREE_EXPORT.password,
+    ENTREE_EXPORT.title, ENTREE_EXPORT.username, ENTREE_EXPORT.notes,
+    'Secret-export', 'Secret-sans-site-B9!']) {
     assert.ok(!s.local.includes(secret), `SECRET dans localStorage : « ${secret} »`);
     assert.ok(!s.session.includes(secret), `SECRET dans sessionStorage : « ${secret} »`);
   }
@@ -418,7 +692,8 @@ etape('B14 - AUCUN SECRET dans localStorage ni sessionStorage', async () => {
 
 etape('B15 - AUCUN SECRET journalise dans la console', async () => {
   const journal = ctx.logs.join(' \\n ');
-  for (const secret of [MDP, 'MotDePasse-Entree-B4!', 'MotDePasse-Modifie-B8!']) {
+  for (const secret of [MDP, 'MotDePasse-Entree-B4!', 'MotDePasse-Modifie-B8!',
+    ENTREE_EXPORT.password, 'Secret-export', 'Secret-sans-site-B9!']) {
     assert.ok(!journal.includes(secret), `SECRET journalise : « ${secret} »`);
   }
 });

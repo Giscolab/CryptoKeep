@@ -1,4 +1,17 @@
 @layer components.export {
+  .export-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    max-width: 100%;
+  }
+
+  .export-controls select {
+    max-width: 100%;
+  }
+
   .toolbar {
     display: flex;
     flex-wrap: wrap;

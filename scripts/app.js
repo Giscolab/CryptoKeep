@@ -2,9 +2,9 @@ import './utils/import-csv.js';
 // `importVault` reste exportee par ./core/storage/backup.js et delegue
 // desormais au service securise. app.js appelle directement le flux complet
 // `importVaultFile`, qui verifie la cryptographie avant toute ecriture.
-import {
-	exportVault
-} from './core/storage/backup.js';
+// L'export VAULT historique est conserve dans backup.js. Le controleur ajoute
+// le choix CSV/JSON et les confirmations explicites des fichiers en clair.
+import { initVaultExportControls } from './ui/vault-export.js';
 import {
 	vaultManager
 } from './core/vault/manager.js';
@@ -576,23 +576,8 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 	const infoWeak = document.getElementById('stats-weak-in-info');
 	if (infoWeak) infoWeak.innerText = stats.weak;
 });
-// === EXPORT DU COFFRE (.vault)
-document.getElementById('btn-export').addEventListener('click', async () => {
-	try {
-		const vault = await vaultManager.exportVaultRecord();
-		const blob = exportVault(vault);
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `vault_${new Date().toISOString().split('T')[0]}.vault`;
-		a.click();
-		URL.revokeObjectURL(url);
-		showToast("Export du coffre terminé.", "success");
-	} catch (err) {
-		console.error('[Vault Export] Échec :', err);
-		showToast("Erreur lors de l’export du coffre.", "error");
-	}
-});
+// === EXPORT DU COFFRE (VAULT chiffre, CSV navigateurs ou JSON complet)
+initVaultExportControls();
 // === DÉCLENCHE L’INPUT FICHIER (.vault)
 document.getElementById('btn-import').addEventListener('click', () => {
 	document.getElementById('file-import').click();
