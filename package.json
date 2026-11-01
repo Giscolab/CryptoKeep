@@ -18,7 +18,9 @@
     "desktop:info": "tauri info",
     "desktop:dev": "tauri dev --config src-tauri/tauri.dev.conf.json --target x86_64-pc-windows-msvc",
     "desktop:build": "tauri build --config src-tauri/tauri.test.conf.json --no-bundle --target x86_64-pc-windows-msvc",
-    "test:desktop": "node tests/desktop.spec.js && node tests/desktop/browser.spec.mjs"
+    "desktop:installer": "node tests/desktop/installer.spec.mjs && tauri build --config src-tauri/tauri.test.conf.json --config src-tauri/tauri.installer.conf.json --bundles nsis --target x86_64-pc-windows-msvc -- --locked",
+    "desktop:production": "node tests/desktop/installer.spec.mjs && tauri build --config src-tauri/tauri.production.conf.json --bundles nsis --target x86_64-pc-windows-msvc -- --locked",
+    "test:desktop": "node tests/desktop.spec.js && node tests/desktop/installer.spec.mjs && node tests/desktop/browser.spec.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

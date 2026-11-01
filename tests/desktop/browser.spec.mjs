@@ -2,7 +2,7 @@
  * downloads. This is a frontend check, NEVER a Windows/WebView2 validation. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, existsSync, copyFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { createServer as createPortServer } from 'node:net';
 import { once } from 'node:events';
@@ -134,8 +134,12 @@ try {
     const report = await exportVaultFile('vault',{vaultManager});
     const a = document.createElement('a'); a.href = URL.createObjectURL(report.blob); a.download='desktop-synthetic.vault'; document.body.append(a); a.click(); a.remove(); return true;
   })()`);
-  const file = join(downloads, 'desktop-synthetic.vault');
-  await waitFor(() => existsSync(file), 'synthetic download');
+  const download = join(downloads, 'desktop-synthetic.vault');
+  await waitFor(() => existsSync(download), 'synthetic download');
+  // Preserve the completed export outside Chromium's download directory:
+  // Windows Chromium can remove browser-managed downloads on shutdown.
+  const file = join(temporary, 'exported-synthetic.vault');
+  copyFileSync(download, file);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), record);
   console.log('PASS real .vault download equals the encrypted IndexedDB record');
   await stop();

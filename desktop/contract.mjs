@@ -3,8 +3,8 @@ export const DESKTOP_CSP = "default-src 'none'; script-src 'self'; style-src 'se
 
 export function assertDesktopRuntime(runtime) {
   const marker = runtime.__CRYPTOKEEP_DESKTOP__;
-  if (!marker || !['development', 'test'].includes(marker.channel)) {
-    throw new Error('Le prototype desktop exige un profil de développement ou de test.');
+  if (!marker || !['production', 'development', 'test'].includes(marker.channel)) {
+    throw new Error('Un profil desktop CryptoKeep reconnu est requis.');
   }
   const syntheticOrigin = marker.synthetic === true && marker.channel === 'test'
     && /^http:\/\/127\.0\.0\.1:\d+$/.test(marker.expectedOrigin);

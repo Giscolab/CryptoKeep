@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CryptoKeep Test",
+  "identifier": "fr.giscolab.cryptokeep.test",
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "shortDescription": "CryptoKeep — prototype Windows de test",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "template": "windows/installer-preserve-data.nsi",
+        "installMode": "currentUser",
+        "languages": ["French"],
+        "compression": "lzma"
+      }
+    }
+  }
+}

@@ -124,12 +124,14 @@ test('desktop profiles and configuration have no bundle, updater or remote conte
   }
 });
 
-test('preflight refuses wrong origins, production, and missing Web Locks', () => {
+test('preflight accepts known channels and refuses wrong origins and missing Web Locks', () => {
   const runtime = { __CRYPTOKEEP_DESKTOP__: { channel: 'development', expectedOrigin: 'https://tauri.localhost' }, location: { origin: 'https://tauri.localhost' }, isSecureContext: true, crypto, navigator: { locks: { request() {} } }, indexedDB: {}, localStorage: {} };
   assert.equal(assertDesktopRuntime(runtime).channel, 'development');
   assert.throws(() => assertDesktopRuntime({ ...runtime, location: { origin: 'https://example.invalid' } }), /Origine/);
   assert.throws(() => assertDesktopRuntime({ ...runtime, navigator: {} }), /Web Crypto/);
-  assert.throws(() => assertDesktopRuntime({ ...runtime, __CRYPTOKEEP_DESKTOP__: { channel: 'production' } }), /profil/);
+  assert.equal(assertDesktopRuntime({ ...runtime, __CRYPTOKEEP_DESKTOP__: { ...runtime.__CRYPTOKEEP_DESKTOP__, channel: 'production' } }).channel, 'production');
+  assert.throws(() => assertDesktopRuntime({ ...runtime, __CRYPTOKEEP_DESKTOP__: { ...runtime.__CRYPTOKEEP_DESKTOP__, channel: 'unknown' } }), /profil/);
+  assert.throws(() => assertDesktopRuntime({ ...runtime, location: { origin: 'http://127.0.0.1:1234' }, __CRYPTOKEEP_DESKTOP__: { channel: 'production', synthetic: true, expectedOrigin: 'http://127.0.0.1:1234' } }), /Origine/);
 });
 
 test('desktop refuses migration and legacy imports without any storage write; web default is preserved', async () => {

@@ -1,5 +1,57 @@
 # CryptoKeep desktop — prototype du Lot B
 
+> Évolution après les essais du Lot C : le canal de production est maintenant
+> activé dans une configuration de compilation distincte. Les mentions de
+> production interdite ci-dessous décrivent l'état historique du Lot B.
+> Voir [DESKTOP-LOT-C.md](DESKTOP-LOT-C.md) pour l'état courant.
+
+## Compilation Windows du 1er novembre 2026
+
+Compilation native Windows x64 réussie depuis `main`, base `0c6d1ce`, avec
+Rust/Cargo 1.90.0, Visual Studio Build Tools 2022, Windows SDK 10.0.26100.0,
+WebView2 156.0.4314.58, Node 26.13.0 et npm 11.20.0.
+
+Le premier `src-tauri/Cargo.lock` a été généré par Cargo : 406 paquets
+verrouillés. `cargo test --locked` réussit (1 test : refus des profils de
+production et inconnus). `npm test` et `npm run test:desktop` réussissent ;
+`npm run lint` termine avec 0 erreur et 108 avertissements.
+Le test Chromium conserve désormais l'export synthétique hors du répertoire
+de téléchargement du navigateur avant sa fermeture, pour permettre le réimport
+sur Windows.
+
+Commande de compilation exécutée avec le verrou :
+
+```powershell
+npm.cmd run desktop:build -- -- --locked
+```
+
+Exécutable produit :
+`src-tauri/target/x86_64-pc-windows-msvc/release/cryptokeep-desktop.exe`.
+Il utilise la configuration test, sans bundle ni installateur. Aucun coffre
+réel n'a été ouvert par les contrôles automatisés. Après compilation, le
+démarrage natif a été confirmé : fenêtre « CryptoKeep — tests synthétiques »,
+processus répondant et moteur WebView2 enfant utilisant exclusivement le canal
+`fr.giscolab.cryptokeep.test` (répertoire `WebView2/EBWebView`). Cela ne prouve
+pas le bon fonctionnement des commandes de l'interface. La persistance native
+WebView2, l'export/import natif et l'ergonomie Windows restent à valider
+manuellement avec des données synthétiques. Le Lot C reste hors de ce contrôle.
+
+### Retour du test manuel Windows — 1er novembre 2026
+
+L'utilisateur a confirmé le parcours demandé : création d'un coffre synthétique,
+ajout d'une entrée fictive, export `.vault`, fermeture complète, relance du
+prototype test et présence de l'entrée après déverrouillage. Ce résultat est
+déclaré par l'utilisateur ; les interactions n'ont pas été observées ni
+automatisées par Codex.
+
+La persistance après redémarrage de l'application est donc confirmée par ce
+test manuel. Le réimport natif de l'export, la restauration sur profil vierge,
+la veille, le presse-papiers et les vérifications réseau restent non validés.
+La compilation et ce test ne valident pas l'installation/désinstallation du
+Lot C ni l'utilisation avec des coffres réels.
+
+## Rapport initial de préparation Linux
+
 Le socle Tauri 2 est préparé pour Windows x64, en conservant la version web.
 Il n'est pas validé nativement dans l'environnement Linux de préparation.
 Aucun installateur, mise à jour automatique ou test de désinstallation n'est
