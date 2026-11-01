@@ -11,7 +11,7 @@
 
 | Fonction | Ce qui existe déjà | Ce qui manque |
 |---|---|---|
-| **Application desktop** | Décision documentée, critères posés | Tout. Voir [`DECISION-APPLICATION-DESKTOP.md`](DECISION-APPLICATION-DESKTOP.md) |
+| **Application desktop** | Socle Tauri du Lot B préparé ; voir [état du prototype](DESKTOP-LOT-B.md) | Validation native Windows/WebView2, puis distribution au Lot C |
 | **Double authentification (WebAuthn)** | Modèle de menace écrit, bascule présente et **désactivée** | Enregistrement d'authentificateur, stockage du descripteur, liaison à la clé maître. Voir [`2FA-WEBAUTHN-AUTOFILL.md`](2FA-WEBAUTHN-AUTOFILL.md) |
 | **Remplissage automatique** | Modèle de menace écrit, bascule présente et **désactivée** | Une extension navigateur, hors du périmètre d'une page web. Voir le même document |
 

@@ -24,6 +24,7 @@ release/
 # 🦀 Tauri — build Rust
 src-tauri/target/
 src-tauri/WixTools/
+src-tauri/gen/
 
 # 📄 docs/assets — build Vite (hashé, regénéré)
 

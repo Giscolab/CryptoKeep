@@ -122,7 +122,7 @@ clair à supprimer après usage. Voir [le guide d'export](EXPORTS.md).
 | Serveur local avec en-têtes de sécurité | Disponible | `scripts/secure_local_server.py` | `npm run test:python` |
 | Arrêt ciblé du serveur | Disponible | `scripts/stop_secure_server.ps1` | — |
 | Export HTML des journaux | Disponible (sans interface) | `export_log.py` | `npm run test:python` |
-| Application desktop | **Absent** | — | `docs/DECISION-APPLICATION-DESKTOP.md` |
+| Application desktop | **Prototype Lot B préparé, Windows non validé** | `src-tauri`, `desktop` ; voir [Lot B](DESKTOP-LOT-B.md) | `npm run test:desktop` (frontend et données synthétiques) |
 | Installation PWA | **Absent** — manifeste présent, aucun service worker | `public/icons/site.webmanifest` | — |
 
 ---

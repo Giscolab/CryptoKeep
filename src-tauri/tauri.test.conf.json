@@ -1,0 +1,21 @@
+{
+  "identifier": "fr.giscolab.cryptokeep.test",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "CryptoKeep — tests synthétiques",
+        "url": "index.html",
+        "width": 1280,
+        "height": 850,
+        "minWidth": 800,
+        "minHeight": 600,
+        "useHttpsScheme": true,
+        "incognito": false,
+        "browserExtensionsEnabled": false,
+        "devtools": false
+      }
+    ]
+  }
+}

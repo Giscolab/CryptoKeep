@@ -1,4 +1,5 @@
 import './utils/import-csv.js';
+import { getRuntimePolicy } from './core/runtime-policy.js';
 // `importVault` reste exportee par ./core/storage/backup.js et delegue
 // desormais au service securise. app.js appelle directement le flux complet
 // `importVaultFile`, qui verifie la cryptographie avant toute ecriture.
@@ -230,6 +231,7 @@ void probeStoragePersistence().then((report) => {
 // N'est proposee que si une ancienne cle `vaultBackup` existe reellement.
 // Aucune suppression n'a lieu avant verification cryptographique complete.
 async function runVerifiedLegacyMigration() {
+  if (!getRuntimePolicy().automaticMigrations) return false;
 	try {
 		const inspection = inspectLegacyBackup({ storage: localStorage });
 		if (!inspection.present) return false;
@@ -519,7 +521,9 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 	} catch (err) {
 		vaultManager.clearSession();
 		console.warn('[Vault] Unlock or migration failed:', err?.name || 'error');
-		showToast('Impossible de deverrouiller ou migrer le coffre.', 'error');
+		showToast(err?.code === 'migration_required'
+			? 'Ce coffre nécessite une migration. Le prototype desktop ne le modifie pas ; utilisez uniquement un coffre synthétique courant.'
+			: 'Impossible de deverrouiller ou migrer le coffre.', 'error');
 		return;
 	}
 

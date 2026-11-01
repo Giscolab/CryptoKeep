@@ -22,8 +22,11 @@
 import { decryptData } from '../crypto/aes-gcm.js';
 import { deriveMasterKey } from '../crypto/pbkdf2.js';
 import { validateDecryptedEntries } from './plaintext-validator.js';
+import { getRuntimePolicy } from '../runtime-policy.js';
+import { migrateEntryTimestamps } from './migrations/entry-timestamps.js';
 import {
   CURRENT_VAULT_FORMAT_VERSION,
+  metadataNeedsMigration,
   entryAdditionalData,
   validationAdditionalData
 } from './vault-format.js';
@@ -63,6 +66,9 @@ export function validationOptionsFor(formatVersion) {
  */
 export async function verifyAndDecryptVault(normalizedRecord, metadata, password, deps = {}) {
   const { derive = deriveMasterKey, decrypt = decryptData } = deps;
+  if (!getRuntimePolicy().automaticMigrations && metadataNeedsMigration(metadata)) {
+    throw new VaultCryptoError('migration_required', 'Ce coffre exige une migration ; le prototype desktop le conserve sans modification.');
+  }
 
   if (typeof password !== 'string' || password.length === 0) {
     throw new VaultCryptoError('no_password', 'Un mot de passe est requis.');
@@ -115,6 +121,11 @@ export async function verifyAndDecryptVault(normalizedRecord, metadata, password
       );
     }
 
+    if (!getRuntimePolicy().automaticMigrations
+      && migrateEntryTimestamps(structuredClone(entries), normalizedRecord.meta)) {
+      entries.length = 0;
+      throw new VaultCryptoError('migration_required', 'Ce coffre exige une migration des dates ; import desktop refusé sans écriture.');
+    }
     return { key, entries, plaintextStats };
   } finally {
     // Le sel copie est remis a zero. La cle derivee et les chaines produites
