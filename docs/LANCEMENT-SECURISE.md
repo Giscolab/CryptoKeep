@@ -1,106 +1,53 @@
-# Guide de lancement sécurisé
+# Lancer la version web localement
 
-> **Document de référence, priorité haute.** Créé au Lot 10.
-> [`launcher.md`](launcher.md) reste valable et décrit les décisions techniques
-> du lanceur ; ce guide-ci s'adresse à l'usage quotidien.
+Cette procédure concerne la version navigateur. L'application Windows Tauri
+s'utilise sans serveur Python : voir [INSTALLATION.md](INSTALLATION.md).
 
-## 1. En une ligne
+## Windows
 
-Sous Windows, lancez **`start_vault_secure.bat`**, puis choisissez **1**.
+Installer Python 3, cloner le dépôt puis lancer `start_vault_secure.bat`.
+Le menu permet de démarrer le serveur, l'arrêter, exporter les journaux,
+afficher le chemin du profil et quitter. `start_vault_local.bat` est le lanceur
+historique encore disponible ; les deux fichiers sont distincts de l'installateur.
 
-Il n'existe pas de fichier `start.bat`. Ce nom apparaissait dans d'anciennes
-notes ; les deux lanceurs réels sont `start_vault_secure.bat` (recommandé) et
-`start_vault_local.bat` (historique, conservé).
-
-## 2. Ce que fait le lanceur
-
-1. détecte Python dans le `PATH` ;
-2. démarre `scripts/secure_local_server.py` sur `127.0.0.1:8000` ;
-3. attend une réponse HTTP réelle avant d'aller plus loin ;
-4. ouvre Edge ou Chrome sur un **profil dédié et persistant** ;
-5. journalise dans `logs\vault_<horodatage>.log` et `.log.err` ;
-6. enregistre le PID dans `%LOCALAPPDATA%\CryptoKeep\run\server.json`, pour
-   pouvoir arrêter **son** serveur sans toucher à un autre processus.
+Le lanceur recherche Edge ou Chrome et utilise un profil dédié persistant.
+Si ces navigateurs ne sont pas détectés, il ouvre le navigateur par défaut
+avec un avertissement : vérifier alors soi-même le profil utilisé.
 
 | Élément | Valeur |
 |---|---|
 | Adresse | `http://127.0.0.1:8000/index.html` |
-| Transport | **HTTP en clair — aucun TLS** |
-| Profil navigateur | `%LOCALAPPDATA%\CryptoKeep\browser-profile` |
+| Transport | HTTP en clair sur la boucle locale, aucun TLS |
+| Profil navigateur dédié | `%LOCALAPPDATA%\CryptoKeep\browser-profile` |
 | État du serveur | `%LOCALAPPDATA%\CryptoKeep\run\server.json` |
-| Journaux | `logs\vault_<horodatage>.log` |
+| Journaux locaux | Dossier `logs/` du projet |
 
-## 3. Deux règles à ne pas contourner
+Ne pas utiliser une fenêtre privée : ses données peuvent disparaître à sa
+fermeture. Ne pas supprimer le profil sans export `.vault` indépendant.
+La confidentialité au repos vient du chiffrement applicatif AES-GCM, pas du HTTP.
 
-### 3.1 Ne jamais lancer le coffre en navigation privée
+## macOS et Linux
 
-Le coffre vit dans IndexedDB, et ses préférences dans `localStorage`. En mode
-privé, le navigateur **détruit tout à la fermeture** : le coffre est perdu, sans
-avertissement et sans récupération possible. C'est pour cela que le lanceur
-ouvre un profil persistant dédié, distinct de votre profil personnel.
+Utiliser le serveur fourni, qui applique les en-têtes de sécurité de l'application :
 
-### 3.2 L'accès local n'est pas HTTPS
-
-L'adresse est `http://`, jamais `https://`. Le serveur local n'implémente aucun
-TLS et ne doit jamais être décrit autrement. La confidentialité **au repos**
-repose exclusivement sur le chiffrement AES-GCM appliqué aux données — pas sur
-le transport.
-
-Le serveur n'écoute que sur l'interface de bouclage : rien n'est exposé au
-réseau local.
-
-## 4. Le menu
-
-| Choix | Effet |
-|---|---|
-| 1 | Démarre le serveur et ouvre le navigateur |
-| 2 | Arrête **le serveur de ce lanceur** — jamais un autre processus |
-| 3 | Exporte les journaux en HTML (`export_log.py`) |
-| 4 | Affiche l'emplacement du profil navigateur |
-| 5 | Quitte, en arrêtant le serveur |
-
-## 5. Le profil navigateur contient votre coffre
-
-`%LOCALAPPDATA%\CryptoKeep\browser-profile` contient IndexedDB et
-`localStorage`, donc **le coffre chiffré**.
-
-**Ne supprimez jamais ce dossier sans avoir exporté votre coffre au
-préalable.** Un « nettoyage » de profil équivaut à une suppression définitive.
-
-## 6. En cas de problème
-
-| Message | Cause | Action |
-|---|---|---|
-| `[ERREUR] Python introuvable dans le PATH` | Python absent ou non déclaré | Installer Python 3 en cochant « Add to PATH » |
-| `[ERREUR] Le serveur n a pas demarre` | Port occupé, ou erreur Python | Lire `logs\vault_<horodatage>.log.err` |
-| `[ERREUR] Timeout demarrage` | Le serveur ne répond pas en 20 s | Même journal ; vérifier qu'aucun pare-feu ne bloque la boucle locale |
-| Le navigateur ne s'ouvre pas | Ni Edge ni Chrome trouvé | Ouvrir manuellement `http://127.0.0.1:8000/index.html` — **hors navigation privée** |
-
-## 7. macOS et Linux
-
-Aucun lanceur n'est fourni. Utilisez impérativement le serveur CryptoKeep,
-qui applique les en-têtes CSP et anti-framing sur toutes les plateformes :
-
-```bash
+```sh
 python3 scripts/secure_local_server.py --bind 127.0.0.1 --port 8000 --directory .
 ```
 
-Puis ouvrez `http://127.0.0.1:8000/index.html` dans une fenêtre **normale**.
+Ouvrir ensuite `http://127.0.0.1:8000/index.html` dans un profil normal persistant.
+Le serveur Python générique ne doit pas remplacer le serveur fourni pour cet usage.
 
-Le serveur Python générique sans en-têtes de sécurité ne doit pas servir
-l'interface de production : il laisse notamment la page intégrable dans une iframe.
+## Cycle de vie et diagnostic
 
-## 8. Développement local
+`scripts/start_secure_server.ps1` conserve le PID et l'heure de démarrage du
+serveur qu'il lance. `scripts/stop_secure_server.ps1` vérifie l'identité du
+processus et sa ligne de commande avant l'arrêt. Un port occupé par un autre
+programme n'autorise pas à arrêter ce programme.
 
-```bash
-npm test              # suite complète, sortie non nulle en cas d'échec
-npm run test:security # contrôles de non-régression sécurité
-npm run test:syntax   # syntaxe de tous les fichiers JS internes
-npm run test:python   # compilation des scripts Python
-npm run test:browser  # parcours navigateur complet (voir tests/browser/README.md)
-npm run lint          # ESLint — 0 erreur exigée
-```
+En cas d'échec, consulter les journaux locaux sans les publier avec des données
+personnelles. Vérifier Python, le port et la réponse du serveur. La sonde de
+persistance de `scripts/security/storage-persistence.js` observe des indices
+de conservation du stockage ; elle ne garantit pas sa survie future.
 
-`npm install` n'installe que des outils de développement. L'application
-elle-même n'a **aucune** dépendance : `dependencies: null`, aucun CDN, aucun
-appel réseau hors HIBP, qui reste désactivé par défaut.
+HIBP peut être activé dans la version web après consentement explicite. Cette
+fonction est bloquée dans le desktop. Voir [SECURITY.md](../SECURITY.md).

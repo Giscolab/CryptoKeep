@@ -1,197 +1,61 @@
-# CryptoKeep Threat Model
+# Modèle de menace de CryptoKeep
 
-Last updated: 2026-10-24 (explicitly consented plaintext exports)
+Ce modèle décrit l'architecture actuelle, web et Windows. Le code fait
+autorité sur les mécanismes implémentés ; les hypothèses ci-dessous ne sont
+pas des garanties démontrées pour tous les environnements.
 
-## System Summary
+## Actifs
 
-CryptoKeep is a static browser application for storing password vault entries locally. It derives an AES-GCM key from a user-provided master password, encrypts vault entries in the browser, stores encrypted records in IndexedDB, and keeps a redundant encrypted backup in localStorage.
+Mot de passe maître, clé dérivée, entrées déchiffrées en mémoire, coffres chiffrés,
+métadonnées KDF, copie secondaire, contenu du presse-papiers et exports demandés
+par l'utilisateur. Les informations du profil local sont des données personnelles
+non chiffrées ; elles ne doivent pas être confondues avec les entrées du coffre.
 
-## Assets
+## Frontières de confiance
 
-- Master password entered by the user.
-- Derived AES-GCM master key.
-- Decrypted vault entries in memory.
-- Encrypted vault records in IndexedDB.
-- Encrypted backup record in localStorage.
-- Vault metadata, including salt, KDF algorithm, iteration count, creation time, and version.
-- Clipboard contents after copy actions.
-- Plaintext CSV/JSON files deliberately downloaded by the user after confirmation.
+- Sources de l'application et installateur distribués par un canal de confiance.
+- Système, moteur du navigateur ou WebView2, Web Crypto et stockage de l'origine.
+- Session déverrouillée contenant les références utilisables à la clé et aux entrées.
+- Import de données non fiables vers la validation puis vers le stockage.
+- Export en clair explicitement demandé vers un fichier contrôlé par le système.
+- Consultation HIBP uniquement dans le web, après consentement.
+- Chaîne de compilation, dépendances npm/Rust et outils NSIS.
 
-## Trust Boundaries
+IndexedDB et localStorage ne sont pas une frontière face à un script exécuté
+dans l'origine. La non-extractibilité d'une clé ne bloque pas son utilisation
+par ce script. Une injection dans une session déverrouillée peut donc être
+un compromis complet des données déchiffrables.
 
-- Trusted: application source loaded from the local project or a trusted static deployment.
-- Trusted only while unlocked: browser memory containing the derived key and decrypted entries.
-- Untrusted: vault entry fields such as title, username, URL, category, tags, notes, and passwords when rendered in the DOM.
-- Untrusted: imported vault files, CSV input, browser extensions, copied clipboard content, local logs, generated exports, and remote resources.
-- Browser storage is not a confidentiality boundary. IndexedDB and localStorage are readable by any script executing in this origin.
-- A confirmed CSV/JSON download intentionally crosses from unlocked memory to
-  a plaintext file controlled by the user and OS. The application cannot erase
-  that file after download. VAULT remains the default encrypted export.
-- Local development safeguards are operator guardrails only. They are not a sandbox boundary for secrets or exploit execution.
-- Conditionally trusted: HIBP k-anonymity endpoint if enabled. Only SHA-1 prefixes may be sent.
+## Surfaces à examiner
 
-## Entry Points
+Formulaires, rendu des entrées, import `.vault` et CSV, export, chargement du
+stockage, concurrence entre fenêtres, invalidation de session, changements de
+mot de passe maître, presse-papiers, CSP et ressources tierces locales.
+Pour Windows : sélection du canal, origine et profil WebView2, navigation,
+installateur, mises à jour et conservation des données lors de la désinstallation.
+Pour le web : serveur local, en-têtes, chemins servis et gestion des processus
+des lanceurs. Aucun serveur de synchronisation n'est fourni.
 
-- Master password form in `index.html` and `scripts/app.js`.
-- Add/edit/delete vault entry flows.
-- Import/export and backup/restore flows.
-- IndexedDB and localStorage load paths.
-- Clipboard copy actions.
-- Security dashboard and audit tools.
-- Theme/settings persistence in localStorage.
-- Optional HIBP password breach checks.
-- Third-party remote assets currently referenced by `index.html`.
-- Windows launchers `start_vault_local.bat` and `start_vault_secure.bat`, and the
-  PowerShell server lifecycle helpers `scripts/start_secure_server.ps1` and
-  `scripts/stop_secure_server.ps1`.
-- Browser profile directory used to launch the vault. An ephemeral profile
-  destroys the vault; a shared personal profile widens extension exposure.
+## Propriétés recherchées
 
-## In Scope Vulnerability Classes
+- Pas de secrets en clair dans le stockage applicatif ou les journaux.
+- Exports CSV/JSON possibles uniquement sur demande explicite et session valide.
+- Paramètres KDF explicites, IV neufs et AAD cohérente avec le format.
+- Pas d'écriture partielle ou de remplacement silencieux par une sauvegarde périmée.
+- Une opération devenue obsolète après verrouillage ne republie pas de clair.
+- Aucune requête HIBP du desktop ; absence de consentement dans le web vaut refus.
+- Profils de production, test et développement séparés ; origine stable.
+- Aucune donnée utilisateur embarquée dans la distribution.
 
-- Plaintext persistence of secrets in IndexedDB, localStorage, sessionStorage,
-  logs or tests; exports without explicit consent or outside the requested
-  CSV/JSON download. Consented plaintext files are an accepted exposure, not
-  an exception for application storage, logging or network transmission.
-- XSS or DOM injection through rendered vault entry fields. In a browser JavaScript vault, XSS while unlocked is total compromise of decrypted entries and usable key material.
-- Exposure of sensitive objects or decrypted vault data through the global `window` scope. This is a first-class vulnerability distinct from XSS: XSS is one execution vector, while a global reference amplifies any same-origin script or browser-extension access into direct vault access.
-- Weak or inconsistent cryptographic parameters.
-- AES-GCM IV reuse or malformed ciphertext handling.
-- Any unauthenticated encryption path or nonce reuse with the same key.
-- Missing authentication checks before decrypting, rendering, exporting, or editing entries.
-- Missing CSV/JSON plaintext consent, a stale session after confirmation, or
-  downloading after lock/cancellation. CSV spreadsheet-formula interpretation
-  is a documented risk: exported credentials preserve their actual characters.
-- Session-lock bypasses, incomplete memory cleanup, and clipboard cleanup failures.
-- Import parsing bugs that can corrupt vault state or inject UI content.
-- Partial-write states: an import or restore that fails midway and leaves
-  only part of the data persisted, or that destroys a valid vault while
-  replacing it.
-- Automatic restoration paths that can silently overwrite a newer primary
-  vault with an older secondary copy.
-- Concurrent whole-vault writers, stale rollbacks, and a tab continuing with
-  a key derived for a vault record that another tab has replaced.
-- Asynchronous work that completes after locking and republishes decrypted
-  entries, generated passwords, audit results, reuse groups, or HIBP cache
-  material into the new locked state.
-- CSP regressions that allow broader script execution than needed.
-- Remote dependency or CDN supply-chain risks.
-- Network leakage of passwords, full hashes, decrypted entries, metadata, or vault contents.
-- Documentation claims that materially overstate implemented security behavior.
-- Launch configurations that destroy the vault, such as opening the app in a
-  private/incognito browser profile while the app depends on IndexedDB and
-  `localStorage`. This is an availability and data-loss class, not confidentiality.
-- Launcher process management that terminates third-party processes it does not
-  own, for example killing any Python process listening on the configured port.
+## Limites acceptées du modèle
 
-## Out Of Scope For This Project
+Pas de récupération après oubli du mot de passe maître, de protection contre
+un système entièrement compromis ou un observateur d'une session volontairement
+ouverte. Pas de garantie de zéroïsation mémoire ou d'effacement sécurisé du
+disque. Pas de promesse d'absence de trafic propre au système ou à WebView2.
+Pas de validation indépendante implicite du seul fait qu'un test ou un scan passe.
 
-- Recovery after losing the master password.
-- Protection against a fully compromised browser, OS, kernel, or malicious extension with page access.
-- Reliable zeroization of JavaScript strings, CryptoKeys, or garbage-collected objects. The app can clear references and DOM fields, but cannot guarantee memory erasure.
-- Protection against shoulder surfing while the vault is intentionally unlocked.
-- Server-side compromise, unless a future hosted or sync component is added.
-- Autonomous exploit execution against real personal vault data.
-
-## Current Security Assumptions To Verify
-
-- New coffres use PBKDF2-HMAC-SHA512 with 220000 iterations, an explicit KDF identifier, and a versioned metadata record. Historical v1 coffres use 150000 iterations only for a successful unlock, then migrate to v2 with a new salt and key.
-- Argon2id would be the preferred long-term password-hashing/KDF direction if an audited implementation and migration plan are added. Until then, PBKDF2 parameters must remain explicit, high enough for current clients, and consistent across code and docs.
-- `index.html` uses a strict local-only CSP fallback. `scripts/secure_local_server.py` sends the production-equivalent CSP header and frame protection for local use; any deployment must send equivalent HTTP headers.
-- Sensitive vault objects are module-scoped. UI code imports the singleton `VaultManager` and must not expose it or decrypted entries on `window`.
-- HIBP is offline by default in `scripts/security/hibp-service.js`; enabling it must remain an explicit local opt-in.
-- `scripts/core/storage/manager.js` saves an encrypted backup to localStorage. The backup is base64-encoded, not additionally protected beyond the encrypted entries it contains.
-- Vault writes require `navigator.locks` in a real browser. The primary
-  IndexedDB record also uses an in-transaction compare-and-set guard. A
-  browser without Web Locks fails closed for writes instead of pretending
-  that an in-memory per-tab queue provides cross-tab exclusion.
-- Successful replacements emit a non-secret invalidation over `storage` and
-  `BroadcastChannel`. Each unlocked tab also fingerprints its encrypted
-  record and reconciles it with IndexedDB on focus/visibility return, so a
-  missed signal still locks a stale session. Transport delivery remains a
-  browser facility, not a cryptographic guarantee.
-- Clipboard exposure remains a real local risk. The app schedules a conditional cleanup after 30 seconds and will not overwrite clipboard content that has changed; browsers can deny clipboard reads, so cleanup remains best effort.
-- Node-based security tests require a working cryptographic random-number generator. A failure in `crypto.randomBytes` must be treated as a critical local toolchain blocker rather than a normal test failure. The current Linux validation baseline passes under Node.js v22.23.2.
-
-- Lot 1 (2026-09-01): both launchers now open a dedicated persistent browser
-  profile under `%LOCALAPPDATA%\CryptoKeep\browser-profile`. No launcher passes
-  `--incognito`. The local server remains plain HTTP on the loopback interface;
-  no TLS is implemented and no documentation may claim otherwise.
-- Lot 1: the local server is stopped only by recorded PID plus matching start
-  time plus matching command line. Termination by port occupancy is removed.
-- Lot 1: the master password field is cleared, reset to `type="password"` and its
-  reveal checkbox unchecked in a `finally` block, on success and on failure.
-  This reduces the exposure window. It is NOT memory zeroization: the underlying
-  JavaScript string cannot be erased and this limit stays out of scope.
-- Lot 1: manual logout is implemented in `scripts/security/logout.js` and clears
-  the key, salt, decrypted entries, rendered secrets, open modals and navigation
-  state. It never deletes the encrypted vault.
-- Lot 1: automatic locking is implemented in
-  `scripts/security/autolock-controller.js`, honours the enable setting and the
-  chosen delay, keeps exactly one timer, and arms only after authentication.
-  The historical `AutoLock` class is preserved and still covered by tests.
-- Lot 1: `scripts/security/storage-persistence.js` reports `unknown` until a real
-  restart has been observed. It must never report a positive persistence result
-  without analysed data.
-- Node test status (2026-09-01): the suite was executed successfully on Node
-  v22.23.2 in the Linux workspace mounted on this project folder, with the CSPRNG
-  preflight passing. The Windows-host Node CSPRNG crash recorded earlier remains
-  unverified on that host and must still be resolved before trusting results run
-  there.
-
-- Lot 2 (import): the current vault is never replaced before full structural
-  AND cryptographic validation of the imported file, plus explicit user
-  confirmation. Unexpected properties are REFUSED, never silently stripped.
-  Entry ids and AES-GCM IVs must be unique across the whole imported vault,
-  validation block included, compared on DECODED bytes.
-- Lot 2: no separate `authTag` field is required or accepted. With AES-GCM
-  through Web Crypto the authentication tag is part of `ciphertext`.
-- Lot 2: wrong password, wrong AAD and tampered data must remain
-  indistinguishable to the user. A single generic message covers all three.
-- Lot 2: post-write verification uses canonical serialisation of the whole
-  record. A size comparison is explicitly insufficient. Restoration is
-  attempted only when the write COMMITTED but the re-read diverges; an
-  aborted transaction leaves the previous record intact by construction and
-  triggers no further write.
-- Lot 2 (backup): `localStorage` is a secondary copy only, updated after the
-  IndexedDB write has been verified. Neither JSON nor base64 provides any
-  encryption; the envelope is safe only because its content is already
-  AES-GCM encrypted. No decrypted field may ever be persisted there.
-- Lot 2: automatic restore at startup is REMOVED. A structurally valid
-  primary vault always wins; a backup can only replace it through a distinct
-  manual action with reinforced confirmation and the same full cryptographic
-  verification as a `.vault` import. Backup timestamps are an indication, not
-  an authenticated proof.
-- Lot 2 (CSV): input is decoded with `TextDecoder(utf-8, {fatal:true})`.
-  Rows are added with fresh `crypto.randomUUID()` identifiers and never
-  overwrite existing entries. Encryption of all rows happens in memory before
-  any transaction, so no partial import can be persisted.
-- Lot 2: `prompt()` is not used anywhere. Passwords are collected in a
-  dedicated dialog with a real `type="password"` field cleared in a `finally`.
-
-- 2026-10-14: every asynchronous mutation captures a session epoch and key
-  identity before awaiting. Queued or resumed work from a locked/replaced
-  session is rejected; lock cleanup also invalidates in-flight audit, reuse
-  and HIBP publication paths and scrubs registered secure dialogs.
-
-- 2026-10-24 (export): CSV and JSON require explicit plaintext confirmation
-  and a current unlocked session, checked again after confirmation. Locking
-  cancels the dialog. Plaintext is prepared in memory only for the intentional
-  download, never persisted in application storage, logged or transmitted.
-  CSV includes only valid HTTP/HTTPS URLs with nonempty passwords and reports
-  skipped counts before and after export; JSON preserves all entry fields,
-  without master secrets or vault cryptographic metadata. JSON import is not
-  implemented. See [the export guide](docs/EXPORTS.md).
-
-## Acceptance Criteria For Security Fixes
-
-- Existing tests pass, including `npm test` and `npm run test:security`.
-- A CSPRNG preflight passes before tests: `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"`.
-- No plaintext vault secrets are added to application persistent storage, logs,
-  fixtures or docs. CSV/JSON plaintext downloads are permitted only after
-  explicit consent from a still-current unlocked session; cancellation or
-  locking must prevent the download. VAULT exports remain encrypted.
-- New DOM rendering of vault data uses DOM APIs or explicit sanitization.
-- Crypto changes include a migration or compatibility plan for existing vault metadata.
-- AES-GCM v2 entries authenticate their entry identifier and format version as additional authenticated data.
-- Any network feature documents exactly what leaves the device and is disabled or consented by default.
+Le format et les paramètres actuels sont dans
+[FORMATS-DE-COFFRE.md](docs/FORMATS-DE-COFFRE.md). Les différences web/desktop de
+migration sont dans [MIGRATIONS.md](docs/MIGRATIONS.md). Les limites destinées
+aux utilisateurs sont dans [SECURITY.md](SECURITY.md).

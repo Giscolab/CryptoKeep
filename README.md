@@ -1,263 +1,70 @@
-# 🔐 CryptoKeep - Gestionnaire de mots de passe chiffré 100% local  
-**Votre coffre-fort numérique personnel et ultra-sécurisé**  
+# CryptoKeep
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Chiffrement-AES--GCM_256--bit-green?style=flat&logo=lock">
-  <img src="https://img.shields.io/badge/Stockage-100%25_local-blue?style=flat&logo=hard-drive">
-  <img src="https://img.shields.io/badge/Zero_Cloud-Zero_Tracking-success?style=flat&logo=privacy">
-  <img src="https://img.shields.io/github/last-commit/Giscolab/CryptoKeep?color=blue">
-  <img src="https://img.shields.io/badge/Licence-MIT-brightgreen">
-</p>
+CryptoKeep est un gestionnaire de mots de passe local : une application Windows
+construite avec Tauri 2 et WebView2, et une version web utilisable avec le serveur
+local fourni. Les entrées du coffre sont chiffrées sur l'appareil avec Web Crypto.
 
----
+## Télécharger et installer
 
-## 🌟 Présentation
+La [préversion Windows x64 0.1.0](https://github.com/Giscolab/CryptoKeep/releases/tag/v0.1.0)
+contient l'installateur et son empreinte SHA256. Le binaire n'est pas signé.
+Les contrôles complémentaires de la configuration de production restent à mener ;
+la présence d'un installateur ne vaut pas validation de sécurité complète.
 
-**CryptoKeep** est un gestionnaire local de mots de passe chiffre dans le navigateur. Il fonctionne hors ligne par defaut; la verification HIBP reste desactivee tant que l'utilisateur ne l'active pas explicitement.
+L'installateur ne contient aucun coffre, mot de passe ni compte de démonstration.
+Sur un profil vierge, chaque utilisateur crée son propre coffre et choisit son
+mot de passe maître. Les profils CryptoKeep et CryptoKeep Test sont séparés.
 
-```mermaid
-graph TD
-  A[Master Password] --> B[PBKDF2-HMAC-SHA512]
-  B --> C[Clé de chiffrement unique]
-  C --> D[AES-GCM 256-bit]
-  D --> E[(IndexedDB - Stockage local)]
-  E --> F[Données chiffrées]
-  F --> G[Interface sécurisée]
-  G --> H[Web Crypto API]
-  style A fill:#2E7D32,stroke:#1B5E20
-  style D fill:#EF6C00,stroke:#E65100
-  style E fill:#0277BD,stroke:#01579B
-```
+- [Installation Windows, profils et désinstallation](docs/INSTALLATION.md)
+- [Prise en main et usage quotidien](docs/UTILISATION.md)
+- [Version web et lancement local](docs/LANCEMENT-SECURISE.md)
 
----
+## Fonctions disponibles
 
-## 🚀 Fonctionnalités Avancées
+- Création, déverrouillage, verrouillage et suppression volontaire d'un coffre.
+- Ajout, modification, suppression, recherche et tri des entrées.
+- Générateur de mots de passe, analyse locale de robustesse et de réutilisation.
+- Export chiffré `.vault`, import `.vault` et import CSV.
+- Export CSV compatible Chrome/Edge et JSON, en clair après confirmation.
+- Préférences d'affichage, thèmes et verrouillage automatique configurable.
 
-### 🛡️ Architecture de securite
-| Composant | Technologie | Protection |
-|-----------|-------------|------------|
-| **Chiffrement** | AES-GCM 256-bit | IV unique par entrée |
-| **Dérivation de clé** | PBKDF2-HMAC-SHA512 | 220,000 iterations et metadata versionnee par coffre |
-| **Gestion de clé** | Web Crypto `CryptoKey` | Cle AES-GCM non extractible |
-| **Verrouillage** | Auto-détection d'inactivité | Configurable (1-60 min) |
+Le desktop bloque les requêtes applicatives distantes et les migrations
+automatiques. Dans la version web, la vérification HIBP est facultative et
+désactivée par défaut. Il n'existe ni synchronisation entre appareils, ni compte
+en ligne, ni 2FA/WebAuthn, ni remplissage automatique dans d'autres applications.
 
-### 💼 Gestion Professionnelle
-<div align="center">
+## Sécurité et sauvegarde
 
-| Fonction | Description | Avantage Clé |
-|----------|-------------|--------------|
-| **🔍 Audit de sécurité** | Analyse en temps réel des vulnérabilités | Détection des mots de passe faibles/réutilisés |
-| **🗂️ Organisation** | Catégories déduites, recherche et tris | Retrouver une entrée vite |
-| **🔄 Export chiffré** | Fichier .vault (AES-GCM 256), choix par défaut | Sauvegarde complète et restauration |
-| **📤 Export CSV / JSON** | CSV Chrome/Edge ou JSON complet, en clair après confirmation | Transfert volontaire vers un autre gestionnaire |
-| **⌛ Presse-papiers** | Effacement conditionnel apres 30 s | N'ecrase pas une copie plus recente |
+Le format courant utilise AES-GCM 256 bits et PBKDF2-HMAC-SHA512 à 220 000
+itérations, avec un sel de 16 octets et des IV de 12 octets. La clé dérivée est
+non extractible par l'API Web Crypto. Le coffre chiffré est enregistré dans
+IndexedDB ; une copie secondaire chiffrée est conservée dans le même profil.
 
-</div>
+Exportez régulièrement un fichier `.vault` et conservez-le séparément du profil.
+La copie secondaire ne protège pas contre la suppression du profil. Le mot de
+passe maître n'est pas récupérable par le projet. Les exports CSV/JSON sont en
+clair ; ils ne doivent pas être confondus avec une sauvegarde chiffrée.
 
-Dans **Paramètres → Exporter les données**, choisissez VAULT, CSV ou JSON.
-Le CSV conserve seulement les identifiants avec URL HTTP/HTTPS valide et mot
-de passe non vide ; le nombre d'entrées ignorées est annoncé avant et après
-l'export. CSV et JSON contiennent les mots de passe en clair : ne les ouvrez
-pas dans un tableur et supprimez-les après usage. Le format `.vault` reste le
-choix pour une sauvegarde complète chiffrée. Voir le [guide d'export et d'import
-Chrome/Edge](docs/EXPORTS.md).
+Le système, le moteur WebView2 et la mémoire du processus font partie de la base
+de confiance. Aucune certification, invulnérabilité ou garantie d'effacement
+sécurisé n'est annoncée. Voir [SECURITY.md](SECURITY.md) et
+[le modèle de menace](THREAT_MODEL.md).
 
-### ✨ Expérience Utilisiteur Premium
-- **Thèmes dynamiques** : Dark Mode certifié WCAG AA+ et Light Mode
-- **Design néumorphique** : Interface tactile avec ombres portées
-- **Animations fluides** : Transitions CSS hardware-accelerated
+## Documentation et développement
 
----
+- [Index de la documentation](docs/README.md)
+- [Architecture et séparation des canaux](docs/ARCHITECTURE.md)
+- [Fonctions et sources correspondantes](docs/FONCTIONS-IMPLEMENTEES.md)
+- [Compilation Windows](docs/DEVELOPPEMENT-WINDOWS.md)
+- [Contribuer](CONTRIBUTING.md) et [historique des versions](CHANGELOG.md)
 
-### Stack technologique
-```mermaid
-pie
-  title Technologies Clés (pondération réelle)
-  "Web Crypto API" : 40
-  "IndexedDB" : 30
-  "Vanilla JS" : 15
-  "CSS3 Variables" : 5
-  "CSP et en-tetes locaux" : 10
+Le code source est la référence sur le comportement implémenté. Les résultats
+d'une analyse automatique doivent toujours être rapportés au commit analysé.
+Les contrôles du dépôt sont visibles dans
+[GitHub Actions](https://github.com/Giscolab/CryptoKeep/actions).
 
-```
+## Support et licence
 
----
-
-## 🚀 Installation Rapide
-
-### Prérequis Système
-```bash
-✅ Navigateur moderne avec Web Crypto, IndexedDB et Web Locks (`navigator.locks`)
-✅ 50MB d'espace de stockage
-✅ Accès Web Crypto API activé
-```
-
-### Lancement Local
-```bash
-# Cloner le dépôt
-git clone https://github.com/Giscolab/CryptoKeep.git
-cd CryptoKeep
-
-# Windows - lanceur recommande (profil navigateur persistant)
-start_vault_secure.bat
-
-# Windows - lanceur historique, conserve
-start_vault_local.bat
-
-# macOS/Linux — serveur CryptoKeep avec en-tetes de securite (CSP, anti-framing)
-python3 scripts/secure_local_server.py --bind 127.0.0.1 --port 8000 --directory .
-```
-
-> **Accès local** : http://127.0.0.1:8000/index.html
->
-> Le serveur local sert le projet en **HTTP en clair** sur l'interface de bouclage. Il n'y a **aucun TLS** : ne pas décrire cet accès comme HTTPS. La confidentialité au repos repose sur le chiffrement applicatif AES-GCM, pas sur le transport.
->
-> **Ne pas lancer le coffre en navigation privée.** L'application dépend d'IndexedDB et de `localStorage` : en mode éphémère, le coffre est détruit à la fermeture du navigateur. `start_vault_secure.bat` ouvre un **profil navigateur dédié et persistant** (`%LOCALAPPDATA%\CryptoKeep\browser-profile`), distinct de votre profil personnel.
-
----
-
-## 🏗️ Architecture Technique
-
-La version Windows Tauri 2 se compile séparément de la version web avec
-`npm.cmd run desktop:production`. Elle produit un installateur CryptoKeep x64,
-sans coffre ni mot de passe préchargé. Les données de production sont séparées
-du canal de test. Voir [les installateurs et leur état de validation](docs/DESKTOP-LOT-C.md).
-
-### Structure Avancée du Projet
-```bash
-CryptoKeep/
-├── index.html                 # L'application, page unique
-├── scripts/
-│   ├── app.js                 # Point d'entrée
-│   ├── core/
-│   │   ├── crypto/            # pbkdf2.js, aes-gcm.js, runtime.js
-│   │   ├── storage/           # IndexedDB, format de coffre, import, sauvegarde
-│   │   └── vault/             # coffre, entrées, mot de passe maître
-│   ├── security/              # Verrouillage, politique de mot de passe et audit
-│   ├── ui/                    # Écrans, fenêtres, rendu
-│   ├── utils/                 # Presse-papiers, filtres, préférences
-│   └── vendor/                # Chart.min.js (seul fichier tiers)
-├── public/                    # CSS, thèmes, icônes
-└── tests/                     # Suites Node + parcours navigateur
-```
-
-### Workflow de Chiffrement
-```mermaid
-sequenceDiagram
-  Utilisateur->>+Application: Saisie master password
-  Application->>+Crypto API: PBKDF2-HMAC-SHA512
-  Crypto API-->>-Application: CryptoKey AES-GCM non extractible
-  Application->>+Crypto API: Chiffrement AES-GCM
-  Crypto API-->>-Application: Données chiffrées
-  Application->>+IndexedDB: Stockage sécurisé
-```
-
----
-
-## 🔮 Roadmap Stratégique 2025-2026
-
-> **État réel** : aucun de ces chantiers n'est commencé à ce jour. Les échéances
-> ci-dessous sont celles de la planification d'origine, conservées pour mémoire.
-> L'état à jour est dans [docs/FONCTIONS-PREVUES.md](docs/FONCTIONS-PREVUES.md).
-
-```mermaid
-gantt
-    title Feuille de Route CryptoKeep
-    dateFormat  YYYY-MM-DD
-    section Q3 2025
-    Intégration WebAuthn       :2025-07-01, 60d
-    Application Desktop        :2025-08-15, 45d
-    section Q4 2025
-    Partage Chiffré            :2025-10-01, 45d
-    Audit Sécurité             :2025-11-15, 30d
-    section 2026
-    Sync P2P E2EE             :2026-01-15, 90d
-    Modules Plugins            :2026-04-01, 120d
-```
-
----
-
-## 🛡️ Philosophie de Sécurité
-
-> **"La véritable sécurité naît de la transparence et du contrôle absolu"**
-
-**Principes fondamentaux :**
-1. 🔒 **Zero-Knowledge Architecture** : Aucune donnée lisible ne quitte votre appareil
-2. 🔍 **Auditabilité totale** : Code 100% inspectable ([SECURITY.md](SECURITY.md))
-3. ⚡ **Minimalisme cryptographique** : Algorithmes standardisés (NIST, BSI)
-4. 🧩 **Isolation des processus** : Séparation stricte UI/crypto/storage
-
-**Protections réellement implémentées :**
-- Verrouillage automatique sur inactivité et au passage de l'onglet en arrière-plan
-- Purge de session : clé maître, entrées déchiffrées, analyses et rapport d'audit
-- Effacement conditionnel du presse-papiers, qui n'écrase jamais une copie plus récente
-- Import traité comme hostile : validation structurelle puis cryptographique
-
-Les limites, elles, sont énoncées dans [SECURITY.md](SECURITY.md) — dont
-l'impossibilité d'effacer de façon fiable la mémoire JavaScript.
-
----
-
-## 💡 Pourquoi Choisir CryptoKeep?
-
-<table>
-<tr>
-  <th width="30%">Solution</th>
-  <th>Stockage</th>
-  <th>Chiffrement</th>
-  <th>Open Source</th>
-  <th>Local First</th>
-</tr>
-<tr>
-  <td><b>CryptoKeep</b></td>
-  <td align="center">✅ 100% Local</td>
-  <td align="center">✅ AES-256</td>
-  <td align="center">✅ MIT License</td>
-  <td align="center">✅ Native</td>
-</tr>
-<tr>
-  <td>Solutions Cloud</td>
-  <td align="center">❌ Serveurs tiers</td>
-  <td align="center">⚠️ Dépend du fournisseur</td>
-  <td align="center">❌ Propriétaire</td>
-  <td align="center">❌</td>
-</tr>
-</table>
-
----
-
-## 🤝 Contribution & Support
-
-> ℹ️ **Artefacts locaux non versionnés** : les exports HTML de logs (ex. `export-log.html`) sont générés localement et ne doivent pas être commités. Le script `export_log.py` est conservé pour produire ces exports à la demande.
-
-**contributions appréciées !**  
-```bash
-# Workflow recommandé :
-1. Fork du projet
-2. Création d'une branche (`feature/ma-fonctionnalite`)
-3. Commit des modifications
-4. Push vers la branche
-5. Ouverture d'une Pull Request
-```
-
-**Support technique :**    
-🐛 [Signaler un bug](https://github.com/Giscolab/CryptoKeep/issues)  
-💡 [Soumettre une idée](https://github.com/Giscolab/CryptoKeep/discussions)
-
----
-
-<p align="center">
-  Développé avec ❤️ par <b>giscolab</b> | 
-  <a href="https://github.com/Giscolab/CryptoKeep">⭐ GitHub</a> •
-  <a href="https://github.com/Giscolab/CryptoKeep/blob/main/SECURITY.md">🛡️ Documentation Sécurité</a> •
-  <a href="https://github.com/Giscolab/CryptoKeep/releases">📦 Téléchargements</a>
-</p>
-
-<p align="center">
-  ⚠️ <b>Avertissement crucial</b> : Votre master password n'est jamais stocké. <br>
-  Sa perte entraîne l'<b>irrécupérabilité définitive</b> de vos données.
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs bienvenus">
-</p>
+[Signaler un problème](https://github.com/Giscolab/CryptoKeep/issues), sans joindre
+de mot de passe, de coffre personnel ni de journal sensible. Licence
+[MIT](LICENSE) ; les composants tiers conservent leurs licences respectives.

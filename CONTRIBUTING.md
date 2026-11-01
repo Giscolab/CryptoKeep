@@ -1,70 +1,60 @@
 # Contribuer à CryptoKeep
 
-Projet de coffre-fort local, sans dépendance, sans service en ligne.
-Lisez d'abord [`SECURITY.md`](SECURITY.md) et
-[`docs/FONCTIONS-IMPLEMENTEES.md`](docs/FONCTIONS-IMPLEMENTEES.md).
+Le code source est la référence sur le fonctionnement du logiciel. Toute
+modification de comportement doit être accompagnée d'une documentation cohérente.
+Voir [l'architecture](docs/ARCHITECTURE.md) et [SECURITY.md](SECURITY.md).
+Les échanges et contributions relèvent du [code de conduite](CODE_OF_CONDUCT.md).
 
-## Règles non négociables
+## Organisation
 
-- **Aucune dépendance applicative**, aucun CDN, aucun framework.
-  `dependencies: null` est une propriété vérifiable du projet.
-- **Ne jamais affaiblir la CSP** : ni `unsafe-inline`, ni `unsafe-eval`.
-- **Jamais `innerHTML`** avec une donnée venue d'un coffre, d'un CSV, d'un
-  profil, d'un journal ou d'un import. Utiliser `textContent` et la création
-  explicite de nœuds.
-- **Jamais de secret** dans `localStorage`, `sessionStorage`, un journal ou un
-  message d'erreur.
-- **`crypto.getRandomValues` exclusivement.** Aucun `Math.random()` pour un
-  sel, un IV, une clé ou un identifiant de sécurité.
-- **Jamais de réutilisation d'IV**, jamais de clé extractible.
-- **Aucun résultat de sécurité positif** affiché par un contrôle qui n'a
-  analysé aucune donnée.
-- **Aucune suppression de fichier.** Un module remplacé est conservé,
-  documenté dans [`docs/MODULES-HISTORIQUES.md`](docs/MODULES-HISTORIQUES.md),
-  et débranché progressivement.
-- **Ne jamais modifier `scripts/vendor/`** — bundle tiers.
-
-## Structure réelle
-
-| Dossier | Rôle |
+| Chemin | Rôle |
 |---|---|
-| `scripts/core/crypto/` | PBKDF2, AES-GCM, garde-fous d'exécution |
-| `scripts/core/storage/` | IndexedDB, format de coffre, import, sauvegarde |
-| `scripts/core/vault/` | Coffre en mémoire, entrées, mot de passe maître, suppression |
-| `scripts/security/` | Verrouillage, politique, réutilisation, audit, HIBP |
-| `scripts/ui/` | Écrans, fenêtres, rendu |
-| `scripts/utils/` | Presse-papiers, filtres, préférences, générateur |
-| `tests/` | Suites Node ; `tests/browser/` pour le parcours navigateur |
+| `index.html`, `scripts/`, `public/` | Application web et ressources partagées |
+| `desktop/`, `scripts/desktop/` | Entrée desktop et préparation des ressources |
+| `src-tauri/` | Application Windows, configurations et installateur |
+| `docs/` | Guides utilisateur et documentation de maintenance |
+| `tests/` | Suites et données synthétiques |
+| `.github/workflows/` | Contrôles automatisés |
 
-## Tests
+## Environnement
 
-Toute fonction sensible modifiée exige un test.
+Node.js 24 est la référence des workflows JavaScript. Installer les dépendances
+de développement avec `npm ci`. Le frontend n'a pas de dépendances npm de
+production ; le desktop dépend en revanche de crates Rust, de Tauri et de
+WebView2. Conserver `package-lock.json` et `src-tauri/Cargo.lock`.
+La [procédure Windows](docs/DEVELOPPEMENT-WINDOWS.md) décrit la compilation.
 
-- `node:assert/strict` uniquement — jamais `console.assert`, qui n'a **jamais**
-  fait échouer un test et laissait le code de sortie à 0.
-- **Données synthétiques exclusivement.** Jamais un `.vault` réel, un `.env`,
-  ni un journal personnel.
-- Chaque suite doit sortir avec un **code non nul** en cas d'échec, et être
-  enregistrée dans `npm test` — `tests/test-harness.spec.js` le vérifie.
+## Règles d'implémentation
 
-Avant de proposer une modification :
+- Ne jamais commiter de coffre personnel, mot de passe, clé, profil ni journal.
+- Employer exclusivement des données synthétiques pour les essais.
+- Préserver le format chiffré, l'AAD, les IV aléatoires et les clés non extractibles.
+- Ne pas afficher les données importées par `innerHTML` ; utiliser du texte
+  et des nœuds DOM créés explicitement.
+- Ne pas affaiblir la CSP ni ajouter de CDN à l'application.
+- Ne pas journaliser de secrets. Les exports en clair exigent un consentement.
+- Distinguer code actif et modules legacy ; vérifier les appelants avant un retrait.
+- Conserver les licences et attributions des composants tiers.
 
-```bash
-npm test && npm run test:security && npm run test:syntax \
-  && npm run test:python && npm run lint
+## Vérifier une modification
+
+```sh
+npm test
+npm run test:security
+npm run test:desktop
+npm run lint
 ```
 
-Puis, si un navigateur est disponible : `npm run test:browser`.
+Les contrôles navigateur et Python exigent leurs environnements respectifs.
+Une suite doit échouer avec un code non nul lorsqu'une assertion échoue.
+Les avertissements doivent être qualifiés ; ne pas les masquer en désactivant
+globalement une règle. Les résultats actuels sont dans GitHub Actions : un ancien
+nombre d'avertissements ne constitue pas une référence immuable.
 
-Référence ESLint : **0 erreur**, 24 avertissements. Ne pas dépasser sans
-justification écrite. Ne jamais désactiver une règle globalement.
+## Proposer un changement
 
-## Documentation
-
-Une fonction ajoutée doit apparaître dans
-[`docs/FONCTIONS-IMPLEMENTEES.md`](docs/FONCTIONS-IMPLEMENTEES.md) avec le test
-qui la prouve. `tests/documentation.spec.js` vérifie que la documentation ne
-cite ni fichier absent ni lien cassé.
-
-N'annoncez jamais une fonction qui n'existe pas dans le code : c'est la
-principale incohérence que le Lot 10 a eu à corriger.
+Décrire le problème, le comportement obtenu, les vérifications effectuées et
+les limites restantes. Mettre à jour les guides concernés et leurs liens.
+Archiver ou retirer une documentation sans valeur actuelle plutôt que conserver
+des affirmations contradictoires. Les informations historiques utiles restent
+explicitement contextualisées ; les métadonnées et l'historique Git sont préservés.

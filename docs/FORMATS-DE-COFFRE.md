@@ -1,20 +1,19 @@
 # Formats de coffre — v1 et v2
 
-> **Document de référence, priorité haute.** Créé au Lot 10.
-> Les valeurs citées viennent de `scripts/core/storage/vault-format.js`, et un
-> test échoue si elles divergent (`tests/documentation.spec.js`).
+Les constantes et validateurs de `scripts/core/storage/vault-format.js` et
+`scripts/core/storage/import-limits.js` font autorité sur ce format.
 
 ## 1. Où vit le coffre
 
 | Emplacement | Base | Store | Clé | Contenu |
 |---|---|---|---|---|
 | Coffre chiffré | IndexedDB `VaultDB` | `vault` | `current` | Le coffre entier |
-| Profil local | IndexedDB `vault-db` | `settings` | `user-profile` | Nom, courriel, langue — **non chiffré**, non sensible |
+| Profil local | IndexedDB `vault-db` | `settings` | `user-profile` | Nom, courriel, langue — **non chiffré**, données personnelles |
 | Sauvegarde secondaire | `localStorage` | — | `cryptokeep.backup.v1` | Copie du coffre **déjà chiffré** |
 | Sauvegarde historique | `localStorage` | — | `vaultBackup` | Deux formats antérieurs, migrés puis conservés |
 
 Les deux bases IndexedDB sont **distinctes** malgré la ressemblance de leurs
-noms. La suppression volontaire (Lot 8) les traite séparément.
+noms. La suppression volontaire du coffre les traite séparément.
 
 ## 2. Structure d'un enregistrement
 
@@ -48,10 +47,11 @@ place en fin de `ciphertext`. Un fichier importé qui présenterait un champ
 | Itérations PBKDF2 | 150 000 | **220 000** |
 | AAD sur les entrées | **aucune** | `vault-entry:2:<id>` |
 | AAD sur la validation | **aucune** | `vault-validation:2` |
-| Lecture | supportée | supportée |
+| Lecture | version web ; refus de migration automatique dans le desktop | supportée si les autres validations sont satisfaites |
 | Écriture | **jamais** — toute écriture migre en v2 | oui |
 
-Un coffre v1 reste ouvrable. À la première ouverture réussie, il est migré ;
+Dans la version web, un coffre v1 peut être migré après ouverture réussie.
+Le desktop refuse les migrations automatiques ;
 voir [`MIGRATIONS.md`](MIGRATIONS.md).
 
 ## 4. Pourquoi l'AAD compte
@@ -89,7 +89,7 @@ pas sous leur forme base64.
 
 ## 6. Écriture : ce qui est garanti
 
-Chaque écriture suit la même discipline, sans exception :
+Les chemins d’écriture du coffre courant mettent en œuvre les contrôles suivants :
 
 1. lecture préalable du coffre — un échec de lecture **n'est pas** un coffre
    absent, et interdit toute écriture ;

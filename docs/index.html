@@ -1,29 +1,47 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CryptoKeep - Gestionnaire de mots de passe local ultra-sécurisé</title>
-    <meta name="description" content="Application web locale open-source pour stocker ses mots de passe 100% hors ligne. Sécurité militaire, architecture zero-knowledge, aucune donnée ne quitte votre appareil." />
-    <meta name="author" content="Giscolab" />
-    <meta name="keywords" content="gestionnaire mots de passe, sécurité, chiffrement AES-256, zero-knowledge, hors ligne, open source, vault, coffre-fort numérique" />
-
-    <meta property="og:title" content="CryptoKeep - Gestionnaire de mots de passe local ultra-sécurisé" />
-    <meta property="og:description" content="Application web locale open-source pour stocker ses mots de passe 100% hors ligne. Sécurité militaire, architecture zero-knowledge." />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://giscolab.github.io/vault-personal/" />
-    <meta property="og:image" content="https://giscolab.github.io/vault-personal/assets/vault-personal-preview.png" />
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@giscolab" />
-    <meta name="twitter:title" content="CryptoKeep - Gestionnaire de mots de passe local ultra-sécurisé" />
-    <meta name="twitter:description" content="Application web locale open-source pour stocker ses mots de passe 100% hors ligne. Sécurité militaire, architecture zero-knowledge." />
-    <meta name="twitter:image" content="https://giscolab.github.io/vault-personal/assets/vault-personal-preview.png" />
-    <script type="module" crossorigin src="./assets/index-q6yya6Gb.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-2t0zffAG.css">
-  </head>
-
-  <body>
-    <div id="root"></div>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="CryptoKeep : gestionnaire de mots de passe local et chiffré, disponible en préversion Windows et en version web locale.">
+  <meta property="og:title" content="CryptoKeep — coffre de mots de passe local">
+  <meta property="og:description" content="Installation, documentation et sources de CryptoKeep.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://giscolab.github.io/CryptoKeep/">
+  <title>CryptoKeep — coffre de mots de passe local</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header><a class="brand" href="https://github.com/Giscolab/CryptoKeep">CryptoKeep</a><nav aria-label="Navigation principale"><a href="#fonctions">Fonctions</a><a href="#donnees">Données</a><a href="https://github.com/Giscolab/CryptoKeep/tree/main/docs">Documentation</a></nav></header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Windows · Web local · Sources ouvertes</p>
+      <h1>Vos mots de passe,<br>dans un coffre local.</h1>
+      <p class="intro">CryptoKeep chiffre vos entrées sur votre appareil. L'application Windows utilise Tauri et WebView2 ; la version web fonctionne avec le serveur local fourni.</p>
+      <a class="button" href="https://github.com/Giscolab/CryptoKeep/releases/tag/v0.1.0">Télécharger la préversion Windows x64</a>
+      <p class="status">Version 0.1.0 · Installateur non signé · Contrôles complémentaires à mener</p>
+    </section>
+    <section id="fonctions">
+      <h2>Les fonctions disponibles</h2>
+      <div class="grid">
+        <article><h3>Un coffre chiffré</h3><p>Création, déverrouillage, gestion des entrées et verrouillage automatique configurable. AES-GCM 256 bits et dérivation PBKDF2 via Web Crypto.</p></article>
+        <article><h3>Des sauvegardes choisies</h3><p>Export chiffré au format .vault, import .vault et CSV. Les exports CSV et JSON sont en clair et demandent une confirmation.</p></article>
+        <article><h3>Des outils locaux</h3><p>Générateur, recherche, tris, thèmes et analyse de robustesse et de réutilisation. Pas de synchronisation ni de compte distant.</p></article>
+      </div>
+    </section>
+    <section id="donnees" class="panel">
+      <h2>Aucune donnée préchargée</h2>
+      <p>L'installateur ne contient aucun coffre, mot de passe ni compte de démonstration. Sur un profil vierge, vous créez votre coffre avec votre propre mot de passe maître.</p>
+      <p>Le coffre et sa copie secondaire vivent dans le même profil local. Conservez un export .vault séparé : la suppression du profil ou une panne peut entraîner la perte des deux copies.</p>
+      <p>Le frontend desktop bloque les requêtes distantes. Le système et WebView2 ont leur propre comportement réseau. Dans la version web, la consultation HIBP est facultative et désactivée par défaut.</p>
+    </section>
+    <section>
+      <h2>Une documentation fondée sur le code</h2>
+      <p>Cette première livraison est une préversion, sans certification de sécurité annoncée. La 2FA, WebAuthn et le remplissage automatique ne sont pas implémentés.</p>
+      <div class="links"><a href="https://github.com/Giscolab/CryptoKeep/blob/main/docs/INSTALLATION.md">Installer</a><a href="https://github.com/Giscolab/CryptoKeep/blob/main/docs/UTILISATION.md">Utiliser</a><a href="https://github.com/Giscolab/CryptoKeep/blob/main/SECURITY.md">Comprendre les limites</a><a href="https://github.com/Giscolab/CryptoKeep/blob/main/docs/ARCHITECTURE.md">Lire l'architecture</a></div>
+    </section>
+  </main>
+  <footer><span>CryptoKeep · Licence MIT</span><a href="https://github.com/Giscolab/CryptoKeep">Code source</a><a href="https://github.com/Giscolab/CryptoKeep/issues">Signaler un problème</a></footer>
+</body>
 </html>

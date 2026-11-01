@@ -49,43 +49,16 @@ Le CSV omet les notes, catégories, étiquettes et horodatages. Il ne constitue
 donc pas une sauvegarde complète. Conservez un **VAULT** pour une restauration
 chiffrée complète, ou un **JSON** pour tous les champs en clair.
 
-## Importer dans Google Password Manager / Chrome
+## Importer dans un autre gestionnaire
 
-1. Exportez **CSV Chrome/Edge** depuis CryptoKeep et confirmez le téléchargement.
-2. Ouvrez [Google Password Manager](https://passwords.google.com/), puis
-   **Paramètres (Settings) → Importer (Import) → Sélectionner un fichier**.
-3. Choisissez le CSV et lancez l'import, puis vérifiez les identifiants importés.
-4. Supprimez le CSV après utilisation.
+Exporter le CSV puis utiliser la fonction d'import de mots de passe du
+gestionnaire cible. Les menus, tailles maximales et nombres d'entrées acceptés
+varient selon sa version ; les vérifier dans sa documentation au moment du transfert.
+L'export CryptoKeep ne garantit pas l'acceptation de toutes les entrées par ce logiciel.
 
-Google indique une limite de **3 000 mots de passe par import**. CryptoKeep ne
-découpe pas automatiquement l'export ; au-delà, préparez des lots compatibles
-avec cette limite à l'aide d'un outil adapté aux mots de passe. Le service
-Google peut ensuite synchroniser les identifiants dans votre compte : cette
-étape est extérieure à CryptoKeep. [Instructions officielles Google](https://support.google.com/accounts/answer/10500247).
-
-Le code actuel de Chromium impose aussi un fichier d'au plus **1 024 000
-octets**, des identifiants et mots de passe d'au plus **1 000 octets UTF-8**,
-et une URL normalisée d'au plus **2 048 octets**. Ces limites peuvent varier
-selon la version du navigateur. CryptoKeep préserve les valeurs exportées,
-sans les tronquer ; un navigateur peut donc refuser des champs trop longs ou
-un fichier trop volumineux. Le décompte affiché décrit les entrées du CSV,
-pas une garantie d'acceptation par le navigateur cible.
-[Importeur Chromium](https://raw.githubusercontent.com/chromium/chromium/main/components/password_manager/core/browser/import/password_importer.cc),
-[limites Chromium](https://raw.githubusercontent.com/chromium/chromium/main/components/password_manager/core/common/password_manager_constants.h).
-
-## Importer dans Microsoft Edge
-
-1. Exportez **CSV Chrome/Edge** depuis CryptoKeep et confirmez le téléchargement.
-2. Dans Edge, ouvrez **Paramètres (Settings) → Profils (Profiles) → Importer les
-   données du navigateur (Import browser data)**.
-3. Sous **Autres emplacements d'importation (Other import locations)**,
-   choisissez **Importer les mots de passe maintenant (Import passwords now)**,
-   puis **Fichier CSV de mots de passe (Passwords CSV file)**.
-4. Sélectionnez le CSV, terminez l'import, vérifiez les identifiants et
-   supprimez le fichier en clair.
-
-Ces étapes utilisent l'import CSV natif d'Edge.
-[Instructions officielles Microsoft](https://support.microsoft.com/en-us/edge/import-your-favorites-and-passwords-in-microsoft-edge).
+L'import dans un service associé à un compte peut synchroniser les données sur
+ses serveurs : ce transfert est extérieur à CryptoKeep. Vérifier les identifiants
+importés, puis supprimer le fichier en clair et ses copies inutiles.
 
 ## Structure du JSON
 
