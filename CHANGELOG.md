@@ -7,6 +7,18 @@
 
 ---
 
+## Prototype desktop Tauri 2 — Lot B — 1er novembre 2026
+
+- Socle Windows préparé avec ressources explicitement sélectionnées, CSP locale,
+  canaux dev/test séparés et profil de production interdit dans le prototype.
+- HTML web, lanceurs Python et paramètres cryptographiques conservés.
+- Desktop hors ligne ; migrations automatiques et imports nécessitant une
+  migration refusés sans écriture. La version web garde son comportement.
+- Tests synthétiques du contrat et du cycle de vie Chromium ajoutés ; compilation
+  Rust et validation Windows/WebView2 restent à effectuer sur Windows.
+- Aucun installateur, désinstallation, commit, push ou publication dans ce lot.
+- Procédure et limites : [DESKTOP-LOT-B.md](docs/DESKTOP-LOT-B.md).
+
 ## 📤 Exports VAULT, CSV Chrome/Edge et JSON – *24 octobre 2026*
 
 - Choix du format dans les paramètres ; VAULT chiffré reste la valeur par défaut

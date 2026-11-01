@@ -123,6 +123,14 @@ function refreshHibpBadge(doc, options) {
   const badge = byId(doc, 'badge-hibp');
   const description = byId(doc, 'desc-hibp');
 
+  if (consentement.reason === 'desktop_offline') {
+    if (badge) badge.textContent = 'Indisponible hors ligne';
+    if (description) description.textContent = 'La vérification en ligne est désactivée dans ce prototype desktop.';
+    const control = byId(doc, 'setting-hibp');
+    if (control) { control.checked = false; control.disabled = true; }
+    return;
+  }
+
   if (badge) badge.textContent = consentement.enabled ? 'Activé' : 'Désactivé';
   if (description) {
     description.textContent = consentement.enabled

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CryptoKeep",
+  "version": "0.1.0",
+  "identifier": "fr.giscolab.cryptokeep",
+  "build": {
+    "beforeDevCommand": "node scripts/desktop/prepare.mjs",
+    "beforeBuildCommand": "node scripts/desktop/prepare.mjs",
+    "frontendDist": "../dist/desktop"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "CryptoKeep — prototype",
+        "url": "index.html",
+        "width": 1280,
+        "height": 850,
+        "minWidth": 800,
+        "minHeight": 600,
+        "useHttpsScheme": true,
+        "incognito": false,
+        "browserExtensionsEnabled": false,
+        "devtools": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' ipc: https://ipc.localhost http://ipc.localhost; manifest-src 'self'; worker-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'",
+      "devCsp": "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' ipc: https://ipc.localhost http://ipc.localhost; manifest-src 'self'; worker-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'",
+      "capabilities": [],
+      "assetProtocol": {
+        "enable": false,
+        "scope": []
+      },
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-origin",
+        "Permissions-Policy": "clipboard-read=(self), clipboard-write=(self)"
+      }
+    }
+  },
+  "bundle": {
+    "active": false,
+    "createUpdaterArtifacts": false,
+    "icon": [
+      "../public/icons/favicon.ico"
+    ]
+  }
+}

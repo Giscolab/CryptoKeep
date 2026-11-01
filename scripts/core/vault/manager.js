@@ -23,6 +23,7 @@ import {
 import { isPasswordOld } from '../../utils/password-age.js';
 import { Vault } from './vault.js';
 import { subscribeVaultChanges } from '../storage/vault-sync.js';
+import { getRuntimePolicy } from '../runtime-policy.js';
 
 export class VaultSessionError extends Error {
   constructor(code, message, details = {}) {
@@ -205,6 +206,10 @@ export class VaultManager {
     const lifecycleEpoch = this.sessionEpoch;
     const vaultRecord = await this._loadVaultRecord();
     const metadata = parseVaultMetadata(vaultRecord.meta);
+    if (!getRuntimePolicy().automaticMigrations && metadataNeedsMigration(metadata)) {
+      throw new VaultSessionError('migration_required',
+        'Ce coffre exige une migration. Le prototype desktop ne le modifie pas.', { written: false });
+    }
     const salt = base64ToBytes(metadata.salt, 'salt');
     const key = await deriveMasterKey(password, salt, {
       iterations: metadata.iterations
@@ -226,6 +231,12 @@ export class VaultManager {
       metadata.formatVersion
     );
     const timestampsChanged = migrateEntryTimestamps(decryptedEntries, vaultRecord.meta);
+    if (timestampsChanged && !getRuntimePolicy().automaticMigrations) {
+      decryptedEntries.length = 0;
+      salt.fill(0);
+      throw new VaultSessionError('migration_required',
+        'Ce coffre exige une migration des dates. Le prototype desktop ne le modifie pas.', { written: false });
+    }
 
     if (metadataNeedsMigration(metadata)) {
       const migrated = await this._migrateToCurrentFormat(

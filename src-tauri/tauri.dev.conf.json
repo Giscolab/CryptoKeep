@@ -1,0 +1,21 @@
+{
+  "identifier": "fr.giscolab.cryptokeep.dev",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "CryptoKeep — développement",
+        "url": "index.html",
+        "width": 1280,
+        "height": 850,
+        "minWidth": 800,
+        "minHeight": 600,
+        "useHttpsScheme": true,
+        "incognito": false,
+        "browserExtensionsEnabled": false,
+        "devtools": false
+      }
+    ]
+  }
+}

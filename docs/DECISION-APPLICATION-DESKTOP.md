@@ -1,5 +1,10 @@
 # Décision — application desktop
 
+> Mise à jour Lot B : Tauri 2 est retenu pour un prototype conservant Web Crypto
+> et IndexedDB dans WebView2. Le document historique ci-dessous est conservé ;
+> son affirmation d'un remplacement obligatoire de Web Crypto est dépassée.
+> L'état courant et les limites sont dans [DESKTOP-LOT-B.md](DESKTOP-LOT-B.md).
+
 > **Document de décision.** Créé au Lot 10. Statut : **ouvert, non tranché.**
 >
 > Ce document ne décide rien à la place du mainteneur. Il pose le problème, les

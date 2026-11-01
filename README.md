@@ -118,6 +118,10 @@ python3 scripts/secure_local_server.py --bind 127.0.0.1 --port 8000 --directory 
 
 ## 🏗️ Architecture Technique
 
+Le prototype Windows Tauri 2 du **Lot B** est préparé séparément de la version
+web : [état, tests et procédure Windows](docs/DESKTOP-LOT-B.md). La validation
+native WebView2 reste à effectuer ; aucun installateur n'est fourni.
+
 ### Structure Avancée du Projet
 ```bash
 CryptoKeep/
