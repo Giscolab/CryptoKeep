@@ -43,6 +43,8 @@
  * consentement enregistre.
  */
 
+import { getRuntimePolicy } from '../core/runtime-policy.js';
+
 const HIBP_RANGE_URL = 'https://api.pwnedpasswords.com/range/';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -102,6 +104,7 @@ function storage(ref) {
  * portant une version de notice perimee vaut refus.
  */
 export function getHibpConsent(options = {}) {
+  if (getRuntimePolicy().offline) return { enabled: false, reason: 'desktop_offline' };
   const store = storage(options.storage);
   if (!store) return { enabled: false, reason: 'no_storage' };
 

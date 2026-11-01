@@ -14,11 +14,13 @@ export default [
     ignores: [
       'node_modules/**',
       'scripts/vendor/**',
-      'docs/assets/**'
+      'docs/assets/**',
+      'dist/**',
+      'src-tauri/target/**'
     ]
   },
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', 'desktop/**/*.mjs', 'scripts/desktop/**/*.mjs', 'tests/desktop/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -45,6 +47,8 @@ export default [
     // navigateur : il lui faut les globales Node, pas une regle desactivee.
     files: [
       'tests/**/*.js',
+      'tests/desktop/**/*.mjs',
+      'scripts/desktop/**/*.mjs',
       'scripts/tools/audit-runner.js',
       '*.config.mjs',
       'purgecss.config.cjs'
