@@ -12,7 +12,7 @@ L'archive `cryptokeep-android-synthetic-preview` contient APK, SHA256SUMS,
 commit et version des outils. Les artefacts expirent après sept jours.
 Les dépendances npm et Cargo sont verrouillées, les actions sont épinglées par
 commit, Rust 1.90.0, Node 24.11.0, Temurin 17.0.17+10, NDK 27.2.12479018,
-SDK 35 et build-tools 35.0.0 sont sélectionnés explicitement.
+SDK 36 et build-tools 36.0.0 sont sélectionnés explicitement.
 Le projet Android est régénéré avec la CLI Tauri 2.12.4 verrouillée puis durci.
 L'image Ubuntu, platform-tools, les téléchargements Gradle/Maven et la clé de
 débogage restent des sources de variation : aucune identité binaire entre deux
