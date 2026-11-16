@@ -1,0 +1,119 @@
+/* Mobile shell is explicitly scoped to the native Android runtime. */
+html[data-platform="android"] { --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif; font-family: var(--font-sans); }
+html[data-platform="android"][data-theme="default"] { color-scheme: dark; --color-bg: #0c1420; --color-surface: #152131; --color-surface-alt: #1d2c3e; --color-surface-light: #26384c; --color-text: #edf4fc; --color-text-muted: #a6b7cd; --color-muted: #a6b7cd; --color-border: #2d3c50; --color-accent: #9ae8ce; --color-accent-alt: #78d6ba; --color-primary: #9ae8ce; --color-primary-hover: #baf4df; --color-success: #277b5f; --color-danger: #e75465; --color-warning: #eac278; --android-on-accent: #102c24; }
+html[data-platform="android"] :is(button, input, select, textarea) { font-family: inherit; }
+html[data-platform="android"] :is(.add-button, .btn--primary, .btn-primary, .audit-settings-btn, .category-btn.active) { color: var(--android-on-accent, #fff); }
+html[data-platform="android"] .android-app-bar .auto-lock { position: static; min-height: 0; padding: 0; margin-top: 4px; border: 0; border-radius: 0; background: none; box-shadow: none; font-size: 11px; gap: 6px; color: var(--color-text-muted); }
+html[data-platform="android"] .android-app-bar .auto-lock span { margin: 0; }
+html[data-platform="android"] .android-app-bar .auto-lock.warning { color: var(--color-warning); }
+html[data-platform="android"] .android-app-bar .auto-lock i { animation: none; }
+html[data-platform="android"] .password-toggle__label { display: inline-flex; align-items: center; min-height: 44px; margin-left: 8px; }
+html[data-platform="android"] .password-toggle__input { width: 20px; height: 20px; vertical-align: middle; }
+html[data-platform="android"] #toast-container { left: 12px; right: 12px; bottom: calc(94px + env(safe-area-inset-bottom, 0px)); max-height: 40dvh; overflow-y: auto; z-index: 1000; }
+html[data-platform="android"] .toast { width: 100%; max-width: 460px; margin-inline: auto; border-radius: 16px; padding: 12px; }
+html[data-platform="android"] .toast__close { min-width: 44px; min-height: 44px; flex-shrink: 0; }
+html[data-platform="android"] body { padding: 0; height: 100dvh; min-height: 0; overflow: hidden; }
+html[data-platform="android"] :is(#app, #vault-ui) { height: 100%; min-width: 0; }
+html[data-platform="android"] .wrapper { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+html[data-platform="android"] .android-app-bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: calc(12px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) 12px max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+html[data-platform="android"] .android-app-bar strong { display: block; font-size: 20px; letter-spacing: -.6px; }
+html[data-platform="android"] .android-app-bar span { display: block; font-size: 11px; color: var(--color-text-muted); margin-top: 3px; }
+html[data-platform="android"] .android-app-bar .logout { flex-shrink: 0; min-height: 48px; min-width: 48px; justify-content: center; padding: 10px; border: 1px solid var(--color-border); border-radius: 16px; margin: 0; }
+html[data-platform="android"] .android-app-bar .logout span { display: none; }
+html[data-platform="android"] .main { flex: 1; height: auto; min-height: 0; width: 100%; padding: 24px 18px calc(100px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior-y: contain; scroll-padding-block: 20px 110px; }
+html[data-platform="android"] .view { max-width: 920px; margin-inline: auto; min-width: 0; }
+html[data-platform="android"] .sidebar { position: fixed; inset: auto 0 0; height: auto; width: 100%; padding: 8px max(8px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--color-border); background: var(--color-surface); box-shadow: 0 -8px 30px rgb(0 0 0 / 12%); z-index: 30; }
+html[data-platform="android"] .sidebar :is(.logo-container, .user-section) { display: none; }
+html[data-platform="android"] .sidebar nav ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+html[data-platform="android"] .sidebar nav a { min-height: 58px; padding: 7px 2px; gap: 5px; flex-direction: column; border: 0; border-radius: 16px; font-size: 11px; line-height: 1.2; justify-content: center; transform: none; }
+html[data-platform="android"] .sidebar nav a i { font-size: 19px; }
+html[data-platform="android"] .sidebar .nav-text { display: block; white-space: nowrap; }
+html[data-platform="android"] .sidebar nav a.active { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 14%, transparent); font-weight: 700; }
+html[data-platform="android"] :is(button, [role="button"], select) { touch-action: manipulation; }
+html[data-platform="android"] :is(button, [role="button"]) { min-height: 44px; }
+html[data-platform="android"] :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; min-height: 48px; max-width: 100%; min-width: 0; }
+html[data-platform="android"] :is(button, input, select, textarea, a):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+html[data-platform="android"] .header { display: flex; flex-direction: column; align-items: stretch; margin-bottom: 22px; gap: 18px; }
+html[data-platform="android"] .header h2 { font-size: clamp(25px, 6vw, 34px); line-height: 1.15; letter-spacing: -.8px; margin: 0; }
+html[data-platform="android"] .header-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; width: 100%; }
+html[data-platform="android"] .search-bar { width: 100%; min-width: 0; }
+html[data-platform="android"] .search-bar input { width: 100%; height: 52px; border-radius: 18px; border: 1px solid var(--color-border); }
+html[data-platform="android"] .add-button { min-height: 48px; width: 100%; justify-content: center; border-radius: 16px; box-shadow: none; }
+html[data-platform="android"] .password-tools { align-items: stretch; gap: 14px; margin-bottom: 22px; }
+html[data-platform="android"] .category-filter { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; gap: 8px; padding-bottom: 5px; scrollbar-width: none; }
+html[data-platform="android"] .category-filter[hidden] { display: none; }
+html[data-platform="android"] .category-btn { flex-shrink: 0; min-height: 44px; border-radius: 999px; padding: 10px 16px; }
+html[data-platform="android"] .vault-actions { flex-wrap: wrap; gap: 8px; }
+html[data-platform="android"] .vault-actions button { min-height: 44px; padding: 10px 12px; background: var(--color-surface-alt); border-radius: 12px; }
+html[data-platform="android"] .vault-header { align-items: center; flex-wrap: wrap; gap: 12px; }
+html[data-platform="android"] .vault-header h3 { font-size: 15px; line-height: 1.5; margin: 0; }
+html[data-platform="android"] .count-badge { font-size: 13px; border-radius: 99px; padding: 4px 9px; color: var(--color-text); }
+html[data-platform="android"] .vault-list { padding: 0; margin-top: 16px; background: transparent; box-shadow: none; gap: 14px; }
+html[data-platform="android"] .vault-list__scroll { max-height: none; overflow: visible; padding: 0; grid-template-columns: minmax(0, 1fr); }
+html[data-platform="android"] .vault-item { flex-direction: column; align-items: stretch; gap: 16px; padding: 18px; border: 1px solid var(--color-border); border-radius: 22px; background: var(--color-surface); min-width: 0; box-shadow: 0 5px 20px rgb(0 0 0 / 6%); }
+html[data-platform="android"] .vault-item:hover { transform: none; }
+html[data-platform="android"] .vault-item .account-info { align-items: flex-start; gap: 12px; min-width: 0; }
+html[data-platform="android"] .account-icon { flex-shrink: 0; width: 40px; height: 40px; border-radius: 14px; background: var(--color-surface-alt); color: var(--color-accent); }
+html[data-platform="android"] .account-details { min-width: 0; overflow-wrap: anywhere; }
+html[data-platform="android"] .vault-item .account-info strong { color: var(--color-text); font-size: 17px; font-weight: 650; margin-bottom: 4px; }
+html[data-platform="android"] .vault-item .account-info span { overflow-wrap: anywhere; }
+html[data-platform="android"] :is(.password-field, .url-field) { display: flex; align-items: center; min-width: 0; gap: 4px; }
+html[data-platform="android"] :is(.password-input, .url-input) { width: 100%; min-width: 0; flex: 1; }
+html[data-platform="android"] .toggle-password { flex-shrink: 0; min-width: 44px; justify-content: center; padding: 10px; }
+html[data-platform="android"] .vault-item .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border-top: 1px solid var(--color-border); padding-top: 12px; }
+html[data-platform="android"] .vault-item .actions button { justify-content: center; min-height: 46px; padding: 8px; border-radius: 12px; background: var(--color-surface-alt); }
+html[data-platform="android"] .vault-item .actions .copy { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+html[data-platform="android"] .vault-item .actions button::after { font-size: 11px; }
+html[data-platform="android"] .vault-item .actions .copy::after { content: 'Copier'; }
+html[data-platform="android"] .vault-item .actions .edit::after { content: 'Modifier'; }
+html[data-platform="android"] .vault-item .actions .delete::after { content: 'Supprimer'; }
+html[data-platform="android"] :is(.settings-container, .audit-panel, .audit-report, .settings-card, .setting-info, .setting-control) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+html[data-platform="android"] .settings-card { padding: 18px; border-radius: 22px; border: 1px solid var(--color-border); }
+html[data-platform="android"] .setting-item { align-items: stretch; gap: 12px; }
+html[data-platform="android"] .setting-control { align-self: stretch; margin-left: 0; }
+html[data-platform="android"] .setting-control :is(select, .btn) { width: 100%; }
+html[data-platform="android"] .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+html[data-platform="android"] .metric-card { min-width: 0; padding: 16px; border-radius: 20px; }
+html[data-platform="android"] .metric-card :is(span, button) { overflow-wrap: anywhere; font-size: 12px; }
+html[data-platform="android"] .score-box { padding: 20px; gap: 16px; flex-wrap: wrap; border-radius: 22px; }
+html[data-platform="android"] .score-box .left { min-width: 0; flex: 1 1 150px; }
+html[data-platform="android"] .progress-ring { flex-shrink: 0; }
+html[data-platform="android"] :is(.modal, .secure-dialog, .entry-modal, .audit-modal) { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 24px; }
+html[data-platform="android"] :is(.modal-body, .modal-header, .modal-footer) { padding: 18px; }
+html[data-platform="android"] :is(.modal-footer, .secure-dialog__actions) { flex-wrap: wrap; }
+html[data-platform="android"] .auth-modal { height: 100dvh; min-height: 0; overflow-y: auto; align-items: safe center; padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px)); }
+html[data-platform="android"] .auth-box { padding: 28px 20px; border-radius: 28px; border: 1px solid var(--color-border); }
+html[data-platform="android"] .auth-section { width: 100%; min-width: 0; }
+html[data-platform="android"] .auth-input-wrapper { width: 100%; }
+html[data-platform="android"] .auth-form__input { width: 100%; }
+html[data-platform="android"] #btn-import-locked { width: 100%; margin-top: 14px; min-height: 48px; }
+
+@media (min-width: 600px) {
+  html[data-platform="android"] .main { padding-inline: 32px; }
+  html[data-platform="android"] .header-controls { grid-template-columns: minmax(0, 1fr) auto; }
+  html[data-platform="android"] .vault-list__scroll { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-platform="android"] .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  html[data-platform="android"] .android-app-bar { padding-block: 6px; }
+  html[data-platform="android"] .android-app-bar span { display: none; }
+  html[data-platform="android"] .sidebar nav a { min-height: 48px; flex-direction: row; gap: 8px; }
+  html[data-platform="android"] .main { padding-top: 18px; padding-bottom: 82px; }
+  html[data-platform="android"] .auth-modal { align-items: flex-start; }
+}
+
+html[data-platform="android"] .category-filter::-webkit-scrollbar { display: none; }
+html[data-platform="android"] .auth-separator { width: 100%; height: 1px; border: 0; background: var(--color-border); margin: 12px 0; }
+html[data-platform="android"] .modal-overlay { padding: 12px; }
+html[data-platform="android"] .password-modal { width: min(100%, 560px); max-height: calc(100dvh - 24px); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; border-radius: 24px; background: var(--color-surface); border: 1px solid var(--color-border); box-shadow: 0 20px 60px rgb(0 0 0 / 35%); }
+html[data-platform="android"] .password-modal .modal-header { position: sticky; top: 0; z-index: 2; background: var(--color-surface); }
+html[data-platform="android"] #closeAddModal { min-width: 44px; min-height: 44px; border: 0; border-radius: 12px; background: var(--color-surface-alt); color: var(--color-text); }
+html[data-platform="android"] #entry-form .form-group { margin-bottom: 18px; min-width: 0; }
+html[data-platform="android"] #entry-form label { display: block; margin-bottom: 8px; font-size: 14px; }
+html[data-platform="android"] #entry-form :is(input, select, textarea) { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+html[data-platform="android"] #entry-form .password-input-wrapper { display: grid; grid-template-columns: minmax(0, 1fr) 48px; gap: 8px; }
+html[data-platform="android"] #entry-form :is(#generate-password, .password-strength-bar) { grid-column: 1 / -1; }
+html[data-platform="android"] #entry-form .modal-footer { position: sticky; bottom: 0; z-index: 2; background: var(--color-surface); }
+html[data-platform="android"] #entry-form .modal-footer button { flex: 1; min-width: 0; }
+
+html[data-platform="android"] :is(input, textarea)::placeholder { color: var(--color-text-muted); opacity: 1; }

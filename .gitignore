@@ -63,3 +63,9 @@ temp/
 
 # 📊 Tests coverage
 coverage/
+
+# Personal vaults and signing material
+*.vault
+*.keystore
+*.jks
+local.properties

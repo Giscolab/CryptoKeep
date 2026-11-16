@@ -1,0 +1,13 @@
+{
+  "identifier": "fr.giscolab.cryptokeep.test",
+  "productName": "CryptoKeep Android Test",
+  "bundle": {
+    "active": true,
+    "icon": [
+      "../public/icons/android-chrome-512x512.png"
+    ],
+    "android": {
+      "minSdkVersion": 28
+    }
+  }
+}

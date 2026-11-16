@@ -1,0 +1,69 @@
+name: Android synthetic preview
+on:
+  workflow_dispatch:
+  push:
+    branches: ['android/**']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.11.0'
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17.0.17+10'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+      - name: Install fixed Android components
+        run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018'
+      - name: Set NDK and Rust toolchain
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          rustup toolchain install 1.90.0 --profile minimal --target aarch64-linux-android
+          rustup default 1.90.0
+      - run: npm ci --ignore-scripts
+      - name: Synthetic compatibility and desktop checks
+        run: |
+          node tests/android.spec.js
+          node tests/desktop.spec.js
+          node tests/vault-import-service.spec.js
+          node tests/crypto-integrity.spec.js
+      - name: Android-marked synthetic browser journey
+        env:
+          CRYPTOKEEP_BROWSER: /usr/bin/google-chrome
+        run: npm run test:android:browser
+      - name: Generate Android scaffold with locked Tauri CLI
+        run: npm run android:init
+      - name: Compile installable debug APK with locked Cargo dependencies
+        run: npm run android:build
+      - name: Record build inputs and APK checksums
+        run: |
+          mkdir -p android-artifacts
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} android-artifacts/ \;
+          sha256sum android-artifacts/*.apk > android-artifacts/SHA256SUMS
+          sha256sum package-lock.json src-tauri/Cargo.lock > android-artifacts/DEPENDENCIES
+          cp src-tauri/gen/android/app/src/main/AndroidManifest.xml android-artifacts/AndroidManifest.xml
+          git rev-parse HEAD > android-artifacts/COMMIT
+          rustc --version > android-artifacts/TOOLCHAIN
+          node --version >> android-artifacts/TOOLCHAIN
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cryptokeep-android-synthetic-preview
+          path: android-artifacts/
+          if-no-files-found: error
+          retention-days: 7
