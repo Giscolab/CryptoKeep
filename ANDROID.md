@@ -39,7 +39,7 @@ x86_64, installer aussi la cible Rust correspondante et remplacer `aarch64` par
 ## Compatibilité et protections
 
 Le démarrage Rust partagé possède une entrée mobile. Le répertoire WebView2 est
-réservé à Windows. Android utilise le profil `fr.giscolab.cryptokeep.test` et
+réservé à Windows. CryptoKeep Mobile utilise le profil `fr.giscolab.cryptokeep.dev` et
 l'origine locale HTTPS `https://tauri.localhost`; aucun site distant n'est chargé.
 Le précontrôle exige Web Crypto, Web Locks, IndexedDB et localStorage. Un WebView
 Android ancien ou incompatible doit refuser de démarrer, jamais abaisser les contrôles.
@@ -120,3 +120,23 @@ PC/téléphone. L'import remplace un instantané, sans fusion automatique.
 
 La signature stable, les tests d'appareil, la revue des dépendances et la validation
 mobile restent des préalables à un usage quotidien avec de vrais mots de passe.
+
+## Interface Android adaptée
+
+L’interface Android possède son propre habillage, activé par le marqueur natif :
+barre inférieure Accueil/Coffre/Sécurité/Réglages, ouverture directe du coffre,
+commandes tactiles de 44 pixels minimum, fiches verticales, filtres à faire glisser,
+recherche pleine largeur, formulaires défilants et adaptations tablette/paysage.
+Le thème Android par défaut est bleu nuit et menthe ; les autres thèmes restent
+sélectionnables. Les feuilles et la structure de présentation PC sont conservées.
+Les tests vérifient les quatre vues à 360×800, 390×844, 412×915, 768×1024 et 844×390.
+Les captures et essais utilisent exclusivement un coffre fictif.
+
+Les commandes Android utilisent désormais `tauri.android-mobile.conf.json`,
+qui complète la configuration Android avec le nom **CryptoKeep Mobile** et
+l’identifiant `fr.giscolab.cryptokeep.dev`. L’application s’installe à côté de
+la première préversion `fr.giscolab.cryptokeep.test`, avec son propre stockage.
+Cela préserve l’installation existante, dont la signature de débogage ne peut
+pas être réutilisée depuis l’APK seul. Ne pas désinstaller l’ancienne application
+pour essayer cette version : importer une copie chiffrée dans la nouvelle.
+Une signature de distribution stable reste nécessaire pour les mises à jour durables.

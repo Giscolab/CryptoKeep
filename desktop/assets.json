@@ -1,8 +1,10 @@
 [
+  "desktop/android-ui.js",
   "desktop/bootstrap.js",
   "desktop/contract.mjs",
   "desktop/preflight.js",
   "index.html",
+  "public/android.css",
   "public/base/global.css",
   "public/base/reset.css",
   "public/base/tokens.css",

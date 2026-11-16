@@ -21,8 +21,8 @@
     "desktop:installer": "node tests/desktop/installer.spec.mjs && tauri build --config src-tauri/tauri.test.conf.json --config src-tauri/tauri.installer.conf.json --bundles nsis --target x86_64-pc-windows-msvc -- --locked",
     "desktop:production": "node tests/desktop/installer.spec.mjs && tauri build --config src-tauri/tauri.production.conf.json --bundles nsis --target x86_64-pc-windows-msvc -- --locked",
     "test:desktop": "node tests/desktop.spec.js && node tests/desktop/installer.spec.mjs && node tests/desktop/browser.spec.mjs",
-    "android:init": "tauri android init --ci --skip-targets-install --config src-tauri/tauri.android.conf.json && python scripts/android/harden.py",
-    "android:build": "tauri android build --debug --apk --target aarch64 --config src-tauri/tauri.android.conf.json -- --locked",
+    "android:init": "tauri android init --ci --skip-targets-install --config src-tauri/tauri.android-mobile.conf.json && python scripts/android/harden.py",
+    "android:build": "tauri android build --debug --apk --target aarch64 --config src-tauri/tauri.android-mobile.conf.json -- --locked",
     "tauri": "tauri",
     "test:android:browser": "node tests/desktop/android-browser.spec.mjs"
   },

@@ -3,12 +3,12 @@
  * Android, a native file picker, or Android lifecycle callbacks. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { createServer as createPortServer } from 'node:net';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
-import { join, extname } from 'node:path';
+import { join, extname, isAbsolute } from 'node:path';
 import { stageDesktop } from '../../scripts/desktop/prepare.mjs';
 import { DESKTOP_CSP } from '../../desktop/contract.mjs';
 import { ClientCdp, trouverNavigateur } from '../browser/cdp-client.mjs';
@@ -40,6 +40,121 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let active = null;
 let remoteAttempts = 0;
 const exceptions = [];
+// Screenshots are opt-in, so CI does not write outside its checkout by default.
+const screenshotDir = process.env.CRYPTOKEEP_SCREENSHOT_DIR;
+if (screenshotDir) {
+  assert.ok(isAbsolute(screenshotDir), 'Screenshot directory must be absolute');
+  mkdirSync(screenshotDir, { recursive: true });
+}
+
+async function resize(browser, width, height) {
+  await browser.cdp.envoyer('Emulation.setDeviceMetricsOverride', {
+    width, height, deviceScaleFactor: 1, mobile: true
+  }, browser.sessionId);
+  await browser.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+}
+
+async function screenshot(browser, name) {
+  if (!screenshotDir) return;
+  await delay(200);
+  const result = await browser.cdp.envoyer('Page.captureScreenshot', {
+    format: 'png', captureBeyondViewport: false, fromSurface: true
+  }, browser.sessionId);
+  writeFileSync(join(screenshotDir, name + '.png'), Buffer.from(result.data, 'base64'));
+}
+
+async function responsiveAuthentication(browser) {
+  for (const [width, height] of [[360, 800], [390, 844], [412, 915], [768, 1024], [844, 390]]) {
+    await resize(browser, width, height);
+    const layout = await browser.evaluate(`(() => {
+      const controls = ['master-password', 'unlock-vault', 'btn-import-locked'].map(id => {
+        const node = document.getElementById(id), box = node.getBoundingClientRect();
+        return { id, x:box.x, right:box.right, width:box.width, height:box.height };
+      });
+      return { pageWidth:document.scrollingElement.scrollWidth, viewport:innerWidth, controls };
+    })()`);
+    assert.ok(layout.pageWidth <= layout.viewport + 1, `${width}x${height}: authentication does not overflow horizontally`);
+    for (const control of layout.controls) {
+      assert.ok(control.x >= -1 && control.right <= width + 1 && control.width >= 44 && control.height >= 44,
+        `${width}x${height}: accessible authentication control ` + JSON.stringify(control));
+    }
+  }
+  await resize(browser, 390, 844);
+  await screenshot(browser, 'android-auth-390x844');
+  console.log('PASS responsive Android authentication: five sizes, no horizontal overflow and 44px controls');
+}
+
+async function responsiveEntryDialog(browser) {
+  await browser.evaluate("document.querySelector('.add-button').click()");
+  await waitFor(() => browser.evaluate("document.getElementById('passwordModal').classList.contains('active')"), 'new entry dialog');
+  await waitFor(() => browser.evaluate("Number(getComputedStyle(document.getElementById('passwordModal')).opacity) >= 0.99 && getComputedStyle(document.getElementById('passwordModal')).visibility === 'visible'"), 'new entry dialog fully painted');
+  for (const [width, height] of [[360, 800], [390, 844], [844, 390]]) {
+    await resize(browser, width, height);
+    const layout = await browser.evaluate(`(() => {
+      const dialog = document.querySelector('#passwordModal .password-modal'), rect = dialog.getBoundingClientRect();
+      return {x:rect.x,y:rect.y,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height,
+        clientWidth:dialog.clientWidth,scrollWidth:dialog.scrollWidth};
+    })()`);
+    assert.ok(layout.x >= -1 && layout.right <= width + 1 && layout.y >= -1 && layout.bottom <= height + 1,
+      `${width}x${height}: entry dialog stays within viewport and can scroll internally: ` + JSON.stringify(layout));
+    assert.ok(layout.scrollWidth <= layout.clientWidth + 1, `${width}x${height}: entry dialog has no horizontal overflow`);
+    await browser.evaluate("document.querySelector('#entry-form button[type=submit]').scrollIntoView({block:'nearest'})");
+    const submit = await browser.evaluate("(() => {const r=document.querySelector('#entry-form button[type=submit]').getBoundingClientRect();return {y:r.y,bottom:r.bottom,height:r.height};})()");
+    assert.ok(submit.y >= -1 && submit.bottom <= height + 1 && submit.height >= 44,
+      `${width}x${height}: entry save action is reachable: ` + JSON.stringify(submit));
+    if (width === 390) await screenshot(browser, 'android-entry-dialog-390x844');
+  }
+  await browser.evaluate("document.getElementById('closeAddModal').click()");
+  await resize(browser, 390, 844);
+  console.log('PASS responsive entry dialog: viewport bounds, internal scrolling and reachable save button in portrait and landscape');
+}
+
+async function responsiveGeometry(browser) {
+  const sizes = [[360, 800], [390, 844], [412, 915], [768, 1024], [844, 390]];
+  const destinations = ['nav-dashboard', 'nav-passwords', 'nav-security', 'nav-settings'];
+  for (const [width, height] of sizes) {
+    await resize(browser, width, height);
+    for (const destination of destinations) {
+      await browser.evaluate(`document.getElementById(${JSON.stringify(destination)}).click()`);
+      await browser.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      const layout = await browser.evaluate(`(() => {
+        const main = document.querySelector('.main');
+        const rect = (element) => {
+          const box = element.getBoundingClientRect();
+          return { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom };
+        };
+        const nav = Array.from(document.querySelectorAll('.sidebar nav a')).map(link => {
+          const label = link.querySelector('.nav-text');
+          return { id: link.id, ...rect(link), label: label ? rect(label) : null,
+            labelVisible: !!label && getComputedStyle(label).display !== 'none' && getComputedStyle(label).visibility !== 'hidden' };
+        });
+        return { platform: document.documentElement.dataset.platform,
+          pageWidth: document.scrollingElement.scrollWidth, viewport: innerWidth,
+          mainClientWidth: main.clientWidth, mainScrollWidth: main.scrollWidth, nav };
+      })()`);
+      const context = `${width}x${height} ${destination}`;
+      assert.equal(layout.platform, 'android', context + ': Android-specific layout is active');
+      assert.ok(layout.pageWidth <= layout.viewport + 1, context + ': no horizontal page overflow: ' + JSON.stringify(layout));
+      assert.ok(layout.mainScrollWidth <= layout.mainClientWidth + 1, context + ': no horizontal main overflow: ' + JSON.stringify(layout));
+      assert.equal(layout.nav.length, 4, context + ': all primary destinations are present');
+      for (const link of layout.nav) {
+        assert.ok(link.width >= 44 && link.height >= 44, context + ': touch target ' + link.id);
+        assert.ok(link.x >= -1 && link.right <= width + 1 && link.y >= -1 && link.bottom <= height + 1,
+          context + ': navigation remains on screen: ' + JSON.stringify(link));
+        assert.ok(link.labelVisible && link.label.width > 0 && link.label.height > 0,
+          context + ': visible navigation label for ' + link.id);
+      }
+      if (destination === 'nav-passwords' && (width === 360 || width === 390 || width === 768 || width === 844)) {
+        await screenshot(browser, `android-vault-${width}x${height}`);
+      }
+      if (destination === 'nav-settings' && width === 390) await screenshot(browser, 'android-settings-390x844');
+      if (destination === 'nav-dashboard' && width === 390) await screenshot(browser, 'android-dashboard-390x844');
+    }
+  }
+  await resize(browser, 390, 844);
+  await browser.evaluate("document.getElementById('nav-passwords').click()");
+  console.log('PASS responsive Android geometry: five portrait/tablet/landscape sizes, four views, visible labels and 44px navigation targets');
+}
 
 async function waitFor(test, description) {
   for (let attempt = 0; attempt < 150; attempt++) {
@@ -111,6 +226,7 @@ async function start() {
   await cdp.envoyer('Page.navigate', { url: origin + '/index.html' }, sessionId);
   await cdp.envoyer('Page.bringToFront', {}, sessionId);
   await waitFor(() => evaluate("!!document.getElementById('btn-import-locked') && !document.getElementById('btn-import-locked').hidden && !document.getElementById('btn-import-locked').disabled && !document.getElementById('unlock-vault').disabled"), 'Android locked-screen bootstrap');
+  await waitFor(() => evaluate("Array.from(document.styleSheets).some(sheet => sheet.href?.endsWith('/public/android.css'))"), 'Android presentation stylesheet');
   return { cdp, sessionId, evaluate, chooserOpened: () => chooserOpened };
 }
 
@@ -131,6 +247,7 @@ async function unlock(browser) {
 
 try {
   let browser = await start();
+  await responsiveAuthentication(browser);
   assert.equal(await browser.evaluate("document.getElementById('vault-ui').hidden"), true);
   assert.equal(await browser.evaluate("document.getElementById('btn-import-locked').getBoundingClientRect().width > 0"), true);
   assert.equal(await browser.evaluate("(async () => { const {vaultManager:m}=await import('/scripts/core/vault/manager.js');return await m.storage.loadVault(); })()"), null);
@@ -166,6 +283,14 @@ try {
   console.log('PASS Android-marked first-launch import: visible locked-screen button, real File input, password and explicit confirmation, encrypted persistence without creating a vault');
   await unlock(browser);
   console.log('PASS imported vault unlocks through the authentication form and retains a non-extractable key');
+  const notifications = await browser.evaluate(`(() => {
+    const nav = document.querySelector('.sidebar').getBoundingClientRect();
+    return Array.from(document.querySelectorAll('#toast-container .toast')).map(node => ({bottom:node.getBoundingClientRect().bottom,navTop:nav.top}));
+  })()`);
+  assert.ok(notifications.every(item => item.bottom <= item.navTop + 1), 'Import notifications do not obstruct bottom navigation');
+  await browser.evaluate("document.querySelectorAll('.toast__close').forEach(button => button.click())");
+  await responsiveGeometry(browser);
+  await responsiveEntryDialog(browser);
   // Explicitly synthetic visibility transition: tests the installed app handler,
   // not an Android Activity or an OEM WebView's delivery of lifecycle events.
   await browser.evaluate("Object.defineProperty(document, 'hidden', { configurable:true, value:true }); document.dispatchEvent(new Event('visibilitychange')); true");
