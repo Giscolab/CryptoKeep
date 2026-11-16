@@ -7,7 +7,8 @@ import { getRuntimePolicy } from './core/runtime-policy.js';
 // le choix CSV/JSON et les confirmations explicites des fichiers en clair.
 import { initVaultExportControls } from './ui/vault-export.js';
 import {
-	vaultManager
+	vaultManager,
+	VaultSessionError
 } from './core/vault/manager.js';
 import { assertSecureWebCrypto } from './core/crypto/runtime.js';
 // L'implementation historique AutoLock reste disponible dans
@@ -25,6 +26,7 @@ import {
 } from './security/master-password-field.js';
 import { initLogoutControl } from './security/logout.js';
 import { importVaultFile } from './core/storage/vault-import-service.js';
+import { recordsAreIdentical } from './core/storage/vault-transaction.js';
 import {
 	inspectRestoreSituation,
 	restoreBackupWhenPrimaryMissing
@@ -615,13 +617,21 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 	if (!file) return;
 
 	try {
-		const sessionGuard = vaultManager.captureSessionGuard();
+		const lifecycleEpoch = vaultManager.sessionEpoch;
+		const sessionGuard = vaultManager.masterKey ? vaultManager.captureSessionGuard() : null;
+		const lockedRecord = sessionGuard ? null : await vaultManager.storage.loadVault();
+		const isImportCurrent = () => sessionGuard
+			? vaultManager.isSessionGuardCurrent(sessionGuard)
+			: !vaultManager.masterKey && vaultManager.sessionEpoch === lifecycleEpoch;
 		const report = await importVaultFile(file, {
 			storage: vaultManager.storage,
 			assertSessionCurrent: (record) => {
-				vaultManager.assertSessionCurrent(sessionGuard, record);
+				if (sessionGuard) vaultManager.assertSessionCurrent(sessionGuard, record);
+				else if (!isImportCurrent() || !recordsAreIdentical(record, lockedRecord)) {
+					throw new VaultSessionError('session_changed', 'Le coffre ou la session a changé pendant l’import.', { written: false });
+				}
 			},
-			isSessionCurrent: () => vaultManager.isSessionGuardCurrent(sessionGuard),
+			isSessionCurrent: isImportCurrent,
 			requestPassword: requestPasswordDialog,
 			confirmImport: (summary) => confirmDialog({
 				title: 'Remplacer le coffre actuel ?',
@@ -642,7 +652,7 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 		// Seule la session qui a lance l'import peut etre fermee par sa
 		// continuation. Une session verrouillee puis rouverte entre-temps ne
 		// doit jamais etre effacee par cette ancienne operation asynchrone.
-		if (!report.superseded && vaultManager.isSessionGuardCurrent(sessionGuard)) {
+		if (!report.superseded && isImportCurrent()) {
 			vaultManager.isFirstTime = false;
 			if (unlockButton) unlockButton.textContent = 'Déverrouiller le coffre';
 			await lockVaultSession(vaultManager, { notify: false });

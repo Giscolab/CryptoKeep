@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   apk:
@@ -43,6 +43,10 @@ jobs:
           node tests/desktop.spec.js
           node tests/vault-import-service.spec.js
           node tests/crypto-integrity.spec.js
+      - name: Android-marked synthetic browser journey
+        env:
+          CRYPTOKEEP_BROWSER: /usr/bin/google-chrome
+        run: npm run test:android:browser
       - name: Generate Android scaffold with locked Tauri CLI
         run: npm run android:init
       - name: Compile installable debug APK with locked Cargo dependencies

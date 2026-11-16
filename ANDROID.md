@@ -89,7 +89,10 @@ ses données locales. Ce paquet est réservé à la validation synthétique.
 partagé : import, ouverture, clé non extractible, verrouillage, mauvais mot de
 passe, altération, annulation et refus v1 sans écrasement du coffre courant.
 Les suites existantes couvrent crypto, transactions, import, sauvegardes et bureau.
-Ces tests Node ne prouvent pas le comportement du sélecteur ou du WebView Android.
+Le parcours `npm run test:android:browser` vérifie aussi dans Chromium l’import
+dès le premier accueil, la confirmation, le déverrouillage, la purge après un
+événement de visibilité simulé et la persistance après redémarrage complet.
+Ces tests ne prouvent pas le comportement du sélecteur ou du WebView Android.
 La compilation APK ne remplace pas un essai sur appareil.
 La suite générale de documentation comporte déjà des références manquantes dans
 le commit de départ; ne pas présenter `npm test` comme intégralement vert.
