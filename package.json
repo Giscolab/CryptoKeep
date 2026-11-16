@@ -22,7 +22,8 @@
     "desktop:production": "node tests/desktop/installer.spec.mjs && tauri build --config src-tauri/tauri.production.conf.json --bundles nsis --target x86_64-pc-windows-msvc -- --locked",
     "test:desktop": "node tests/desktop.spec.js && node tests/desktop/installer.spec.mjs && node tests/desktop/browser.spec.mjs",
     "android:init": "tauri android init --ci --skip-targets-install --config src-tauri/tauri.android.conf.json && python scripts/android/harden.py",
-    "android:build": "tauri android build --debug --apk --target aarch64 --config src-tauri/tauri.android.conf.json -- --locked"
+    "android:build": "tauri android build --debug --apk --target aarch64 --config src-tauri/tauri.android.conf.json -- --locked",
+    "tauri": "tauri"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

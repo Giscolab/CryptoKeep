@@ -43,7 +43,10 @@ Le précontrôle exige Web Crypto, Web Locks, IndexedDB et localStorage. Un WebV
 Android ancien ou incompatible doit refuser de démarrer, jamais abaisser les contrôles.
 Android 9 minimum est configuré, mais un Android System WebView récent est requis.
 La CSP, les capacités Tauri vides et la politique hors ligne sont conservées.
-Le manifeste généré refuse sauvegardes système et trafic HTTP non chiffré;
+Le manifeste généré désactive les sauvegardes et le trafic HTTP non chiffré;
+des exclusions explicites couvrent le cloud et le transfert entre appareils
+sous Android 12+. Voir la documentation Android officielle :
+https://developer.android.com/identity/data/autobackup .
 FLAG_SECURE protège captures d'écran et aperçus sur les appareils qui le respectent.
 Le passage en arrière-plan signalé par le WebView verrouille la session et purge
 les données rendues; ce mécanisme dépend des événements du système et ne constitue

@@ -14,7 +14,16 @@ if app is None:
 app.set(f'{{{ns}}}allowBackup', 'false')
 app.set(f'{{{ns}}}fullBackupContent', 'false')
 app.set(f'{{{ns}}}usesCleartextTraffic', 'false')
-app.attrib.pop(f'{{{ns}}}dataExtractionRules', None)
+app.set(f'{{{ns}}}dataExtractionRules', '@xml/cryptokeep_extraction_rules')
+rules = ET.Element('data-extraction-rules')
+for mode in ('cloud-backup', 'device-transfer'):
+    section = ET.SubElement(rules, mode)
+    for domain in ('root', 'file', 'database', 'sharedpref', 'external',
+                   'device_root', 'device_file', 'device_database', 'device_sharedpref'):
+        ET.SubElement(section, 'exclude', domain=domain, path='.')
+resources = root / 'res/xml'
+resources.mkdir(parents=True, exist_ok=True)
+ET.ElementTree(rules).write(resources / 'cryptokeep_extraction_rules.xml', encoding='utf-8', xml_declaration=True)
 tree.write(manifest, encoding='utf-8', xml_declaration=True)
 activities = list(root.glob('java/**/MainActivity.kt'))
 if len(activities) != 1:

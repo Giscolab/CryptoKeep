@@ -398,6 +398,8 @@ vaultManager.initializeStorage().then(async () => {
 	}
 
 	vaultReady = true;
+	const lockedImport = document.getElementById('btn-import-locked');
+	if (lockedImport) lockedImport.disabled = false;
 	if (unlockButton) unlockButton.disabled = false;
 }).catch((err) => {
 	console.error('[ERREUR] Impossible d’ouvrir la base IndexedDB :', err);
@@ -595,6 +597,13 @@ initVaultExportControls();
 document.getElementById('btn-import').addEventListener('click', () => {
 	document.getElementById('file-import').click();
 });
+const lockedImportButton = document.getElementById('btn-import-locked');
+if (lockedImportButton && globalThis.__CRYPTOKEEP_DESKTOP__?.platform === 'android') {
+	lockedImportButton.hidden = false;
+	lockedImportButton.addEventListener('click', () => {
+		if (vaultReady) document.getElementById('file-import').click();
+	});
+}
 // === IMPORT DU COFFRE (.vault)
 // Lot 2 : le coffre courant n'est plus remplace avant validation structurelle
 // ET cryptographique complete, puis confirmation explicite. Le confirm()
@@ -634,6 +643,8 @@ document.getElementById('file-import').addEventListener('change', async (e) => {
 		// continuation. Une session verrouillee puis rouverte entre-temps ne
 		// doit jamais etre effacee par cette ancienne operation asynchrone.
 		if (!report.superseded && vaultManager.isSessionGuardCurrent(sessionGuard)) {
+			vaultManager.isFirstTime = false;
+			if (unlockButton) unlockButton.textContent = 'Déverrouiller le coffre';
 			await lockVaultSession(vaultManager, { notify: false });
 			autoLock.disarm();
 		}
