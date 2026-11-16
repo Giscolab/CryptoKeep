@@ -452,6 +452,15 @@ function reconcileVisibleVaultSession() {
 		.finally(() => { reconciliationPromise = null; });
 }
 document.addEventListener('visibilitychange', reconcileVisibleVaultSession);
+// Android sessions close when the WebView reports backgrounding. This also
+// invalidates an in-progress import when the file picker hides the WebView.
+if (globalThis.__CRYPTOKEEP_DESKTOP__?.platform === 'android') {
+	document.addEventListener('visibilitychange', () => {
+		if (!document.hidden) return;
+		void lockVaultSession(vaultManager, { notify: false });
+		autoLock.disarm();
+	});
+}
 window.addEventListener('focus', reconcileVisibleVaultSession);
 
 // === Deconnexion manuelle (Lot 1) ===

@@ -1,0 +1,58 @@
+name: Android synthetic preview
+on:
+  workflow_dispatch:
+  push:
+    branches: ['android/**']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.0'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17.0.17+10'
+      - uses: android-actions/setup-android@v3
+      - name: Install fixed Android components
+        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+      - name: Set NDK and Rust toolchain
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          rustup toolchain install 1.90.0 --profile minimal --target aarch64-linux-android
+          rustup default 1.90.0
+      - run: npm ci --ignore-scripts
+      - name: Synthetic compatibility and desktop checks
+        run: |
+          node tests/android.spec.js
+          node tests/desktop.spec.js
+          node tests/vault-import-service.spec.js
+          node tests/crypto-integrity.spec.js
+      - name: Generate Android scaffold with locked Tauri CLI
+        run: npm run android:init
+      - name: Compile installable debug APK with locked Cargo dependencies
+        run: npm run android:build
+      - name: Record build inputs and APK checksums
+        run: |
+          mkdir -p android-artifacts
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} android-artifacts/ \;
+          sha256sum android-artifacts/*.apk > android-artifacts/SHA256SUMS
+          git rev-parse HEAD > android-artifacts/COMMIT
+          rustc --version > android-artifacts/TOOLCHAIN
+          node --version >> android-artifacts/TOOLCHAIN
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cryptokeep-android-synthetic-preview
+          path: android-artifacts/
+          if-no-files-found: error
+          retention-days: 7
