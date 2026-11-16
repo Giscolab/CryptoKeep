@@ -6,6 +6,7 @@ import { buildSyntheticVault, FakeVaultStorage, FakeLocalStorage, makeVaultFile,
 import { importVaultFile } from '../scripts/core/storage/vault-import-service.js';
 import { VaultManager } from '../scripts/core/vault/manager.js';
 
+try {
 const password = 'Android-SYNTHETIC-only-2026!';
 const entry = { id: 'synthetic', title: 'Example', username: 'demo@example.invalid', password: 'Synthetic-only!', created_at: '2026-01-01T00:00:00.000Z', last_modified: '2026-01-01T00:00:00.000Z' };
 const runtime = { __CRYPTOKEEP_DESKTOP__: { channel: 'test', platform: 'android', expectedOrigin: 'https://tauri.localhost' }, location: { origin: 'https://tauri.localhost' }, isSecureContext: true, crypto, navigator: { locks: { request() {} } }, indexedDB: {}, localStorage: {} };
@@ -40,3 +41,8 @@ for (const [candidate, overrides] of [
   assert.equal(storage.writes, writes);
 }
 console.log('PASS Android shared runtime, synthetic File import/unlock, wrong password, tampering, cancellation, legacy refusal; existing record preserved.');
+
+} catch (error) {
+  console.error(error);
+  process.exitCode = 1;
+}
