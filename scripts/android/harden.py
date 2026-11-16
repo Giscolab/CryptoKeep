@@ -4,6 +4,22 @@ import xml.etree.ElementTree as ET
 import re
 
 root = Path(__file__).resolve().parents[2] / 'src-tauri/gen/android/app/src/main'
+# The CLI otherwise selects an SDK based on the runner's installed inventory.
+gradle = root.parents[1] / 'build.gradle.kts'
+source = gradle.read_text(encoding='utf-8')
+for setting in ('compileSdk', 'targetSdk'):
+    source, count = re.subn(r'\b' + setting + r'\s*=\s*\d+', setting + ' = 37', source)
+    if count != 1:
+        raise RuntimeError('Review generated Android SDK setting: ' + setting)
+if re.search(r'\bbuildToolsVersion\s*=', source):
+    source, count = re.subn(r'\bbuildToolsVersion\s*=\s*"[^"]+"', 'buildToolsVersion = "37.0.0"', source)
+    if count != 1:
+        raise RuntimeError('Unexpected generated build tools setting')
+else:
+    source, count = re.subn(r'\bandroid\s*\{', 'android {\n    buildToolsVersion = "37.0.0"', source, count=1)
+    if count != 1:
+        raise RuntimeError('Missing generated Android Gradle block')
+gradle.write_text(source, encoding='utf-8')
 manifest = root / 'AndroidManifest.xml'
 ns = 'http://schemas.android.com/apk/res/android'
 ET.register_namespace('android', ns)
